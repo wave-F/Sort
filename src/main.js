@@ -7,7 +7,6 @@ const cutsEl = document.getElementById("cuts");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
 const startScreenEl = document.getElementById("start-screen");
-const pauseOverlayEl = document.getElementById("pause-overlay");
 const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
 const startBtn = document.getElementById("start-btn");
@@ -30,7 +29,6 @@ const colors = [
 const state = {
   started: false,
   gameOver: false,
-  breakPaused: false,
   score: 0,
   usedCuts: 0,
   pointerDown: false,
@@ -38,6 +36,7 @@ const state = {
   sliceBroken: false,
   sliceCommitted: false,
   sliceHitIds: new Set(),
+  sliceQueue: [],
   lastPoint: null,
   nowPoint: null,
   lastMoveAt: 0,
@@ -126,14 +125,15 @@ async function createRenderer() {
 function startGame() {
   state.started = true;
   state.gameOver = false;
-  state.breakPaused = false;
   state.score = 0;
   state.usedCuts = 0;
   state.pointerDown = false;
   state.sliceColorId = null;
   state.sliceBroken = false;
   state.sliceCommitted = false;
+  clearQueuedSelections();
   state.sliceHitIds.clear();
+  state.sliceQueue.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
 
@@ -142,7 +142,6 @@ function startGame() {
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
-  pauseOverlayEl.classList.add("hidden");
 
   updateHud();
   setSliceStatus("状态: 待机");
@@ -209,15 +208,6 @@ function resetFruits() {
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || !renderer) return;
 
-  if (state.breakPaused) {
-    state.breakPaused = false;
-    state.sliceBroken = false;
-    pauseOverlayEl.classList.add("hidden");
-    trail.reset();
-    setSliceStatus("状态: 已恢复");
-    return;
-  }
-
   if (state.usedCuts >= rules.maxCuts) {
     endGame("刀数已用完");
     return;
@@ -230,7 +220,9 @@ function onPointerDown(ev) {
   state.sliceColorId = null;
   state.sliceBroken = false;
   state.sliceCommitted = false;
+  clearQueuedSelections();
   state.sliceHitIds.clear();
+  state.sliceQueue.length = 0;
 
   const world = screenToWorld(ev.clientX, ev.clientY);
   state.lastPoint = world.clone();
@@ -260,6 +252,8 @@ function onPointerUp() {
   state.lastPoint = null;
   state.nowPoint = null;
 
+  settleQueuedSlices();
+
   if (state.gameOver) return;
   if (state.sliceBroken) setSliceStatus("状态: 断刀");
   else if (state.sliceColorId !== null) setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
@@ -274,11 +268,6 @@ function tick() {
   const now = performance.now();
 
   updateTrail(now);
-
-  if (state.breakPaused) {
-    renderer.render(scene, camera);
-    return;
-  }
 
   resolveFruitCollisions();
 
@@ -297,9 +286,9 @@ function tick() {
 }
 
 function updateTrail(now) {
-  if (!state.breakPaused) trail.prune(now, 260);
+  trail.prune(now, 260);
   trail.rebuild(state.sliceBroken);
-  if (!state.pointerDown && !state.breakPaused && now - state.lastMoveAt > 320) trail.reset();
+  if (!state.pointerDown && now - state.lastMoveAt > 320) trail.reset();
 }
 
 function processSliceSegment(dt) {
@@ -336,24 +325,59 @@ function processSliceSegment(dt) {
     }
 
     if (fruit.colorId !== state.sliceColorId) {
+      fruit.flashWrongHit();
+      settleQueuedSlices();
       state.sliceBroken = true;
-      state.breakPaused = true;
       state.pointerDown = false;
       state.lastPoint = null;
       state.nowPoint = null;
-      pauseOverlayEl.classList.remove("hidden");
-      setSliceStatus(`状态: 断刀（碰到${colors[fruit.colorId].name}）`);
-      showCommentary("断刀暂停，点一下继续。", 1800);
+      setSliceStatus(`状态: 断刀（碰到${colors[fruit.colorId].name}，已结算）`);
+      showCommentary(`碰到${colors[fruit.colorId].name}，已结算已选水果。`, 1500);
       return;
     }
 
     state.sliceHitIds.add(fruit.id);
-    fruit.slice(sliceDir, speed);
-    particles.spawnBurst(fruit.group.position, sliceDir, fruit.peel);
-    state.score += 1;
-    updateHud();
+    state.sliceQueue.push({
+      fruit,
+      sliceDir: sliceDir.clone(),
+      speed,
+    });
+    fruit.setSelected(true);
+    setSliceStatus(`状态: 已选${state.sliceHitIds.size}个${colors[state.sliceColorId].name}`);
     return;
   }
+}
+
+function settleQueuedSlices() {
+  if (!state.sliceQueue.length) return;
+
+  let gain = 0;
+  for (let i = 0; i < state.sliceQueue.length; i += 1) {
+    const entry = state.sliceQueue[i];
+    const fruit = entry.fruit;
+    if (!fruit || !fruit.active || fruit.sliced) continue;
+
+    fruit.setSelected(false);
+    fruit.slice(entry.sliceDir, entry.speed);
+    particles.spawnBurst(fruit.group.position, entry.sliceDir, fruit.peel);
+    gain += 1;
+  }
+
+  clearQueuedSelections();
+
+  if (gain > 0) {
+    state.score += gain;
+    updateHud();
+  }
+}
+
+function clearQueuedSelections() {
+  for (let i = 0; i < state.sliceQueue.length; i += 1) {
+    const fruit = state.sliceQueue[i].fruit;
+    if (fruit) fruit.setSelected(false);
+  }
+  state.sliceQueue.length = 0;
+  state.sliceHitIds.clear();
 }
 
 function resolveFruitCollisions() {
@@ -470,10 +494,9 @@ function showCommentary(text, durationMs) {
 function endGame(reason) {
   if (state.gameOver) return;
   state.gameOver = true;
-  state.breakPaused = false;
   state.pointerDown = false;
+  clearQueuedSelections();
   trail.reset();
-  pauseOverlayEl.classList.add("hidden");
 
   gameOverTitleEl.textContent =
     reason === "清屏成功" ? `清屏成功！本局分数 ${state.score}` : `本局结束！本局分数 ${state.score}`;
@@ -492,6 +515,9 @@ class FruitEntity {
     this.active = true;
     this.sliced = false;
     this.life = 0;
+    this.selected = false;
+    this.selectedPulse = 0;
+    this.wrongFlash = 0;
 
     this.vel = new THREE.Vector3(THREE.MathUtils.randFloatSpread(1.2), THREE.MathUtils.randFloatSpread(1.2), 0);
     this.velA = new THREE.Vector3();
@@ -501,9 +527,10 @@ class FruitEntity {
     this.whole = this.createWhole();
     this.halfA = this.createHalf(0, Math.PI);
     this.halfB = this.createHalf(Math.PI, Math.PI);
+    this.selectRing = this.createSelectRing();
     this.halfA.visible = false;
     this.halfB.visible = false;
-    this.group.add(this.whole, this.halfA, this.halfB);
+    this.group.add(this.whole, this.halfA, this.halfB, this.selectRing);
   }
 
   createWhole() {
@@ -549,11 +576,29 @@ class FruitEntity {
     return g;
   }
 
+  createSelectRing() {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(this.radius * 1.03, this.radius * 1.22, 36),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    ring.visible = false;
+    ring.position.z = 0.03;
+    return ring;
+  }
+
   setPosition(x, y, z) {
     this.group.position.set(x, y, z);
   }
 
   slice(sliceDir, speed) {
+    this.setSelected(false);
     this.sliced = true;
     this.life = 0;
     this.whole.visible = false;
@@ -597,6 +642,24 @@ class FruitEntity {
 
       this.vel.multiplyScalar(0.985);
       this.whole.rotation.z += dt * 0.35;
+
+      if (this.selected) {
+        this.selectedPulse += dt * 10;
+        const pulse = 1 + Math.sin(this.selectedPulse) * 0.07;
+        this.selectRing.visible = true;
+        this.selectRing.material.color.setHex(0xffffff);
+        this.selectRing.scale.set(pulse, pulse, 1);
+        this.selectRing.material.opacity = 0.52 + Math.sin(this.selectedPulse * 1.4) * 0.16;
+      } else if (this.wrongFlash > 0) {
+        this.wrongFlash = Math.max(0, this.wrongFlash - dt);
+        const t = this.wrongFlash / 0.22;
+        this.selectRing.visible = true;
+        this.selectRing.material.color.setHex(0xff5c5c);
+        this.selectRing.scale.set(1.06 + (1 - t) * 0.08, 1.06 + (1 - t) * 0.08, 1);
+        this.selectRing.material.opacity = 0.18 + t * 0.62;
+      } else {
+        this.selectRing.visible = false;
+      }
       return;
     }
 
@@ -609,9 +672,31 @@ class FruitEntity {
     this.halfB.rotation.z -= dt * 0.8;
 
     if (this.life > 1.1) {
+      this.setSelected(false);
+      this.wrongFlash = 0;
       this.active = false;
       this.group.visible = false;
     }
+  }
+
+  setSelected(flag) {
+    const next = Boolean(flag) && this.active && !this.sliced;
+    this.selected = next;
+    if (!next) {
+      this.selectRing.visible = false;
+      this.selectRing.material.opacity = 0;
+      this.selectRing.scale.set(1, 1, 1);
+    } else {
+      this.selectedPulse = 0;
+      this.selectRing.material.color.setHex(0xffffff);
+      this.selectRing.visible = true;
+      this.selectRing.material.opacity = 0.62;
+    }
+  }
+
+  flashWrongHit() {
+    if (!this.active || this.sliced) return;
+    this.wrongFlash = 0.22;
   }
 }
 

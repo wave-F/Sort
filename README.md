@@ -1,25 +1,35 @@
-# Fruit Slice MVP (WebGPU + Three.js)
+# 刀切水果（Three.js / WebGPU）
 
-Minimal playable prototype:
+## 项目简介
 
-- Fruits are pre-placed in the scene.
-- Player slices via mouse/touch drag.
-- Hit fruit swaps from whole mesh to two halves.
-- Halves split, spin, and spawn a short juice particle burst.
+这是一个轻量的网页端“刀切水果”原型项目，使用 Three.js 渲染，优先走 WebGPU，自动回退 WebGL。
 
-## Run
+核心玩法：
+- 鼠标/触摸滑动形成刀光轨迹。
+- 一刀内先锁定颜色，只能连续选择同色水果。
+- 滑动过程中先选中水果，滑动结束后再按顺序依次切割。
+- 命中异色会触发提示并立即结算本刀已选水果（不中断游戏）。
 
-Use any static server in this folder.
+## 运行方式
+
+在项目根目录启动任意静态服务器，例如：
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Then open:
+然后打开：
 
 `http://localhost:4173`
 
-## Notes
+## 目录说明
 
-- Requires a browser with WebGPU support.
-- Core logic lives in `src/main.js`.
+- `src/main.js`：核心玩法逻辑（输入、命中判定、结算、动画与特效）。
+- `src/styles.css`：界面样式。
+- `index.html`：入口页面。
+- `PROJECT_LOG.md`：项目迭代日志。
+
+## 说明
+
+- 推荐使用支持 WebGPU 的现代浏览器体验最佳效果。
+- 若 WebGPU 不可用，项目会自动使用 WebGL 渲染。
