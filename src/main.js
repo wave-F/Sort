@@ -26,9 +26,12 @@ const scoring = {
 const colors = [
   { id: "red", name: "红果", peel: 0xff5c5c, flesh: 0xffb7b7 },
   { id: "orange", name: "橙果", peel: 0xffa23b, flesh: 0xffd6a0 },
-  { id: "green", name: "青果", peel: 0x61c85d, flesh: 0xbee8aa },
+  { id: "green", name: "西瓜", peel: 0x4caf50, flesh: 0xff8a8a },
   { id: "purple", name: "紫果", peel: 0x8170df, flesh: 0xbeb3ef },
 ];
+
+const watermelonColorToken = "green";
+let watermelonStripeTexture = null;
 
 const selectedRingColor = 0xffdf73;
 
@@ -111,6 +114,39 @@ function createBackgroundTexture() {
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(4, 4);
   return texture;
+}
+
+function getWatermelonStripeTexture() {
+  if (watermelonStripeTexture) return watermelonStripeTexture;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#4caf50";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "#1b5e20";
+  ctx.lineWidth = 20;
+
+  const stripeCount = 10;
+  for (let i = 0; i < stripeCount; i += 1) {
+    const xBase = (i / stripeCount) * canvas.width;
+    ctx.beginPath();
+    ctx.moveTo(xBase, 0);
+    for (let y = 0; y <= canvas.height; y += 10) {
+      const xOffset = Math.sin(y * 0.05 + i) * 15;
+      ctx.lineTo(xBase + xOffset, y);
+    }
+    ctx.stroke();
+  }
+
+  watermelonStripeTexture = new THREE.CanvasTexture(canvas);
+  watermelonStripeTexture.wrapS = THREE.RepeatWrapping;
+  watermelonStripeTexture.wrapT = THREE.RepeatWrapping;
+  watermelonStripeTexture.needsUpdate = true;
+  return watermelonStripeTexture;
 }
 
 const bgPlane = new THREE.Mesh(
@@ -1473,6 +1509,10 @@ class FruitEntity {
   }
 
   createWhole() {
+    if (colors[this.colorId]?.id === watermelonColorToken) {
+      return this.createWatermelonWhole();
+    }
+
     const g = new THREE.Group();
     const bodyGeo = new THREE.IcosahedronGeometry(this.radius, 4);
     const pos = bodyGeo.attributes.position;
@@ -1525,7 +1565,47 @@ class FruitEntity {
     return g;
   }
 
+  createWatermelonWhole() {
+    const g = new THREE.Group();
+    const bodyGeo = new THREE.SphereGeometry(this.radius, 52, 52);
+    const peelMat = new THREE.MeshToonMaterial({
+      map: getWatermelonStripeTexture(),
+      color: 0xffffff,
+    });
+    const outlineMat = new THREE.MeshBasicMaterial({ color: 0x0a1a0a, side: THREE.BackSide });
+
+    const body = new THREE.Mesh(bodyGeo, peelMat);
+    const outline = new THREE.Mesh(bodyGeo, outlineMat);
+    outline.scale.set(1.04, 1.04, 1.04);
+
+    const bodyWrap = new THREE.Group();
+    bodyWrap.add(outline, body);
+    bodyWrap.scale.set(1.12, 1.12, 1.12);
+    g.add(bodyWrap);
+
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(this.radius * 0.12, this.radius * 0.35, 0),
+      new THREE.Vector3(-this.radius * 0.2, this.radius * 0.55, this.radius * 0.1)
+    );
+    const stemGeo = new THREE.TubeGeometry(curve, 18, this.radius * 0.035, 7, false);
+    const stem = new THREE.Mesh(stemGeo, new THREE.MeshToonMaterial({ color: 0x7aa73a }));
+    const stemOutline = new THREE.Mesh(stemGeo, outlineMat);
+    stemOutline.scale.set(1.5, 1.04, 1.5);
+
+    const stemWrap = new THREE.Group();
+    stemWrap.add(stemOutline, stem);
+    stemWrap.position.y = this.radius * 0.96;
+    g.add(stemWrap);
+
+    return g;
+  }
+
   createHalf(thetaStart, thetaLength) {
+    if (colors[this.colorId]?.id === watermelonColorToken) {
+      return this.createWatermelonHalf(thetaStart, thetaLength);
+    }
+
     const g = new THREE.Group();
     const peelHalfGeo = new THREE.SphereGeometry(this.radius * 0.98, 20, 14, thetaStart, thetaLength);
     const peelHalf = new THREE.Mesh(peelHalfGeo, new THREE.MeshToonMaterial({ color: this.peel, side: THREE.DoubleSide }));
@@ -1550,6 +1630,50 @@ class FruitEntity {
     seed.position.set(this.radius * 0.16, -this.radius * 0.06, 0.04);
 
     g.add(outline, peelHalf, cutFace, seed);
+    return g;
+  }
+
+  createWatermelonHalf(thetaStart, thetaLength) {
+    const g = new THREE.Group();
+    const peelHalfGeo = new THREE.SphereGeometry(this.radius * 0.98, 28, 20, thetaStart, thetaLength);
+    const peelHalf = new THREE.Mesh(
+      peelHalfGeo,
+      new THREE.MeshToonMaterial({
+        map: getWatermelonStripeTexture(),
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+      })
+    );
+    peelHalf.scale.set(1.1, 1.1, 1.1);
+
+    const outline = new THREE.Mesh(peelHalfGeo, new THREE.MeshBasicMaterial({ color: 0x0a1a0a, side: THREE.BackSide }));
+    outline.scale.set(1.16, 1.16, 1.16);
+
+    const rindBand = new THREE.Mesh(
+      new THREE.CircleGeometry(this.radius * 0.84, 22, thetaStart, thetaLength),
+      new THREE.MeshToonMaterial({ color: 0xf0f8d6, side: THREE.DoubleSide })
+    );
+    rindBand.position.z = 0.015;
+
+    const cutFace = new THREE.Mesh(
+      new THREE.CircleGeometry(this.radius * 0.74, 22, thetaStart, thetaLength),
+      new THREE.MeshToonMaterial({ color: this.flesh, side: THREE.DoubleSide })
+    );
+    cutFace.position.z = 0.028;
+
+    for (let i = 0; i < 4; i += 1) {
+      const t = (i + 1) / 5;
+      const a = thetaStart + thetaLength * t;
+      const seed = new THREE.Mesh(
+        new THREE.SphereGeometry(this.radius * 0.045, 8, 6),
+        new THREE.MeshToonMaterial({ color: 0x2f2017 })
+      );
+      seed.scale.set(1, 1.4, 0.9);
+      seed.position.set(Math.cos(a) * this.radius * 0.35, Math.sin(a) * this.radius * 0.26, 0.05);
+      g.add(seed);
+    }
+
+    g.add(outline, peelHalf, rindBand, cutFace);
     return g;
   }
 
