@@ -1,6 +1,6 @@
 :root {
-  --bg-1: #142130;
-  --bg-2: #2a4460;
+  --bg-1: #070b12;
+  --bg-2: #121b2b;
   --panel: rgba(14, 24, 39, 0.72);
   --text: #eaf4ff;
   --accent: #ffdf73;
@@ -23,7 +23,7 @@ body {
 }
 
 body {
-  background: radial-gradient(circle at 22% 10%, #4b6f94 0%, var(--bg-2) 35%, var(--bg-1) 82%);
+  background: radial-gradient(circle at 22% 10%, #1f2f47 0%, var(--bg-2) 34%, var(--bg-1) 84%);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -39,7 +39,7 @@ body {
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.48);
-  background: linear-gradient(145deg, #edf4fb 0%, #dbe7f4 100%);
+  background: linear-gradient(145deg, #121a27 0%, #0a0f18 100%);
 }
 
 #app,

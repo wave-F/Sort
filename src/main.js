@@ -57,7 +57,7 @@ const levelEditor = {
 };
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x91aac6, 8, 18);
+scene.fog = new THREE.Fog(0x0e1624, 8, 18);
 
 const camera = new THREE.OrthographicCamera();
 camera.position.set(0, 0, 9);
@@ -65,6 +65,7 @@ camera.lookAt(0, 0, 0);
 
 let renderer;
 let trail;
+let waterSplash;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -85,7 +86,7 @@ scene.add(key);
 
 const bgPlane = new THREE.Mesh(
   new THREE.PlaneGeometry(30, 30),
-  new THREE.MeshBasicMaterial({ color: 0x98c2eb, transparent: true, opacity: 0.16 })
+  new THREE.MeshBasicMaterial({ color: 0x1f2f47, transparent: true, opacity: 0.22 })
 );
 bgPlane.position.z = -1.5;
 scene.add(bgPlane);
@@ -120,7 +121,9 @@ async function setupRenderer() {
 
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
+  waterSplash = new RealisticWaterSplashFx(260, 28);
   scene.add(trail.mesh);
+  scene.add(waterSplash.group);
 
   renderer.setAnimationLoop(tick);
 }
@@ -167,6 +170,7 @@ function startGame() {
   state.nowPoint = null;
 
   trail.reset();
+  waterSplash.reset();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
@@ -192,6 +196,7 @@ function loadLevel(index) {
   state.nowPoint = null;
 
   trail.reset();
+  waterSplash.reset();
 
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
@@ -271,6 +276,7 @@ function randomizeCurrentLevelLayout() {
 
   clearQueuedSelections();
   trail.reset();
+  waterSplash.reset();
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
@@ -660,6 +666,8 @@ function tick() {
     if (fruit.active) alive += 1;
   }
 
+  waterSplash.update(dt);
+
   renderer.render(scene, camera);
 
   if (state.started && !state.gameOver && alive === 0) {
@@ -770,6 +778,7 @@ function settleQueuedSlices() {
 
     fruit.setSelected(false);
     fruit.slice(entry.sliceDir, entry.speed);
+    waterSplash.spawn(fruit.group.position, entry.sliceDir, entry.speed, fruit.radius);
     gain += 1;
   }
 
@@ -1355,6 +1364,202 @@ function onTrailCompareToggleChange(ev) {
   state.keepFullTrailDuringDrag = enabled;
   if (trail) trail.setKeepFullMode(enabled);
   if (enabled && !state.pointerDown) trail?.reset();
+}
+
+class RealisticWaterSplashFx {
+  constructor(dropCapacity, ringCapacity) {
+    this.dropCapacity = dropCapacity;
+    this.ringCapacity = ringCapacity;
+    this.group = new THREE.Group();
+    this.drops = [];
+    this.rings = [];
+
+    const dropGeo = new THREE.CircleGeometry(1, 14);
+    for (let i = 0; i < dropCapacity; i += 1) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const mesh = new THREE.Mesh(dropGeo, mat);
+      mesh.visible = false;
+      mesh.position.z = 0.06;
+      this.group.add(mesh);
+      this.drops.push({
+        active: false,
+        mesh,
+        vel: new THREE.Vector3(),
+        life: 0,
+        ttl: 0,
+        size: 0.05,
+        stretch: 1,
+      });
+    }
+
+    const ringGeo = new THREE.RingGeometry(0.7, 1.0, 44);
+    for (let i = 0; i < ringCapacity; i += 1) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xdff5ff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const mesh = new THREE.Mesh(ringGeo, mat);
+      mesh.visible = false;
+      mesh.position.z = 0.03;
+      this.group.add(mesh);
+      this.rings.push({
+        active: false,
+        mesh,
+        life: 0,
+        ttl: 0,
+        start: 0,
+        end: 1,
+      });
+    }
+  }
+
+  spawn(origin, sliceDir, speed, radius) {
+    const power = THREE.MathUtils.clamp(speed / 10, 0.6, 1.5);
+    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
+    const tangent = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
+    const dropCount = Math.floor(22 + radius * 36 + power * 20);
+
+    this.spawnRing(origin, radius * 0.8, radius * (2.2 + power * 0.6), 0.28);
+    this.spawnRing(origin, radius * 0.45, radius * (1.5 + power * 0.5), 0.2);
+
+    for (let i = 0; i < dropCount; i += 1) {
+      const item = this.allocDrop();
+      if (!item) return;
+
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const spread = THREE.MathUtils.randFloat(1.8, 5.8) * power;
+      const lift = THREE.MathUtils.randFloat(1.1, 4.4) * power;
+      const drift = THREE.MathUtils.randFloat(-1.8, 2.6) * power;
+
+      item.active = true;
+      item.life = 0;
+      item.ttl = THREE.MathUtils.randFloat(0.24, 0.66);
+      item.size = THREE.MathUtils.randFloat(radius * 0.055, radius * 0.15);
+      item.stretch = THREE.MathUtils.randFloat(1.1, 2.8);
+      item.mesh.visible = true;
+      item.mesh.position.set(
+        origin.x + THREE.MathUtils.randFloatSpread(radius * 0.5),
+        origin.y + THREE.MathUtils.randFloatSpread(radius * 0.5),
+        0.06
+      );
+
+      item.vel.copy(normal).multiplyScalar(side * spread);
+      item.vel.addScaledVector(tangent, drift);
+      item.vel.y += lift;
+      item.vel.z = THREE.MathUtils.randFloat(0.08, 0.58);
+
+      const tint = new THREE.Color(0xd8f4ff).offsetHSL(THREE.MathUtils.randFloatSpread(0.015), -0.05, THREE.MathUtils.randFloat(0.0, 0.07));
+      item.mesh.material.color.copy(tint);
+      item.mesh.material.opacity = THREE.MathUtils.randFloat(0.62, 0.95);
+      item.mesh.scale.set(item.size * item.stretch, item.size, 1);
+      item.mesh.rotation.z = Math.atan2(item.vel.y, item.vel.x);
+    }
+  }
+
+  spawnRing(origin, startScale, endScale, ttl) {
+    const ring = this.allocRing();
+    if (!ring) return;
+
+    ring.active = true;
+    ring.life = 0;
+    ring.ttl = ttl;
+    ring.start = startScale;
+    ring.end = endScale;
+    ring.mesh.visible = true;
+    ring.mesh.position.set(origin.x, origin.y, 0.03);
+    ring.mesh.scale.set(startScale, startScale, 1);
+    ring.mesh.material.opacity = 0.56;
+  }
+
+  allocDrop() {
+    for (let i = 0; i < this.dropCapacity; i += 1) {
+      if (!this.drops[i].active) return this.drops[i];
+    }
+    return null;
+  }
+
+  allocRing() {
+    for (let i = 0; i < this.ringCapacity; i += 1) {
+      if (!this.rings[i].active) return this.rings[i];
+    }
+    return null;
+  }
+
+  update(dt) {
+    for (let i = 0; i < this.dropCapacity; i += 1) {
+      const d = this.drops[i];
+      if (!d.active) continue;
+
+      d.life += dt;
+      if (d.life >= d.ttl) {
+        d.active = false;
+        d.mesh.visible = false;
+        d.mesh.material.opacity = 0;
+        continue;
+      }
+
+      const t = d.life / d.ttl;
+      d.vel.multiplyScalar(Math.exp(-4.6 * dt));
+      d.vel.y -= (4.8 + t * 2.8) * dt;
+      d.vel.z *= 0.9;
+      d.mesh.position.addScaledVector(d.vel, dt);
+      d.mesh.rotation.z = Math.atan2(d.vel.y, d.vel.x);
+
+      const speed2D = Math.hypot(d.vel.x, d.vel.y);
+      const stretch = 1 + Math.min(speed2D * 0.08, 1.6) * (1 - t * 0.55);
+      const thickness = Math.max(0.42, 0.94 - Math.min(speed2D * 0.05, 0.4));
+      const size = d.size * (1 - t * 0.35);
+      d.mesh.scale.set(size * d.stretch * stretch, size * thickness, 1);
+
+      const fade = t < 0.38 ? 1 : 1 - (t - 0.38) / 0.62;
+      d.mesh.material.opacity = Math.max(0, fade * 0.94);
+    }
+
+    for (let i = 0; i < this.ringCapacity; i += 1) {
+      const r = this.rings[i];
+      if (!r.active) continue;
+
+      r.life += dt;
+      if (r.life >= r.ttl) {
+        r.active = false;
+        r.mesh.visible = false;
+        r.mesh.material.opacity = 0;
+        continue;
+      }
+
+      const t = r.life / r.ttl;
+      const scale = THREE.MathUtils.lerp(r.start, r.end, t);
+      r.mesh.scale.set(scale, scale, 1);
+      r.mesh.material.opacity = Math.max(0, (1 - t) * 0.62);
+    }
+  }
+
+  reset() {
+    for (let i = 0; i < this.dropCapacity; i += 1) {
+      const d = this.drops[i];
+      d.active = false;
+      d.mesh.visible = false;
+      d.mesh.material.opacity = 0;
+    }
+    for (let i = 0; i < this.ringCapacity; i += 1) {
+      const r = this.rings[i];
+      r.active = false;
+      r.mesh.visible = false;
+      r.mesh.material.opacity = 0;
+    }
+  }
 }
 
 class JuiceParticles {
