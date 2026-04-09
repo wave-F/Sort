@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>HapticForWeb Test</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --card: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --text2: #888;
+      --accent1: #4a9eff;
+      --accent2: #34c759;
+      --accent3: #ff9f0a;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    header {
+      text-align: center;
+      padding: 20px 0 12px;
+    }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    #status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--text2);
+    }
+
+    #status .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
+    #status .tag.ok { background: #1b3a1b; color: #34c759; }
+    #status .tag.warn { background: #3a2e1b; color: #ff9f0a; }
+    #status .tag.off { background: #3a1b1b; color: #ff3b30; }
+
+    .section {
+      margin-top: 20px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text2);
+      padding: 0 4px 8px;
+    }
+
+    .section-title.t1 { color: var(--accent1); }
+    .section-title.t2 { color: var(--accent2); }
+    .section-title.t3 { color: var(--accent3); }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .card-label {
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px 16px 8px;
+      color: var(--text2);
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 12px 12px;
+    }
+
+    .btn {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 12px 8px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+      opacity: 0.8;
+    }
+
+    .btn.t1 { background: var(--accent1); }
+    .btn.t2 { background: var(--accent2); }
+    .btn.t3 { background: var(--accent3); color: #000; }
+
+    .separator {
+      height: 1px;
+      background: var(--border);
+      margin: 0 16px;
+    }
+
+    .slider-group {
+      padding: 8px 16px 12px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+
+    .slider-group input[type="range"] {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--border);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .slider-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+
+    .stop-btn {
+      display: block;
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      background: #ff3b30;
+      cursor: pointer;
+    }
+
+    .stop-btn:active {
+      transform: scale(0.98);
+      opacity: 0.8;
+    }
+
+    #log {
+      margin-top: 20px;
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 12px;
+      font-size: 12px;
+      font-family: 'SF Mono', Menlo, monospace;
+      color: var(--text2);
+      max-height: 160px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #log .entry { padding: 2px 0; }
+    #log .entry.ok { color: var(--accent2); }
+    #log .entry.err { color: #ff3b30; }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+    }
+
+    .toggle-row span { font-size: 14px; }
+
+    .switch {
+      position: relative;
+      width: 51px;
+      height: 31px;
+    }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: #39393d;
+      border-radius: 16px;
+      transition: background 0.2s;
+    }
+
+    .switch .slider::before {
+      content: '';
+      position: absolute;
+      width: 27px;
+      height: 27px;
+      left: 2px;
+      top: 2px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .switch input:checked + .slider { background: var(--accent2); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Haptic Test</h1>
+  <div id="status">Initializing...</div>
+</header>
+
+<!-- Enable/Disable Toggle -->
+<div class="section">
+  <div class="card">
+    <div class="toggle-row">
+      <span>Haptics Enabled</span>
+      <label class="switch">
+        <input type="checkbox" id="toggleEnabled" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- Tier 1: System Presets -->
+<div class="section">
+  <div class="section-title t1">Tier 1 — System Presets</div>
+  <div class="card">
+    <div class="card-label">Impact</div>
+    <div class="btn-row">
+      <button class="btn t1" onclick="doImpact('light')">Light</button>
+      <button class="btn t1" onclick="doImpact('medium')">Medium</button>
+      <button class="btn t1" onclick="doImpact('heavy')">Heavy</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn t1" onclick="doImpact('rigid')">Rigid</button>
+      <button class="btn t1" onclick="doImpact('soft')">Soft</button>
+    </div>
+    <div class="separator"></div>
+    <div class="card-label">Notification</div>
+    <div class="btn-row">
+      <button class="btn t1" onclick="doNotification('success')">Success</button>
+      <button class="btn t1" onclick="doNotification('warning')">Warning</button>
+      <button class="btn t1" onclick="doNotification('error')">Error</button>
+    </div>
+    <div class="separator"></div>
+    <div class="card-label">Selection</div>
+    <div class="btn-row">
+      <button class="btn t1" onclick="doSelection()">Selection</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tier 2: Parametric Control -->
+<div class="section">
+  <div class="section-title t2">Tier 2 — Parametric Control</div>
+  <div class="card">
+    <div class="slider-group">
+      <div class="slider-label"><span>Intensity</span><span id="valIntensity">0.5</span></div>
+      <input type="range" id="sliderIntensity" min="0" max="1" step="0.05" value="0.5">
+    </div>
+    <div class="slider-group">
+      <div class="slider-label"><span>Sharpness</span><span id="valSharpness">0.5</span></div>
+      <input type="range" id="sliderSharpness" min="0" max="1" step="0.05" value="0.5">
+    </div>
+    <div class="slider-group">
+      <div class="slider-label"><span>Duration (s)</span><span id="valDuration">0.3</span></div>
+      <input type="range" id="sliderDuration" min="0.1" max="2.0" step="0.1" value="0.3">
+    </div>
+    <div class="btn-row">
+      <button class="btn t2" onclick="doTransient()">Transient</button>
+      <button class="btn t2" onclick="doContinuous()">Continuous</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tier 3: AHAP Files -->
+<div class="section">
+  <div class="section-title t3">Tier 3 — AHAP File Playback</div>
+  <div class="card">
+    <div class="card-label">playFile (fetch & play)</div>
+    <div class="btn-row">
+      <button class="btn t3" onclick="doPlayFile('tap')">Tap</button>
+      <button class="btn t3" onclick="doPlayFile('cardSwap')">CardSwap</button>
+      <button class="btn t3" onclick="doPlayFile('damage')">Damage</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn t3" onclick="doPlayFile('cabo')">Cabo</button>
+      <button class="btn t3" onclick="doPlayFile('suddenDeath')">SuddenDeath</button>
+    </div>
+    <div class="separator"></div>
+    <div class="card-label">playBundled (native bundle)</div>
+    <div class="btn-row">
+      <button class="btn t3" onclick="doBundled('tap')">Tap</button>
+      <button class="btn t3" onclick="doBundled('cardSwap')">CardSwap</button>
+      <button class="btn t3" onclick="doBundled('damage')">Damage</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn t3" onclick="doBundled('cabo')">Cabo</button>
+      <button class="btn t3" onclick="doBundled('suddenDeath')">SuddenDeath</button>
+    </div>
+    <div class="separator"></div>
+    <div class="card-label">playPattern (inline JSON)</div>
+    <div class="btn-row">
+      <button class="btn t3" onclick="doPlayPattern()">Custom Pattern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stop -->
+<button class="stop-btn" onclick="doStop()">STOP</button>
+
+<!-- Log -->
+<div id="log"></div>
+
+<div style="height: 40px;"></div>
+
+<!-- Scripts -->
+<script src="haptic-module.js"></script>
+<script>
+  const logEl = document.getElementById('log');
+  const statusEl = document.getElementById('status');
+
+  function log(msg, cls = '') {
+    const d = document.createElement('div');
+    d.className = 'entry ' + cls;
+    const t = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    d.textContent = `[${t}] ${msg}`;
+    logEl.prepend(d);
+  }
+
+  // Sliders
+  document.getElementById('sliderIntensity').oninput = function() {
+    document.getElementById('valIntensity').textContent = this.value;
+  };
+  document.getElementById('sliderSharpness').oninput = function() {
+    document.getElementById('valSharpness').textContent = this.value;
+  };
+  document.getElementById('sliderDuration').oninput = function() {
+    document.getElementById('valDuration').textContent = this.value;
+  };
+
+  // Toggle
+  document.getElementById('toggleEnabled').onchange = function() {
+    HapticModule.setEnabled(this.checked);
+    log(`Haptics ${this.checked ? 'enabled' : 'disabled'}`);
+  };
+
+  // AHAP file extension map
+  const fileExtMap = {
+    tap: 'ahap',
+    cardSwap: 'hahap',
+    damage: 'ahap',
+    cabo: 'hahap',
+    suddenDeath: 'ahap'
+  };
+
+  // === Tier 1 ===
+  function doImpact(style) {
+    log(`impact('${style}')`);
+    HapticModule.impact(style);
+  }
+
+  function doNotification(type) {
+    log(`notification('${type}')`);
+    HapticModule.notification(type);
+  }
+
+  function doSelection() {
+    log('selection()');
+    HapticModule.selection();
+  }
+
+  // === Tier 2 ===
+  function getParams() {
+    return {
+      intensity: parseFloat(document.getElementById('sliderIntensity').value),
+      sharpness: parseFloat(document.getElementById('sliderSharpness').value),
+      duration: parseFloat(document.getElementById('sliderDuration').value)
+    };
+  }
+
+  function doTransient() {
+    const p = getParams();
+    log(`playTransient(${p.intensity}, ${p.sharpness})`);
+    HapticModule.playTransient({ intensity: p.intensity, sharpness: p.sharpness });
+  }
+
+  function doContinuous() {
+    const p = getParams();
+    log(`playContinuous(${p.intensity}, ${p.sharpness}, ${p.duration}s)`);
+    HapticModule.playContinuous({ intensity: p.intensity, sharpness: p.sharpness, duration: p.duration });
+  }
+
+  // === Tier 3 ===
+  function doPlayFile(name) {
+    const ext = fileExtMap[name];
+    const url = `assets/${name}.${ext}`;
+    log(`playFile('${url}')`);
+    HapticModule.playFile(url).catch(e => log(`Error: ${e.message}`, 'err'));
+  }
+
+  function doBundled(name) {
+    log(`playBundled('${name}')`);
+    HapticModule.playBundled(name).catch(e => log(`Error: ${e.message}`, 'err'));
+  }
+
+  function doPlayPattern() {
+    const pattern = {
+      Version: 1.0,
+      Pattern: [
+        { Event: { Time: 0.0, EventType: "HapticTransient", EventParameters: [
+          { ParameterID: "HapticIntensity", ParameterValue: 0.8 },
+          { ParameterID: "HapticSharpness", ParameterValue: 0.4 }
+        ]}},
+        { Event: { Time: 0.15, EventType: "HapticTransient", EventParameters: [
+          { ParameterID: "HapticIntensity", ParameterValue: 1.0 },
+          { ParameterID: "HapticSharpness", ParameterValue: 0.8 }
+        ]}},
+        { Event: { Time: 0.3, EventType: "HapticContinuous", EventDuration: 0.4, EventParameters: [
+          { ParameterID: "HapticIntensity", ParameterValue: 0.6 },
+          { ParameterID: "HapticSharpness", ParameterValue: 0.2 }
+        ]}}
+      ]
+    };
+    log('playPattern(custom 3-event pattern)');
+    HapticModule.playPattern(pattern).catch(e => log(`Error: ${e.message}`, 'err'));
+  }
+
+  function doStop() {
+    log('stop()');
+    HapticModule.stop();
+  }
+
+  // Init
+  (async () => {
+    try {
+      const result = await HapticModule.init();
+      const cls = result.haptics ? 'ok' : (result.backend !== 'none' ? 'warn' : 'off');
+      const label = result.haptics ? 'Ready' : (result.backend !== 'none' ? 'Fallback' : 'No Haptics');
+      statusEl.innerHTML = `Backend: <b>${result.backend}</b> <span class="tag ${cls}">${label}</span>`;
+      log(`Init OK — backend: ${result.backend}, haptics: ${result.haptics}`, 'ok');
+    } catch (e) {
+      statusEl.innerHTML = '<span class="tag off">Init Failed</span>';
+      log(`Init failed: ${e.message}`, 'err');
+    }
+  })();
+</script>
+
+</body>
+</html>

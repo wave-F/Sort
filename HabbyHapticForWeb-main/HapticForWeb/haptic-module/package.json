@@ -1,0 +1,22 @@
+{
+  "name": "haptic-module",
+  "version": "1.0.0",
+  "description": "Zero-dependency haptic feedback for web. Supports AHAP/HAHAP file playback, CoreHaptics via Capacitor, and Vibration API fallback.",
+  "main": "haptic-module.js",
+  "files": [
+    "haptic-module.js",
+    "assets/"
+  ],
+  "keywords": [
+    "haptic",
+    "vibration",
+    "ahap",
+    "hahap",
+    "corehaptics",
+    "ios",
+    "capacitor",
+    "feedback"
+  ],
+  "author": "",
+  "license": "MIT"
+}

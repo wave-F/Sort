@@ -1,0 +1,299 @@
+/**
+ * WebView Safety CSS
+ * iOS WebView 触摸安全样式
+ * 
+ * 功能：
+ * - 禁用文字选择和放大镜
+ * - 禁用长按菜单
+ * - 保留所有触摸交互
+ * - 支持 UI 层级滚动
+ * 
+ * 兼容性：iOS 9.3+, Android 全版本, 桌面浏览器
+ * 
+ * 验证依据：
+ * - MDN: touch-action "allows JS events to fire normally"
+ * - MDN: user-select "only affects text selection, not event dispatching"
+ * - Apple WWDC 2019: 官方演示 canvas 使用 touch-action: none
+ * 
+ * 重要说明：
+ * - 本 CSS 默认不锁定页面滚动，适用于分层 UI 架构
+ * - 游戏画布使用 touch-action: none 阻止系统手势
+ * - UI 层可正常滚动（使用 .scrollable 或 .ui-layer 类）
+ * - 如需全屏锁定模式，请参考 Layer 10
+ */
+
+/* ============================================
+   Layer 1: 全局基础防护
+   说明：只禁用文字选择，不锁定页面布局
+   ============================================ */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  
+  /* 禁用弹性滚动 (iOS 16+) */
+  overscroll-behavior: none;
+  -ms-scroll-chaining: none;
+  
+  /* 禁用文字选择 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  /* 禁用长按菜单/callout */
+  -webkit-touch-callout: none;
+  
+  /* 禁用点击高亮 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================
+   Layer 2: 游戏画布/容器 - 核心防护
+   说明：对游戏元素禁用所有系统触摸行为
+   ============================================ */
+
+canvas,
+.game-container,
+.game-canvas,
+[data-game-element],
+[data-no-select] {
+  /* 禁用所有浏览器默认触摸行为
+   * 重要：这不会阻止 JS 触摸事件！
+   * MDN: "Applications using Touch Events pair touch-action: none 
+   *       to disable browser handling while keeping JS events active"
+   */
+  touch-action: none;
+  -ms-touch-action: none;
+  
+  /* 禁用文字选择
+   * 重要：这不会阻止触摸事件！
+   * MDN: "only affects text selection behavior, not event dispatching"
+   */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  /* 禁用长按菜单 */
+  -webkit-touch-callout: none;
+  
+  /* 禁用拖拽 */
+  -webkit-user-drag: none;
+  user-drag: none;
+  
+  /* 禁用点击高亮 */
+  -webkit-tap-highlight-color: transparent;
+  
+  /* 确保触摸事件正常传递 */
+  pointer-events: auto;
+}
+
+/* ============================================
+   Layer 3: 可交互 UI 元素
+   说明：按钮等 UI 元素，允许快速点击
+   ============================================ */
+
+button,
+.btn,
+.button,
+[data-clickable],
+[role="button"] {
+  /* 禁用文字选择 */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  
+  /* 禁用长按菜单 */
+  -webkit-touch-callout: none;
+  
+  /* 使用 manipulation 允许快速点击，同时禁用双击缩放
+   * 比 touch-action: none 更适合按钮
+   */
+  touch-action: manipulation;
+  
+  /* 移除点击高亮 */
+  -webkit-tap-highlight-color: transparent;
+  
+  /* 移除 iOS 按钮默认样式 */
+  -webkit-appearance: none;
+}
+
+/* ============================================
+   Layer 4: 滑块/范围控件
+   ============================================ */
+
+input[type="range"],
+.slider,
+[data-slider] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  
+  /* 允许水平滑动 */
+  touch-action: pan-x;
+  
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================
+   Layer 5: 可滚动 UI 层
+   说明：用于游戏上层的可滚动 UI 面板
+   ============================================ */
+
+/* 垂直滚动 */
+.scrollable,
+.ui-layer,
+.ui-panel,
+[data-scrollable],
+[data-scrollable-y] {
+  touch-action: pan-y;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  /* 仍然禁用文字选择 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 水平滚动 */
+.scrollable-x,
+[data-scrollable-x] {
+  touch-action: pan-x;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 双向滚动 */
+.scrollable-both,
+[data-scrollable-both] {
+  touch-action: pan-x pan-y;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ============================================
+   Layer 6: 输入框 - 恢复文字选择
+   ============================================ */
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+[contenteditable="true"],
+.text-input,
+[data-text-input] {
+  /* 恢复文字选择 */
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+  
+  /* 恢复长按菜单（复制/粘贴） */
+  -webkit-touch-callout: default !important;
+  
+  /* 允许正常触摸交互 */
+  touch-action: manipulation;
+}
+
+/* ============================================
+   Layer 7: 全局选择器覆盖（可选，更激进）
+   
+   如果上述规则不够，取消下面的注释
+   注意：这会影响所有元素，包括未来动态添加的
+   ============================================ */
+
+/*
+* {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+*:not(input):not(textarea):not([contenteditable="true"]) {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+*/
+
+/* ============================================
+   Layer 8: 特殊状态
+   ============================================ */
+
+/* 拖动状态 */
+.dragging,
+[data-dragging="true"] {
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* 禁用状态 */
+.disabled,
+[disabled],
+[data-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* ============================================
+   Layer 9: Safe Area 适配 (iPhone X+)
+   ============================================ */
+
+.safe-area-container {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* ============================================
+   Layer 10: 全屏锁定模式（可选）
+   
+   用于全屏游戏，需要完全锁定页面滚动时使用
+   在 html 标签添加 class="fullscreen-game"
+   
+   示例：<html class="fullscreen-game">
+   ============================================ */
+
+html.fullscreen-game,
+html.fullscreen-game body {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* ============================================
+   Layer 11: 调试辅助（开发时使用）
+   ============================================ */
+
+/*
+[data-debug-touch] {
+  outline: 2px solid red !important;
+}
+
+[data-debug-touch]::after {
+  content: attr(data-debug-touch);
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: red;
+  color: white;
+  font-size: 10px;
+  padding: 2px 4px;
+}
+*/

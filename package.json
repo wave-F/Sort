@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:standalone": "node ./scripts/build-standalone.mjs"
+    "build:standalone": "node ./scripts/build-standalone.mjs",
+    "build:web": "node ./scripts/build-capacitor.mjs",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync:ios": "npm run build:web && npx cap sync ios",
+    "cap:open:ios": "npx cap open ios"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +19,10 @@
     "esbuild": "^0.25.11"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
+    "capacitor-haptic-plugin": "file:HabbyHapticForWeb-main/HapticForWeb/capacitor-haptic-plugin",
     "three": "^0.183.2"
   }
 }

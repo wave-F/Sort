@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.build/
+DerivedData/
+
+# IDE & System
+.DS_Store
+*.xcodeproj/xcuserdata/
+.swiftpm/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Optional: uncomment if you don't want to track lock files
+# package-lock.json

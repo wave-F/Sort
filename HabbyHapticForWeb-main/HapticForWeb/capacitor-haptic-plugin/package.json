@@ -1,0 +1,44 @@
+{
+  "name": "capacitor-haptic-plugin",
+  "version": "1.0.0",
+  "description": "Capacitor 8 plugin for iOS CoreHaptics with AHAP/HAHAP file support.",
+  "main": "dist/plugin.cjs.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "files": [
+    "dist/",
+    "ios/",
+    "assets/",
+    "Package.swift"
+  ],
+  "scripts": {
+    "build": "tsc && rollup -c rollup.config.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "keywords": [
+    "capacitor",
+    "plugin",
+    "native",
+    "haptic",
+    "corehaptics",
+    "ahap",
+    "hahap",
+    "ios",
+    "vibration"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^8.0.0",
+    "typescript": "^5.0.0",
+    "rollup": "^4.0.0"
+  }
+}

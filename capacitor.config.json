@@ -1,0 +1,9 @@
+{
+  "appId": "com.fengbotao.fruit",
+  "appName": "Fruit",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

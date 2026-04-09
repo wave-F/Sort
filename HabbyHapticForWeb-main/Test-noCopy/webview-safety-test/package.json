@@ -1,0 +1,35 @@
+{
+  "name": "webview-safety-test",
+  "version": "1.0.0",
+  "description": "Test project for WebView Safety Module - iOS touch safety testing",
+  "main": "www/index.html",
+  "scripts": {
+    "start": "npx serve www -p 3000",
+    "copy-module": "cp -r ../../HapticForWeb/webview-safety-module/webview-safety.js www/ && cp -r ../../HapticForWeb/webview-safety-module/webview-safety.css www/",
+    "build": "npm run copy-module",
+    "ios:init": "npx cap add ios",
+    "ios:sync": "npx cap sync ios",
+    "ios:open": "npx cap open ios",
+    "ios:build": "npm run build && npm run ios:sync",
+    "ios:run": "npm run ios:build && npm run ios:open"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "serve": "^14.2.0",
+    "typescript": "^6.0.2"
+  },
+  "keywords": [
+    "ios",
+    "webview",
+    "safety",
+    "test",
+    "capacitor",
+    "touch"
+  ],
+  "author": "",
+  "license": "MIT"
+}

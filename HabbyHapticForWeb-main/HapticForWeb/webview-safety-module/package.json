@@ -1,0 +1,57 @@
+{
+  "name": "webview-safety-module",
+  "version": "1.0.0",
+  "description": "iOS WebView touch safety module - prevents text selection, magnifier, and long-press menus while preserving all game touch interactions.",
+  "main": "webview-safety.js",
+  "module": "webview-safety.js",
+  "style": "webview-safety.css",
+  "types": "webview-safety.d.ts",
+  "files": [
+    "webview-safety.js",
+    "webview-safety.css",
+    "webview-safety.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "ios",
+    "webview",
+    "wkwebview",
+    "capacitor",
+    "cordova",
+    "touch",
+    "game",
+    "canvas",
+    "html5-game",
+    "text-selection",
+    "magnifier",
+    "loupe",
+    "long-press",
+    "touch-action",
+    "user-select",
+    "mobile",
+    "safari",
+    "phaser",
+    "pixi",
+    "three.js",
+    "cocos"
+  ],
+  "author": "Habby",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ArcadeHabby/webview-safety-module.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ArcadeHabby/webview-safety-module/issues"
+  },
+  "homepage": "https://github.com/ArcadeHabby/webview-safety-module#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "browser": "webview-safety.js",
+  "unpkg": "webview-safety.js",
+  "jsdelivr": "webview-safety.js"
+}
