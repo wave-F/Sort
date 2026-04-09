@@ -67,6 +67,7 @@ let renderer;
 let trail;
 let particles;
 let splashes;
+let stains;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -124,9 +125,11 @@ async function setupRenderer() {
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
   particles = new JuiceParticles(680);
   splashes = new JuiceSplashes(360);
+  stains = new JuiceStains(180);
   scene.add(trail.mesh);
   scene.add(particles.points);
   scene.add(splashes.group);
+  scene.add(stains.group);
 
   renderer.setAnimationLoop(tick);
 }
@@ -175,6 +178,7 @@ function startGame() {
   trail.reset();
   particles.reset();
   splashes.reset();
+  stains.reset();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
@@ -202,6 +206,7 @@ function loadLevel(index) {
   trail.reset();
   particles.reset();
   splashes.reset();
+  stains.reset();
 
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
@@ -283,6 +288,7 @@ function randomizeCurrentLevelLayout() {
   trail.reset();
   particles.reset();
   splashes.reset();
+  stains.reset();
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
@@ -674,6 +680,7 @@ function tick() {
 
   particles.update(dt);
   splashes.update(dt);
+  stains.update(dt);
   renderer.render(scene, camera);
 
   if (state.started && !state.gameOver && alive === 0) {
@@ -786,6 +793,7 @@ function settleQueuedSlices() {
     fruit.slice(entry.sliceDir, entry.speed);
     particles.spawnFruitSplash(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
     splashes.spawnFruitSplash(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
+    stains.spawnStains(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
     gain += 1;
   }
 
@@ -1536,6 +1544,133 @@ class JuiceSplashes {
 
       const fade = lifeT < 0.52 ? 1 : 1 - (lifeT - 0.52) / 0.48;
       item.mesh.material.opacity = Math.max(0, fade * 0.92);
+    }
+  }
+
+  reset() {
+    for (let i = 0; i < this.capacity; i += 1) {
+      const item = this.items[i];
+      item.active = false;
+      item.mesh.visible = false;
+      item.mesh.material.opacity = 0;
+    }
+  }
+}
+
+class JuiceStains {
+  constructor(capacity) {
+    this.capacity = capacity;
+    this.items = [];
+    this.group = new THREE.Group();
+
+    const geo = this.createSplatGeometry();
+    for (let i = 0; i < capacity; i += 1) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+        depthTest: false,
+      });
+
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      mesh.position.z = 0.02;
+      this.group.add(mesh);
+
+      this.items.push({
+        active: false,
+        mesh,
+        life: 0,
+        ttl: 0,
+        ageFadeIn: 0,
+        grow: 0,
+        baseScaleX: 0,
+        baseScaleY: 0,
+      });
+    }
+  }
+
+  createSplatGeometry() {
+    const steps = 42;
+    const shape = new THREE.Shape();
+    for (let i = 0; i <= steps; i += 1) {
+      const t = i / steps;
+      const a = t * Math.PI * 2;
+      const r = 1 + Math.sin(a * 6) * 0.18 + Math.cos(a * 11) * 0.08;
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (i === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    }
+    return new THREE.ShapeGeometry(shape, 22);
+  }
+
+  spawnStains(origin, sliceDir, peelColor, fleshColor, radius = 0.42) {
+    if (Math.random() > 0.7) return;
+
+    const count = Math.floor(1 + Math.random() * 3);
+
+    for (let i = 0; i < count; i += 1) {
+      const item = this.alloc();
+      if (!item) return;
+
+      item.active = true;
+      item.life = 0;
+      item.ttl = THREE.MathUtils.randFloat(0.65, 1.25);
+      item.ageFadeIn = THREE.MathUtils.randFloat(0.05, 0.16);
+      item.grow = THREE.MathUtils.randFloat(0.18, 0.34);
+      item.baseScaleX = THREE.MathUtils.randFloat(radius * 0.32, radius * 0.62);
+      item.baseScaleY = item.baseScaleX * THREE.MathUtils.randFloat(0.5, 0.86);
+
+      const angle = Math.random() * Math.PI * 2;
+      const ringRadius = Math.sqrt(Math.random()) * radius * 0.92;
+      item.mesh.position.set(
+        origin.x + Math.cos(angle) * ringRadius,
+        origin.y + Math.sin(angle) * ringRadius,
+        0.02
+      );
+      item.mesh.rotation.z = Math.random() * Math.PI * 2;
+
+      const c = Math.random() < 0.56 ? fleshColor : peelColor;
+      item.mesh.material.color.copy(c);
+      item.mesh.material.color.offsetHSL(THREE.MathUtils.randFloatSpread(0.02), -0.26, -0.2);
+      item.mesh.material.opacity = 0;
+      const splashScale = 1 + item.grow;
+      item.mesh.scale.set(item.baseScaleX * splashScale, item.baseScaleY * splashScale, 1);
+      item.mesh.visible = true;
+    }
+  }
+
+  alloc() {
+    for (let i = 0; i < this.capacity; i += 1) {
+      if (!this.items[i].active) return this.items[i];
+    }
+    return null;
+  }
+
+  update(dt) {
+    for (let i = 0; i < this.capacity; i += 1) {
+      const item = this.items[i];
+      if (!item.active) continue;
+
+      item.life += dt;
+      if (item.life >= item.ttl) {
+        item.active = false;
+        item.mesh.visible = false;
+        item.mesh.material.opacity = 0;
+        continue;
+      }
+
+      const t = item.life / item.ttl;
+      const inT = Math.min(1, item.life / item.ageFadeIn);
+      const outT = t < 0.28 ? 1 : 1 - (t - 0.28) / 0.72;
+      const alpha = Math.max(0, inT * outT);
+
+      const splashScale = 1 + item.grow;
+      item.mesh.scale.set(item.baseScaleX * splashScale, item.baseScaleY * splashScale, 1);
+      item.mesh.material.opacity = alpha * 0.76;
     }
   }
 
