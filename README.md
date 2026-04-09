@@ -22,6 +22,22 @@ python3 -m http.server 4173
 
 `http://localhost:4173`
 
+## 单机版（双击 HTML）
+
+如果你希望给别人一个“直接双击就能玩”的文件：
+
+```bash
+npm run build:standalone
+```
+
+构建后会在项目根目录生成：
+
+- `standalone.html`
+
+该文件为 WebGPU-only 单机版，包含内联样式和脚本，可直接双击打开。
+
+注意：目标浏览器/设备必须支持 WebGPU（建议新版 Chrome/Edge）。
+
 ## 目录说明
 
 - `src/main.js`：核心玩法逻辑（输入、命中判定、结算、动画与特效）。

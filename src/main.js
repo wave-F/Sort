@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const appEl = document.getElementById("app");
 const titleEl = document.getElementById("title");
@@ -112,18 +112,27 @@ async function setupRenderer() {
 }
 
 async function createRenderer() {
-  try {
-    const mod = await import("../node_modules/three/build/three.webgpu.js");
-    const WebGPURenderer = mod.WebGPURenderer;
-    if (!WebGPURenderer) throw new Error("No WebGPURenderer");
-    const webgpu = new WebGPURenderer({ antialias: true, alpha: true });
-    await webgpu.init();
-    if (titleEl) titleEl.textContent = "刀切水果 (WebGPU)";
-    return webgpu;
-  } catch (_err) {
-    if (titleEl) titleEl.textContent = "刀切水果 (WebGL)";
-    return new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  if (!navigator.gpu) {
+    showWebGpuUnsupported();
+    throw new Error("WebGPU is not supported in this browser.");
   }
+
+  const webgpu = new THREE.WebGPURenderer({ antialias: true, alpha: true });
+  await webgpu.init();
+  if (titleEl) titleEl.textContent = "刀切水果 (WebGPU)";
+  return webgpu;
+}
+
+function showWebGpuUnsupported() {
+  const layer = document.createElement("div");
+  layer.className = "layer";
+  layer.style.zIndex = "20";
+  layer.style.background = "rgba(15, 25, 38, 0.9)";
+  layer.style.color = "#ffffff";
+  layer.style.fontWeight = "800";
+  layer.style.lineHeight = "1.7";
+  layer.innerHTML = "<div style=\"font-size:28px;\">无法启动</div><div style=\"margin-top:10px;font-size:15px;opacity:0.92;\">当前浏览器/设备不支持 WebGPU。<br/>请使用支持 WebGPU 的新版 Chrome 或 Edge。</div>";
+  appEl.appendChild(layer);
 }
 
 function startGame() {
