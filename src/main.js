@@ -12,6 +12,10 @@ const gameOverTitleEl = document.getElementById("game-over-title");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
 const trailCompareToggleEl = document.getElementById("trail-compare-toggle");
+const gmBtn = document.getElementById("gm-btn");
+const gmPanelEl = document.getElementById("gm-panel");
+const gmCloseBtn = document.getElementById("gm-close-btn");
+const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
   worldHeight: 10,
@@ -31,6 +35,8 @@ const colors = [
 ];
 
 const selectedRingColor = 0xffdf73;
+const SAVE_KEY = "fruit-save-v1";
+const SAVE_TOTAL_LEVELS = 10;
 
 const state = {
   started: false,
@@ -49,6 +55,7 @@ const state = {
   lastPoint: null,
   nowPoint: null,
   lastMoveAt: 0,
+  maxPassedLevel: 1,
 };
 
 const levelEditor = {
@@ -57,7 +64,7 @@ const levelEditor = {
 };
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x91aac6, 8, 18);
+scene.fog = new THREE.Fog(0xe2b8c7, 8, 18);
 
 const camera = new THREE.OrthographicCamera();
 camera.position.set(0, 0, 9);
@@ -86,7 +93,7 @@ scene.add(key);
 
 const bgPlane = new THREE.Mesh(
   new THREE.PlaneGeometry(30, 30),
-  new THREE.MeshBasicMaterial({ color: 0x98c2eb, transparent: true, opacity: 0.16 })
+  new THREE.MeshBasicMaterial({ color: 0xfff3f6, transparent: true, opacity: 0.06 })
 );
 bgPlane.position.z = -1.5;
 scene.add(bgPlane);
@@ -94,6 +101,8 @@ scene.add(bgPlane);
 init();
 
 function init() {
+  readGameSave();
+
   if (trailCompareToggleEl) {
     state.keepFullTrailDuringDrag = trailCompareToggleEl.checked;
     trailCompareToggleEl.addEventListener("change", onTrailCompareToggleChange);
@@ -101,6 +110,8 @@ function init() {
 
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
+  if (gmBtn) gmBtn.addEventListener("click", toggleGmPanel);
+  if (gmCloseBtn) gmCloseBtn.addEventListener("click", hideGmPanel);
 
   window.addEventListener("resize", resize);
   window.addEventListener("keydown", onEditorHotkey);
@@ -110,6 +121,16 @@ function init() {
   window.addEventListener("pointercancel", onPointerUp);
 
   setupRenderer();
+}
+
+function toggleGmPanel() {
+  if (!gmPanelEl) return;
+  gmPanelEl.classList.toggle("hidden");
+}
+
+function hideGmPanel() {
+  if (!gmPanelEl) return;
+  gmPanelEl.classList.add("hidden");
 }
 
 async function setupRenderer() {
@@ -153,10 +174,12 @@ function showWebGpuUnsupported() {
 }
 
 function startGame() {
+  readGameSave();
+
   state.started = true;
   state.gameOver = false;
   state.levelTransitioning = false;
-  state.currentLevelIndex = 0;
+  state.currentLevelIndex = Math.min(Math.max(state.maxPassedLevel - 1, 0), Math.max(LEVELS.length - 1, 0));
   state.activeLevel = null;
   state.score = 0;
   state.pointerDown = false;
@@ -176,7 +199,7 @@ function startGame() {
   gameOverEl.classList.add("hidden");
 
   updateHud();
-  loadLevel(0);
+  loadLevel(state.currentLevelIndex);
 }
 
 function loadLevel(index) {
@@ -678,6 +701,7 @@ function handleLevelCleared() {
   if (state.gameOver || state.levelTransitioning) return;
 
   const justCleared = state.currentLevelIndex;
+  markLevelPassed(justCleared + 1);
   const next = justCleared + 1;
   const lastLevel = next >= LEVELS.length;
 
@@ -908,6 +932,67 @@ function showCommentary(text, durationMs) {
   commentaryEl.classList.add("show");
   if (commentaryTimer) clearTimeout(commentaryTimer);
   commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
+}
+
+function readGameSave() {
+  let parsed = null;
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) parsed = JSON.parse(raw);
+  } catch (_err) {
+    parsed = null;
+  }
+
+  const value = Number(parsed?.maxPassedLevel);
+  if (!Number.isFinite(value)) {
+    state.maxPassedLevel = 1;
+    writeGameSave();
+    renderLadderProgress();
+    return;
+  }
+  state.maxPassedLevel = THREE.MathUtils.clamp(Math.floor(value), 1, SAVE_TOTAL_LEVELS);
+  if (Number(parsed?.totalLevels) !== SAVE_TOTAL_LEVELS) writeGameSave();
+  renderLadderProgress();
+}
+
+function writeGameSave() {
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        totalLevels: SAVE_TOTAL_LEVELS,
+        maxPassedLevel: state.maxPassedLevel,
+      })
+    );
+  } catch (_err) {
+    // ignore save failures
+  }
+}
+
+function markLevelPassed(levelNo) {
+  if (!Number.isFinite(levelNo)) return;
+  const currentLevel = THREE.MathUtils.clamp(Math.floor(levelNo), 1, SAVE_TOTAL_LEVELS);
+  if (currentLevel !== state.maxPassedLevel) return;
+  if (currentLevel >= SAVE_TOTAL_LEVELS) return;
+  state.maxPassedLevel = currentLevel + 1;
+  writeGameSave();
+  renderLadderProgress();
+}
+
+function renderLadderProgress() {
+  if (!ladderNodes.length) return;
+
+  for (let i = 0; i < ladderNodes.length; i += 1) {
+    const node = ladderNodes[i];
+    const levelNo = i + 1;
+    node.classList.remove("is-passed", "is-current");
+
+    if (levelNo < state.maxPassedLevel) {
+      node.classList.add("is-passed");
+    } else if (levelNo === state.maxPassedLevel) {
+      node.classList.add("is-current");
+    }
+  }
 }
 
 function endGame(reason) {

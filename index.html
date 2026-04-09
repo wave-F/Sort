@@ -16,6 +16,12 @@
   </head>
   <body>
     <div id="phone-frame">
+      <div id="bg-art" aria-hidden="true">
+        <div class="bg-sky"></div>
+        <div class="bg-hills"></div>
+        <div class="bg-forest"></div>
+      </div>
+
       <div id="hud">
         <div id="score">分数: 0</div>
         <label class="trail-test-toggle">
@@ -24,24 +30,50 @@
         </label>
       </div>
 
+      <button id="gm-btn" class="gm-icon-btn" type="button" aria-label="打开GM面板"></button>
+
+      <div id="gm-panel" class="panel-light hidden" role="dialog" aria-label="GM面板">
+        <div class="gm-panel-title">GM 面板</div>
+        <div class="gm-panel-desc">开发调试中</div>
+        <button id="gm-close-btn" class="gm-close-btn" type="button">关闭</button>
+      </div>
+
       <div id="commentary">开始后，先锁定一种颜色再连切。</div>
 
       <div id="start-screen" class="layer">
-        <h1>刀切水果</h1>
-        <p>一刀只能切同色，碰到异色会断刀。<br />共 6 个固定关卡，尽量拿高分。</p>
-        <button id="start-btn">开始游戏</button>
+        <div class="ladder-stage">
+          <div class="ladder-rail" aria-label="关卡天梯">
+            <div class="ladder-rail-shine"></div>
+            <div class="ladder-nodes">
+              <div class="ladder-node"><span>1</span></div>
+              <div class="ladder-node"><span>2</span></div>
+              <div class="ladder-node"><span>3</span></div>
+              <div class="ladder-node"><span>4</span></div>
+              <div class="ladder-node"><span>5</span></div>
+              <div class="ladder-node"><span>6</span></div>
+              <div class="ladder-node"><span>7</span></div>
+              <div class="ladder-node"><span>8</span></div>
+              <div class="ladder-node"><span>9</span></div>
+              <div class="ladder-node"><span>10</span></div>
+            </div>
+          </div>
+
+          <button id="start-btn">开始</button>
+        </div>
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
 
       <div id="game-over" class="layer hidden">
-        <h2 id="game-over-title">本局结束</h2>
-        <button id="restart-btn">再来一局</button>
+        <div class="game-over-card panel-light">
+          <h2 id="game-over-title">本局结束</h2>
+          <button id="restart-btn">再来一局</button>
+        </div>
       </div>
 
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=12"></script>
+    <script type="module" src="./src/main.js?v=31"></script>
   </body>
 </html>
