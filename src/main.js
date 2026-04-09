@@ -3,7 +3,6 @@ import * as THREE from "three";
 const appEl = document.getElementById("app");
 const titleEl = document.getElementById("title");
 const scoreEl = document.getElementById("score");
-const cutsEl = document.getElementById("cuts");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
 const startScreenEl = document.getElementById("start-screen");
@@ -13,10 +12,14 @@ const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
 
 const rules = {
-  maxCuts: 10,
   fruitCount: 40,
   worldHeight: 10,
   minSliceSegment: 0.02,
+};
+
+const scoring = {
+  perFruit: 5,
+  comboBonusFactor: 2,
 };
 
 const colors = [
@@ -32,7 +35,6 @@ const state = {
   started: false,
   gameOver: false,
   score: 0,
-  usedCuts: 0,
   pointerDown: false,
   sliceColorId: null,
   sliceBroken: false,
@@ -116,10 +118,10 @@ async function createRenderer() {
     if (!WebGPURenderer) throw new Error("No WebGPURenderer");
     const webgpu = new WebGPURenderer({ antialias: true, alpha: true });
     await webgpu.init();
-    titleEl.textContent = "刀切水果 (WebGPU)";
+    if (titleEl) titleEl.textContent = "刀切水果 (WebGPU)";
     return webgpu;
   } catch (_err) {
-    titleEl.textContent = "刀切水果 (WebGL)";
+    if (titleEl) titleEl.textContent = "刀切水果 (WebGL)";
     return new THREE.WebGLRenderer({ antialias: true, alpha: true });
   }
 }
@@ -128,7 +130,6 @@ function startGame() {
   state.started = true;
   state.gameOver = false;
   state.score = 0;
-  state.usedCuts = 0;
   state.pointerDown = false;
   state.sliceColorId = null;
   state.sliceBroken = false;
@@ -210,11 +211,6 @@ function resetFruits() {
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || !renderer) return;
 
-  if (state.usedCuts >= rules.maxCuts) {
-    endGame("刀数已用完");
-    return;
-  }
-
   const rect = renderer.domElement.getBoundingClientRect();
   if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
 
@@ -261,7 +257,6 @@ function onPointerUp() {
   else if (state.sliceColorId !== null) setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
   else setSliceStatus("状态: 空挥");
 
-  if (state.usedCuts >= rules.maxCuts) endGame("刀数用完");
 }
 
 function tick() {
@@ -318,8 +313,6 @@ function processSliceSegment(dt) {
     if (state.sliceColorId === null) {
       if (!state.sliceCommitted) {
         state.sliceCommitted = true;
-        state.usedCuts += 1;
-        updateHud();
       }
       state.sliceColorId = fruit.colorId;
       setSliceStatus(`状态: 锁定${colors[fruit.colorId].name}`);
@@ -368,7 +361,8 @@ function settleQueuedSlices() {
   clearQueuedSelections();
 
   if (gain > 0) {
-    state.score += gain;
+    const sliceScore = scoring.perFruit * gain + scoring.comboBonusFactor * gain * (gain - 1);
+    state.score += sliceScore;
     updateHud();
   }
 }
@@ -479,10 +473,10 @@ function resize() {
 
 function updateHud() {
   scoreEl.textContent = `分数: ${state.score}`;
-  cutsEl.textContent = `刀数: ${state.usedCuts} / ${rules.maxCuts}`;
 }
 
 function setSliceStatus(text) {
+  if (!sliceStateEl) return;
   sliceStateEl.textContent = text;
 }
 
@@ -520,6 +514,7 @@ class FruitEntity {
     this.selected = false;
     this.selectedPulse = 0;
     this.wrongFlash = 0;
+    this.wrongShake = 0;
 
     this.vel = new THREE.Vector3(THREE.MathUtils.randFloatSpread(1.2), THREE.MathUtils.randFloatSpread(1.2), 0);
     this.velA = new THREE.Vector3();
@@ -652,15 +647,31 @@ class FruitEntity {
         this.selectRing.material.color.setHex(selectedRingColor);
         this.selectRing.scale.set(pulse, pulse, 1);
         this.selectRing.material.opacity = 0.52 + Math.sin(this.selectedPulse * 1.4) * 0.16;
+        this.whole.position.set(0, 0, 0);
+        this.selectRing.position.x = 0;
+        this.selectRing.position.y = 0;
       } else if (this.wrongFlash > 0) {
         this.wrongFlash = Math.max(0, this.wrongFlash - dt);
+        this.wrongShake = Math.max(0, this.wrongShake - dt);
         const t = this.wrongFlash / 0.22;
+        const shakeT = this.wrongShake / 0.22;
+        const shakeAmp = this.radius * 0.12 * shakeT;
+        const shakePhase = (1 - shakeT) * Math.PI * 12;
+        const shakeX = Math.sin(shakePhase) * shakeAmp;
+        const shakeY = Math.cos(shakePhase * 0.6) * shakeAmp * 0.25;
+
         this.selectRing.visible = true;
         this.selectRing.material.color.setHex(0xff5c5c);
-        this.selectRing.scale.set(1.06 + (1 - t) * 0.08, 1.06 + (1 - t) * 0.08, 1);
-        this.selectRing.material.opacity = 0.18 + t * 0.62;
+        this.selectRing.scale.set(1.08 + (1 - t) * 0.1, 1.08 + (1 - t) * 0.1, 1);
+        this.selectRing.material.opacity = 0.28 + t * 0.68;
+        this.whole.position.set(shakeX, shakeY, 0);
+        this.selectRing.position.x = shakeX;
+        this.selectRing.position.y = shakeY;
       } else {
         this.selectRing.visible = false;
+        this.whole.position.set(0, 0, 0);
+        this.selectRing.position.x = 0;
+        this.selectRing.position.y = 0;
       }
       return;
     }
@@ -688,6 +699,9 @@ class FruitEntity {
       this.selectRing.visible = false;
       this.selectRing.material.opacity = 0;
       this.selectRing.scale.set(1, 1, 1);
+      this.whole.position.set(0, 0, 0);
+      this.selectRing.position.x = 0;
+      this.selectRing.position.y = 0;
     } else {
       this.selectedPulse = 0;
       this.selectRing.material.color.setHex(selectedRingColor);
@@ -699,6 +713,7 @@ class FruitEntity {
   flashWrongHit() {
     if (!this.active || this.sliced) return;
     this.wrongFlash = 0.22;
+    this.wrongShake = 0.22;
   }
 }
 
