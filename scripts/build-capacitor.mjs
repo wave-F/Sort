@@ -28,7 +28,7 @@ const html = `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>刀切水果 - iOS</title>
+    <title>切泡泡 - iOS</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -37,11 +37,11 @@ const html = `<!doctype html>
         <div id="score">分数: 0</div>
       </div>
 
-      <div id="commentary">开始后，先锁定一种颜色再连切。</div>
+      <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
 
       <div id="start-screen" class="layer">
-        <h1>刀切水果</h1>
-        <p>一刀只能切同色，碰到异色会断刀。<br />不限刀数，尽量拿高分。</p>
+        <h1>切泡泡</h1>
+        <p>一刀只能戳同色，碰到异色会断刀。<br />不限刀数，尽量拿高分。</p>
         <button id="start-btn">开始游戏</button>
       </div>
 

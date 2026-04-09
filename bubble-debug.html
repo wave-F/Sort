@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>泡泡材质调试 - WebGPU</title>
+    <style>
+      :root {
+        --bg-top: #f7fbff;
+        --bg-bottom: #e8f2fb;
+        --text-main: #1f2d3d;
+        --text-sub: #5a6b7d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        user-select: none;
+        font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: radial-gradient(120% 90% at 50% 10%, var(--bg-top), var(--bg-bottom));
+      }
+
+      #info {
+        position: absolute;
+        top: 14px;
+        left: 0;
+        width: 100%;
+        padding: 0 20px;
+        text-align: center;
+        pointer-events: none;
+        z-index: 10;
+        color: var(--text-main);
+      }
+
+      #title {
+        font-size: clamp(20px, 3.4vw, 30px);
+        font-weight: 700;
+      }
+
+      #sub-info {
+        margin-top: 8px;
+        font-size: clamp(13px, 2.1vw, 15px);
+        font-weight: 500;
+        color: var(--text-sub);
+      }
+
+      #compat {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #73879c;
+      }
+
+      #palette {
+        margin-top: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(88, 112, 136, 0.24);
+        box-shadow: 0 8px 22px rgba(45, 70, 94, 0.12);
+        pointer-events: auto;
+      }
+
+      .swatch {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.96);
+        box-shadow: 0 0 0 1px rgba(66, 83, 100, 0.25);
+        cursor: pointer;
+        transition: transform 120ms ease;
+      }
+
+      .swatch:hover {
+        transform: translateY(-1px) scale(1.05);
+      }
+
+      .swatch.is-active {
+        box-shadow: 0 0 0 2px rgba(31, 45, 61, 0.75);
+      }
+
+      #controls {
+        position: absolute;
+        right: 14px;
+        top: 14px;
+        width: min(330px, 90vw);
+        max-height: calc(100vh - 28px);
+        overflow: auto;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(88, 112, 136, 0.24);
+        box-shadow: 0 10px 26px rgba(35, 56, 76, 0.16);
+        z-index: 20;
+        color: #223447;
+      }
+
+      #controls h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      #controls p {
+        margin: 0 0 10px;
+        font-size: 12px;
+        color: #51677e;
+        line-height: 1.4;
+      }
+
+      .ctrl-row {
+        display: grid;
+        grid-template-columns: 1fr 90px;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .ctrl-row label {
+        font-size: 12px;
+        color: #3e556c;
+      }
+
+      .ctrl-row input[type="range"] {
+        width: 100%;
+        margin-top: 4px;
+      }
+
+      .ctrl-value {
+        text-align: right;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: #4a637b;
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 8px 0;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: rgba(240, 247, 255, 0.8);
+        border: 1px solid rgba(94, 122, 148, 0.2);
+        font-size: 12px;
+        color: #3e556c;
+      }
+
+      .toggle-row input {
+        width: 16px;
+        height: 16px;
+        accent-color: #2f5f88;
+      }
+
+      #reset-btn,
+      #back-btn {
+        margin-top: 8px;
+        width: 100%;
+        border: 0;
+        border-radius: 8px;
+        padding: 8px 10px;
+        color: #fff;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      #reset-btn {
+        background: #2f5f88;
+      }
+
+      #back-btn {
+        background: #4e7394;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./node_modules/three/build/three.module.js",
+          "three/webgpu": "./node_modules/three/build/three.webgpu.js",
+          "three/tsl": "./node_modules/three/build/three.tsl.js",
+          "three/addons/": "./node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="info">
+      <div id="title">单泡泡调试面板 (WebGPU + TSL)</div>
+      <div id="sub-info">点泡泡会触发爆弹并切换颜色，右侧可动态调参</div>
+      <div id="compat">WebGPU 初始化失败时会在这里提示</div>
+      <div id="palette" aria-label="颜色按钮组">
+        <button class="swatch is-active" data-color="#ff2f63" style="background:#ff2f63"></button>
+        <button class="swatch" data-color="#ff8a00" style="background:#ff8a00"></button>
+        <button class="swatch" data-color="#00c36e" style="background:#00c36e"></button>
+        <button class="swatch" data-color="#6a4dff" style="background:#6a4dff"></button>
+      </div>
+    </div>
+
+    <div id="controls">
+      <h3>参数调试面板</h3>
+      <p>用于调单泡泡视觉，确认后再搬回游戏主界面。</p>
+
+      <div class="ctrl-row">
+        <label for="p-transmission">透射强度<input id="p-transmission" type="range" min="0.5" max="1" step="0.01" value="0.86" /></label>
+        <span class="ctrl-value" data-value-for="p-transmission">0.86</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-roughness">表面粗糙度<input id="p-roughness" type="range" min="0.01" max="0.3" step="0.01" value="0.13" /></label>
+        <span class="ctrl-value" data-value-for="p-roughness">0.13</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-clearcoat">镜面清漆<input id="p-clearcoat" type="range" min="0" max="1" step="0.01" value="0.42" /></label>
+        <span class="ctrl-value" data-value-for="p-clearcoat">0.42</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-wobble">表面抖动幅度<input id="p-wobble" type="range" min="0" max="0.08" step="0.001" value="0.022" /></label>
+        <span class="ctrl-value" data-value-for="p-wobble">0.022</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-flow">染料流动速度<input id="p-flow" type="range" min="0.2" max="2.5" step="0.01" value="1.15" /></label>
+        <span class="ctrl-value" data-value-for="p-flow">1.15</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-dye">染料对比度<input id="p-dye" type="range" min="0.6" max="2.4" step="0.01" value="1.12" /></label>
+        <span class="ctrl-value" data-value-for="p-dye">1.12</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-edge">边缘发光<input id="p-edge" type="range" min="0" max="0.8" step="0.01" value="0.3" /></label>
+        <span class="ctrl-value" data-value-for="p-edge">0.30</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-iri">虹彩强度<input id="p-iri" type="range" min="0" max="1" step="0.01" value="0.75" /></label>
+        <span class="ctrl-value" data-value-for="p-iri">0.75</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-spring-tension">弹性回弹<input id="p-spring-tension" type="range" min="0.04" max="0.25" step="0.005" value="0.12" /></label>
+        <span class="ctrl-value" data-value-for="p-spring-tension">0.12</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-spring-damping">弹性阻尼<input id="p-spring-damping" type="range" min="0.7" max="0.98" step="0.005" value="0.84" /></label>
+        <span class="ctrl-value" data-value-for="p-spring-damping">0.84</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-light-key">主光强度<input id="p-light-key" type="range" min="0.3" max="2" step="0.01" value="1.25" /></label>
+        <span class="ctrl-value" data-value-for="p-light-key">1.25</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-light-ambient">环境光强度<input id="p-light-ambient" type="range" min="0.1" max="1" step="0.01" value="0.62" /></label>
+        <span class="ctrl-value" data-value-for="p-light-ambient">0.62</span>
+      </div>
+
+      <div class="toggle-row">
+        <label for="t-dye">内部染料流动</label>
+        <input id="t-dye" type="checkbox" checked />
+      </div>
+      <div class="toggle-row">
+        <label for="t-edge">边缘发光</label>
+        <input id="t-edge" type="checkbox" checked />
+      </div>
+      <div class="toggle-row">
+        <label for="t-iri">虹彩薄膜</label>
+        <input id="t-iri" type="checkbox" checked />
+      </div>
+      <div class="toggle-row">
+        <label for="t-random">点击随机换色</label>
+        <input id="t-random" type="checkbox" checked />
+      </div>
+
+      <button id="reset-btn" type="button">恢复默认参数</button>
+      <button id="back-btn" type="button">返回主游戏</button>
+    </div>
+
+    <script type="module" src="./src/bubble-debug.js"></script>
+  </body>
+</html>
