@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>卡通水珠拖动小游戏 (WebGPU & AI版)</title>
+    <!-- 使用更加稳定的 CDN 加载 PixiJS v8 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.0.4/pixi.min.js" crossorigin="anonymous"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* 大屏幕时的深色背景色 */
+            background-color: #1a252c; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none; 
+        }
+
+        /* 游戏主容器，固定比例，模拟手机屏幕 */
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #eef5f9 0%, #d4e2ee 100%);
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+
+        /* 维持 9:16 比例响应式缩放 */
+        @media (max-aspect-ratio: 9/16) {
+            #game-container {
+                width: 100vw;
+                height: calc(100vw * 16 / 9);
+            }
+        }
+        @media (min-aspect-ratio: 9/16) {
+            #game-container {
+                height: 100vh;
+                width: calc(100vh * 9 / 16);
+            }
+        }
+        /* 在大屏幕上封顶尺寸并加圆角 */
+        @media (min-width: 500px) and (min-height: 850px) {
+            #game-container {
+                width: 450px;
+                height: 800px;
+                border-radius: 24px;
+            }
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #5cb2ff;
+            text-shadow: 0 4px 10px rgba(255,255,255,0.9), 0 1px 3px rgba(92,178,255,0.3);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* AI 吐槽弹幕样式 */
+        #ai-commentary {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 24px;
+            border-radius: 30px;
+            box-shadow: 0 10px 25px rgba(92, 178, 255, 0.3);
+            border: 2px solid #5cb2ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-weight: bold;
+            color: #3b6b94;
+            font-size: 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            white-space: nowrap;
+        }
+        #ai-commentary.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .ai-icon { font-size: 20px; }
+
+        /* 开始界面样式 */
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(238, 245, 249, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #start-screen h1 {
+            font-size: 64px;
+            color: #5cb2ff;
+            text-shadow: 0 4px 15px rgba(92,178,255,0.4);
+            margin-bottom: 10px;
+            letter-spacing: 4px;
+        }
+        #start-screen p {
+            font-size: 18px;
+            line-height: 1.8;
+            color: #5a7d9a;
+            text-align: center;
+            margin-bottom: 40px;
+            font-weight: bold;
+        }
+        #start-btn {
+            background: linear-gradient(135deg, #5cb2ff, #3b88d4);
+            color: white;
+            border: none;
+            padding: 16px 48px;
+            font-size: 24px;
+            border-radius: 40px;
+            box-shadow: 0 10px 20px rgba(92,178,255,0.3);
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #start-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 15px 25px rgba(92,178,255,0.5);
+        }
+        #start-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- 开始游戏界面 -->
+        <div id="start-screen">
+            <h1>刀切泡泡</h1>
+            <p>🗡️ 按住拖动就是一刀！<br>🎨 一刀内只能切同色，碰到异色会断刀！<br>⏳ 最多 10 刀，尽量多切吧！</p>
+            <button id="start-btn">开始游戏</button>
+        </div>
+
+        <div id="score-display">分数: 0</div>
+        <div id="cuts-display" style="position:absolute;top:60px;right:20px;font-size:18px;font-weight:bold;color:#3b6b94;z-index:10;pointer-events:none;">刀数: 0 / 10</div>
+        <div id="slice-display" style="position:absolute;top:90px;right:20px;font-size:14px;font-weight:bold;color:#5a7d9a;z-index:10;pointer-events:none;">状态: 待机</div>
+        
+        <!-- AI 吐槽显示区 -->
+        <div id="ai-commentary">
+            <span class="ai-icon">✨</span>
+            <span id="ai-text">AI 连接中...</span>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script>
+        // --- Web Audio API 声音合成器 (流体与魔法定制版) ---
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playSynthesized(baseFreq, endFreq, duration, vol, delay = 0, waveType = 'sine') {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime + delay;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = waveType;
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.frequency.setValueAtTime(baseFreq, now);
+                if (endFreq) {
+                    osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration * 0.7);
+                }
+
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(vol, now + 0.01); 
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+                osc.start(now);
+                osc.stop(now + duration);
+            }
+
+            playPop() {
+                this.playSynthesized(800 + Math.random()*200, 300, 0.15, 0.06);
+            }
+
+            playSquish() {
+                this.playSynthesized(300, 700 + Math.random()*100, 0.15, 0.05);
+            }
+
+            playMerge() {
+                this.playSynthesized(300, 500, 0.12, 0.05, 0, 'sine');
+                this.playSynthesized(400, 700, 0.15, 0.05, 0.06, 'sine');
+            }
+
+            playExplode() {
+                for(let i = 0; i < 4; i++) {
+                    this.playSynthesized(700 + Math.random()*300, 200, 0.12, 0.04, i * 0.03);
+                }
+            }
+
+            playClear() {
+                const notes = [523.25, 659.25, 783.99, 1046.50]; 
+                notes.forEach((freq, i) => {
+                    this.playSynthesized(freq, null, 0.4, 0.05, i * 0.05);
+                });
+            }
+
+            playVictory() {
+                const notes = [
+                    {f: 523.25, t: 0, d: 0.2},
+                    {f: 659.25, t: 0.15, d: 0.2},
+                    {f: 783.99, t: 0.3, d: 0.2},
+                    {f: 1046.50, t: 0.45, d: 0.6}
+                ];
+                notes.forEach(n => {
+                    this.playSynthesized(n.f, null, n.d, 0.06, n.t, 'triangle');
+                });
+            }
+        }
+
+        const sfx = new SoundFX();
+
+
+        // RGB数组转Hex供Pixi使用
+        const rgbToHex = (arr) => (arr[0] << 16) | (arr[1] << 8) | arr[2];
+
+        const COLOR_KEYS = ['blue', 'pink', 'yellow', 'green', 'purple', 'brown', 'cyan', 'red'];
+        const COLOR_NAMES = {'blue':'水蓝色', 'pink':'粉红色', 'yellow':'明黄色', 'green':'草绿色', 'purple':'梦幻紫', 'brown':'咖啡色', 'cyan':'青色', 'red':'火红色'};
+        
+        const COLOR_DICT = {
+            'blue':   { id: 'blue',   base: [100, 190, 255], stroke: [60, 150, 220],  eye: [30, 58, 138] },
+            'pink':   { id: 'pink',   base: [255, 140, 190], stroke: [230, 90, 140],  eye: [128, 0, 32] },
+            'yellow': { id: 'yellow', base: [255, 230, 20],  stroke: [220, 180, 0],   eye: [120, 80, 10] },   
+            'green':  { id: 'green',  base: [120, 230, 100], stroke: [60, 190, 50],   eye: [0, 100, 0] },
+            'purple': { id: 'purple', base: [180, 130, 255], stroke: [140, 90, 220],  eye: [75, 0, 130] },
+            'brown':  { id: 'brown',  base: [160, 105, 75],  stroke: [120, 70, 45],   eye: [60, 30, 15] },    
+            'cyan':   { id: 'cyan',   base: [40, 230, 210],  stroke: [15, 180, 170],  eye: [0, 100, 100] },
+            'red':    { id: 'red',    base: [255, 60, 70],   stroke: [220, 30, 40],   eye: [128, 0, 0] }      
+        };
+
+        const RECIPES = {};
+        for (let i = 0; i < COLOR_KEYS.length; i++) {
+            for (let j = i + 1; j < COLOR_KEYS.length; j++) {
+                let key1 = COLOR_KEYS[i];
+                let key2 = COLOR_KEYS[j];
+                let hash = (i * 3 + j * 5) % 8;
+                while (hash === i || hash === j) { hash = (hash + 1) % 8; }
+                RECIPES[key1 + '+' + key2] = COLOR_KEYS[hash];
+                RECIPES[key2 + '+' + key1] = COLOR_KEYS[hash];
+            }
+        }
+
+        // 随机抽取初始颜色
+        function getRandomStartColors(count) {
+            let shuffled = [...COLOR_KEYS].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        }
+
+        // --- 核心改动：固定底层逻辑分辨率 ---
+        const LOGICAL_WIDTH = 450;
+        const LOGICAL_HEIGHT = 800;
+        let width = LOGICAL_WIDTH;
+        let height = LOGICAL_HEIGHT;
+        
+        // 游戏状态控制变量
+        let isGameStarted = false;
+        const MAX_CUTS = 10;
+        let usedCuts = 0;
+        let gameOver = false;
+        let currentSliceColorId = null;
+        let currentSliceBroken = false;
+        let availableColors = [];
+        let score = 0;
+        let drops = [];
+        let trails = [];
+        let floatingTexts = [];
+        let lastPointerX = 0;
+        let lastPointerY = 0;
+
+        const pointer = { x: 0, y: 0, isDown: false };
+        
+        let app, dropsContainer, trailGraphics;
+
+        // 开始按钮事件绑定
+        document.getElementById('start-btn').addEventListener('click', () => {
+            sfx.init();
+            sfx.playMerge();
+            
+            document.getElementById('start-screen').style.display = 'none';
+            
+            isGameStarted = true;
+            gameOver = false;
+            usedCuts = 0;
+            currentSliceColorId = null;
+            currentSliceBroken = false;
+            availableColors = getRandomStartColors(4);
+            score = 0;
+            document.getElementById('score-display').innerText = '分数: ' + score;
+            document.getElementById('cuts-display').innerText = `刀数: ${usedCuts} / ${MAX_CUTS}`;
+            document.getElementById('slice-display').innerText = '状态: 待机';
+            
+            initDrops();
+        });
+
+        // --- Gemini AI API 功能 ---
+        let aiToastTimeout;
+        async function fetchGeminiCommentary(colorId) {
+            const apiKey = ""; 
+            if (!apiKey) return null;
+
+            const colorName = COLOR_NAMES[colorId] || "未知颜色";
+            const prompt = `你是一个水珠小游戏里的傲娇解说员。玩家刚刚千辛万苦消除光了所有的【${colorName}】水珠！请用一句简短、傲娇、幽默的中文（不超过15个字）吐槽或表扬他。直接输出内容，不要加引号。`;
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+                    if (!res.ok) throw new Error('API Error');
+                    const data = await res.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "哼，算你厉害！";
+                } catch (e) {
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                }
+            }
+            return "哼，别以为消除光了就赢了！";
+        }
+
+        function showAICommentary(text) {
+            const toast = document.getElementById('ai-commentary');
+            document.getElementById('ai-text').innerText = text;
+            toast.classList.add('show');
+            clearTimeout(aiToastTimeout);
+            aiToastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 4000);
+        }
+
+        class Point {
+            constructor(angle, baseRadius) {
+                this.angle = angle;
+                this.baseRadius = baseRadius;
+                this.radius = baseRadius; 
+                this.x = 0; this.y = 0;
+                this.vx = 0; this.vy = 0;
+            }
+            update(cx, cy, speed, moveAngle) {
+                let targetRadius = this.baseRadius;
+                if (speed > 0.1) {
+                    let angleDiff = this.angle - moveAngle;
+                    while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    let cosDiff = Math.cos(angleDiff);
+                    let sinDiff = Math.sin(angleDiff);
+                    let stretch = Math.min(speed * 1.5, this.baseRadius * 0.8);
+                    if (cosDiff < 0) targetRadius += Math.abs(cosDiff) * stretch * 1.2;
+                    else targetRadius += cosDiff * stretch * 0.1;
+                    targetRadius -= Math.abs(sinDiff) * stretch * 0.5;
+                }
+                let targetX = cx + Math.cos(this.angle) * targetRadius;
+                let targetY = cy + Math.sin(this.angle) * targetRadius;
+                let stiffness = 0.2; let friction = 0.65; 
+                this.vx += (targetX - this.x) * stiffness;
+                this.vy += (targetY - this.y) * stiffness;
+                this.vx *= friction; this.vy *= friction;
+                this.x += this.vx; this.y += this.vy;
+            }
+        }
+
+        class WaterDrop {
+            constructor(x, y, radius, color) {
+                this.x = x; this.y = y;
+                this.vx = 0; this.vy = 0;
+                this.radius = radius;
+                this.targetRadius = radius; 
+                this.color = color;
+                this.points = [];
+                this.numPoints = 16; 
+                
+                for (let i = 0; i < this.numPoints; i++) {
+                    let angle = (i / this.numPoints) * Math.PI * 2;
+                    let pt = new Point(angle, this.radius);
+                    pt.x = this.x + Math.cos(angle) * this.radius;
+                    pt.y = this.y + Math.sin(angle) * this.radius;
+                    this.points.push(pt);
+                }
+
+                this.g = new PIXI.Graphics();
+                dropsContainer.addChild(this.g);
+            }
+
+            destroy() {
+                this.g.destroy();
+            }
+
+            drawPath(graphics, offsetX = 0, offsetY = 0) {
+                let xc = (this.points[0].x + this.points[this.numPoints - 1].x) / 2 + offsetX;
+                let yc = (this.points[0].y + this.points[this.numPoints - 1].y) / 2 + offsetY;
+                graphics.moveTo(xc, yc);
+                for (let i = 0; i < this.numPoints; i++) {
+                    let p1 = this.points[i];
+                    let p2 = this.points[(i + 1) % this.numPoints];
+                    let mx = (p1.x + p2.x) / 2 + offsetX;
+                    let my = (p1.y + p2.y) / 2 + offsetY;
+                    graphics.quadraticCurveTo(p1.x + offsetX, p1.y + offsetY, mx, my);
+                }
+            }
+
+            updatePhysics() {
+                if (Math.abs(this.targetRadius - this.radius) > 0.1) {
+                    this.radius += (this.targetRadius - this.radius) * 0.1;
+                    for (let pt of this.points) pt.baseRadius = this.radius;
+                }
+
+                this.vx *= 0.985;
+                this.vy *= 0.985;
+
+                // --- 修复边缘卡墙Bug：只有当速度方向朝外时，才翻转速度弹回 ---
+                if (this.x - this.radius < 0) { 
+                    this.x = this.radius; 
+                    if (this.vx < 0) this.vx *= -0.5; 
+                }
+                if (this.x + this.radius > width) { 
+                    this.x = width - this.radius; 
+                    if (this.vx > 0) this.vx *= -0.5; 
+                }
+                if (this.y - this.radius < 0) { 
+                    this.y = this.radius; 
+                    if (this.vy < 0) this.vy *= -0.5; 
+                }
+                if (this.y + this.radius > height) { 
+                    this.y = height - this.radius; 
+                    if (this.vy > 0) this.vy *= -0.5; 
+                }
+
+                this.x += this.vx; this.y += this.vy;
+
+                let speed = Math.hypot(this.vx, this.vy);
+                let moveAngle = Math.atan2(this.vy, this.vx);
+
+                for (let pt of this.points) {
+                    pt.update(this.x, this.y, speed, moveAngle);
+                }
+
+                if (speed > 2 && Math.random() > 0.5) {
+                    trails.push({
+                        x: this.x - Math.cos(moveAngle) * this.radius * 0.8 + (Math.random()-0.5)*10,
+                        y: this.y - Math.sin(moveAngle) * this.radius * 0.8 + (Math.random()-0.5)*10,
+                        radius: Math.random() * 6 + 2,
+                        alpha: 0.5,
+                        decay: Math.random() * 0.02 + 0.01,
+                        colorHex: rgbToHex(this.color.base),
+                        isSplash: false
+                    });
+                }
+            }
+
+            updateRender() {
+                const hexBase = rgbToHex(this.color.base);
+                const hexStroke = rgbToHex(this.color.stroke);
+                const hexEye = rgbToHex(this.color.eye);
+
+                this.g.clear();
+
+                this.drawPath(this.g, 0, 8);
+                this.g.fill({ color: 0x6496C8, alpha: 0.25 });
+
+                this.drawPath(this.g, 0, 0);
+                this.g.fill({ color: hexBase, alpha: 0.85 });
+                this.g.stroke({ width: 5, color: hexStroke });
+
+                this.g.circle(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius*0.45);
+                this.g.fill({ color: 0xffffff, alpha: 0.6 });
+                this.g.circle(this.x + this.radius*0.35, this.y + this.radius*0.25, this.radius*0.15);
+                this.g.fill({ color: 0xffffff, alpha: 0.4 });
+
+                let faceOffsetX = this.vx * 0.5;
+                let faceOffsetY = this.vy * 0.5;
+                let faceOffsetDist = Math.hypot(faceOffsetX, faceOffsetY);
+                if (faceOffsetDist > this.radius * 0.4) {
+                    let ratio = (this.radius * 0.4) / faceOffsetDist;
+                    faceOffsetX *= ratio; faceOffsetY *= ratio;
+                }
+                let faceX = this.x + faceOffsetX;
+                let faceY = this.y + faceOffsetY;
+                let r = this.radius;
+
+                this.g.ellipse(faceX - r*0.25, faceY - r*0.1, r*0.08, r*0.14);
+                this.g.fill({color: hexEye});
+                this.g.ellipse(faceX + r*0.25, faceY - r*0.1, r*0.08, r*0.14);
+                this.g.fill({color: hexEye});
+
+                let speed = Math.hypot(this.vx, this.vy);
+                if (speed > 8) {
+                    this.g.circle(faceX, faceY + r*0.24, r*0.1);
+                    this.g.fill({color: hexEye});
+                } else {
+                    this.g.moveTo(faceX + r*0.16, faceY + r*0.16);
+                    this.g.arc(faceX, faceY + r*0.16, r*0.16, 0, Math.PI);
+                    this.g.stroke({ width: Math.max(2, r*0.06), color: hexEye });
+                }
+            }
+        }
+
+        // --- 核心逻辑 ---
+        function initDrops() {
+            drops.forEach(d => d.destroy());
+            drops = [];
+            for (let i = 0; i < 60; i++) {
+                // 提高难度：数量更多，尺寸更大
+                let targetRadius = Math.random() * 14 + 20; 
+                let x = Math.random() * (width - targetRadius * 2) + targetRadius;
+                let y = Math.random() * (height - targetRadius * 2) + targetRadius;
+                
+                let cId = availableColors[Math.floor(Math.random() * availableColors.length)];
+                let c = COLOR_DICT[cId];
+                let color = { id: c.id, base: [...c.base], stroke: [...c.stroke], eye: [...c.eye] };
+                
+                let drop = new WaterDrop(x, y, targetRadius, color);
+                drop.radius = 2;
+                for(let pt of drop.points) pt.baseRadius = 2;
+                drop.vx = (Math.random() - 0.5) * 2.2;
+                drop.vy = (Math.random() - 0.5) * 2.2;
+                drops.push(drop);
+            }
+        }
+
+        function triggerPop(d) {
+            for (let k = 0; k < 30; k++) {
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 15 + 5; 
+                trails.push({
+                    x: d.x, y: d.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 8 + 3,
+                    alpha: 1.0,
+                    decay: Math.random() * 0.02 + 0.015,
+                    colorHex: rgbToHex(d.color.base),
+                    isSplash: true
+                });
+            }
+        }
+
+        function handleCollisions() {
+            for (let i = 0; i < drops.length; i++) {
+                for (let j = i + 1; j < drops.length; j++) {
+                    let d1 = drops[i]; let d2 = drops[j];
+                    let dx = d2.x - d1.x; let dy = d2.y - d1.y;
+                    let dist = Math.hypot(dx, dy);
+                    let minDist = d1.radius + d2.radius;
+                    if (dist >= minDist) continue;
+
+                    let overlap = minDist - dist;
+                    if (dist === 0) { dx = 1; dy = 0; dist = 1; }
+                    let nx = dx / dist; let ny = dy / dist;
+                    let m1 = d1.radius * d1.radius; let m2 = d2.radius * d2.radius;
+                    let totalM = m1 + m2;
+                    let r1 = m2 / totalM; let r2 = m1 / totalM;
+                    d1.x -= nx * overlap * r1; d1.y -= ny * overlap * r1;
+                    d2.x += nx * overlap * r2; d2.y += ny * overlap * r2;
+
+                    let kx = (d1.vx - d2.vx); let ky = (d1.vy - d2.vy);
+                    let p = 2.0 * (nx * kx + ny * ky) / (m1 + m2);
+                    d1.vx -= p * m2 * nx * 0.8; d1.vy -= p * m2 * ny * 0.8;
+                    d2.vx += p * m1 * nx * 0.8; d2.vy += p * m1 * ny * 0.8;
+                }
+            }
+        }
+
+        // --- 交互与生命周期 ---
+        function createFloatingText(textStr, x, y, colorStr, size) {
+            const style = new PIXI.TextStyle({ fontFamily: 'Segoe UI', fontSize: size, fontWeight: 'bold', fill: colorStr });
+            const text = new PIXI.Text({ text: textStr, style });
+            text.x = x; text.y = y; text.anchor.set(0.5);
+            app.stage.addChild(text);
+            floatingTexts.push({ obj: text, alpha: 1.0, vy: -2 });
+        }
+
+        // 核心改动：获取映射过后的逻辑指针位置
+        function getLogicalPointerPos(e) {
+            const canvasEl = document.getElementById('gameCanvas');
+            const rect = canvasEl.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            // 物理显示尺寸和逻辑设定尺寸的缩放比映射
+            const scaleX = LOGICAL_WIDTH / rect.width;
+            const scaleY = LOGICAL_HEIGHT / rect.height;
+            
+            let x = (clientX - rect.left) * scaleX;
+            let y = (clientY - rect.top) * scaleY;
+            
+            // --- 修复鼠标移出边框导致受力过大卡死的Bug ---
+            // 限制指针的逻辑坐标始终在画布有效范围内
+            x = Math.max(0, Math.min(LOGICAL_WIDTH, x));
+            y = Math.max(0, Math.min(LOGICAL_HEIGHT, y));
+
+            return { x, y };
+        }
+
+        function handlePointerDown(e) {
+            if (!isGameStarted) return;
+            if (gameOver) return;
+            if (usedCuts >= MAX_CUTS) {
+                endGame();
+                return;
+            }
+            sfx.init();
+            if (e.cancelable) e.preventDefault();
+
+            usedCuts++;
+            currentSliceColorId = null;
+            currentSliceBroken = false;
+
+            const pos = getLogicalPointerPos(e);
+            pointer.x = pos.x;
+            pointer.y = pos.y;
+            lastPointerX = pos.x;
+            lastPointerY = pos.y;
+            pointer.isDown = true;
+
+            document.getElementById('cuts-display').innerText = `刀数: ${usedCuts} / ${MAX_CUTS}`;
+            document.getElementById('slice-display').innerText = '状态: 开刀';
+            sfx.playSquish();
+
+            if (usedCuts >= MAX_CUTS) {
+                document.getElementById('slice-display').innerText = '状态: 最后一刀';
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!isGameStarted) return;
+            if (pointer.isDown) {
+                if (e.cancelable) e.preventDefault();
+                const pos = getLogicalPointerPos(e);
+                pointer.x = pos.x;
+                pointer.y = pos.y;
+                processSliceSegment(lastPointerX, lastPointerY, pointer.x, pointer.y);
+                lastPointerX = pointer.x;
+                lastPointerY = pointer.y;
+            }
+        }
+
+        function handlePointerUp() {
+            if (!isGameStarted) return;
+            pointer.isDown = false;
+            if (gameOver) return;
+
+            if (currentSliceBroken) {
+                document.getElementById('slice-display').innerText = '状态: 断刀';
+            } else if (currentSliceColorId) {
+                document.getElementById('slice-display').innerText = `状态: 本刀锁定${COLOR_NAMES[currentSliceColorId]}`;
+            } else {
+                document.getElementById('slice-display').innerText = '状态: 空挥';
+            }
+
+            if (usedCuts >= MAX_CUTS) {
+                endGame();
+            }
+        }
+
+        function distSegmentToPoint(ax, ay, bx, by, px, py) {
+            const abx = bx - ax;
+            const aby = by - ay;
+            const ab2 = abx * abx + aby * aby;
+            if (ab2 < 1e-6) return Math.hypot(px - ax, py - ay);
+            const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / ab2));
+            const cx = ax + abx * t;
+            const cy = ay + aby * t;
+            return Math.hypot(px - cx, py - cy);
+        }
+
+        function processSliceSegment(ax, ay, bx, by) {
+            if (!pointer.isDown || gameOver || currentSliceBroken) return;
+            const segLen = Math.hypot(bx - ax, by - ay);
+            if (segLen < 2) return;
+
+            trails.push({
+                x: bx,
+                y: by,
+                radius: Math.max(3, Math.min(8, segLen * 0.08)),
+                alpha: 0.7,
+                decay: 0.05,
+                colorHex: currentSliceBroken ? 0xff5f5f : 0xffffff,
+                isSplash: false
+            });
+
+            for (let i = drops.length - 1; i >= 0; i--) {
+                const d = drops[i];
+                const hitDist = distSegmentToPoint(ax, ay, bx, by, d.x, d.y);
+                if (hitDist > d.radius) continue;
+
+                if (!currentSliceColorId) {
+                    currentSliceColorId = d.color.id;
+                    document.getElementById('slice-display').innerText = `状态: 锁定${COLOR_NAMES[currentSliceColorId]}`;
+                }
+
+                if (d.color.id !== currentSliceColorId) {
+                    currentSliceBroken = true;
+                    document.getElementById('slice-display').innerText = `状态: 断刀（碰到${COLOR_NAMES[d.color.id]}）`;
+                    showAICommentary('哎呀，切到异色断刀啦！');
+                    sfx.playExplode();
+                    break;
+                }
+
+                triggerPop(d);
+                d.destroy();
+                drops.splice(i, 1);
+                score += 1;
+                document.getElementById('score-display').innerText = '分数: ' + score;
+                createFloatingText('+1', d.x, d.y, '#5cb2ff', 24);
+                sfx.playPop();
+
+                if (drops.length === 0) {
+                    document.getElementById('slice-display').innerText = '状态: 清屏成功';
+                    showAICommentary('全部切完，漂亮！');
+                    endGame();
+                    break;
+                }
+            }
+        }
+
+        function endGame() {
+            if (gameOver) return;
+            gameOver = true;
+            pointer.isDown = false;
+            document.getElementById('slice-display').innerText = '状态: 游戏结束';
+            showAICommentary(`本局得分 ${score}，已用完 ${MAX_CUTS} 刀`);
+            sfx.playVictory();
+        }
+
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+        window.addEventListener('touchstart', handlePointerDown, {passive: false});
+        window.addEventListener('touchmove', handlePointerMove, {passive: false});
+        window.addEventListener('touchend', handlePointerUp);
+
+        // --- 主循环 ---
+        let lastTime = performance.now(), frameCount = 0, fps = 0;
+        let fpsText;
+
+        function animate() {
+            const now = performance.now();
+            frameCount++;
+            if (now - lastTime >= 1000) {
+                fps = frameCount; frameCount = 0; lastTime = now;
+                if(fpsText) fpsText.text = `FPS: ${fps}`;
+            }
+
+            if (!isGameStarted) return;
+
+            handleCollisions(); 
+
+            trailGraphics.clear();
+            for (let i = trails.length - 1; i >= 0; i--) {
+                let t = trails[i];
+                if (t.isSplash) { t.x += t.vx; t.y += t.vy; t.vy += 0.4; t.vx *= 0.96; }
+                trailGraphics.circle(t.x, t.y, t.radius);
+                trailGraphics.fill({ color: t.colorHex, alpha: t.alpha });
+                t.alpha -= t.decay;
+                if (t.alpha <= 0) trails.splice(i, 1);
+            }
+
+            for (let d of drops) {
+                d.updatePhysics();
+                d.updateRender();
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ft.obj.y += ft.vy;
+                ft.alpha -= 0.015;
+                ft.obj.alpha = ft.alpha;
+                if (ft.alpha <= 0) {
+                    ft.obj.destroy();
+                    floatingTexts.splice(i, 1);
+                }
+            }
+        }
+
+        // --- PixiJS 初始化 ---
+        async function initWebGPU() {
+            app = new PIXI.Application();
+            try {
+                // 固定内置分辨率，不再随 window 变化
+                await app.init({
+                    canvas: document.getElementById('gameCanvas'),
+                    width: LOGICAL_WIDTH,
+                    height: LOGICAL_HEIGHT,
+                    backgroundAlpha: 0,
+                    antialias: true
+                });
+
+                trailGraphics = new PIXI.Graphics();
+                app.stage.addChild(trailGraphics);
+
+                dropsContainer = new PIXI.Container();
+                app.stage.addChild(dropsContainer);
+
+                fpsText = new PIXI.Text({ text: 'FPS: 0', style: { fontFamily: 'Segoe UI', fontSize: 16, fontWeight: 'bold', fill: '#5a7d9a' } });
+                fpsText.x = 15; fpsText.y = 15; fpsText.alpha = 0.8;
+                app.stage.addChild(fpsText);
+
+                app.ticker.maxFPS = 120;
+
+                app.ticker.add(animate);
+            } catch (error) {
+                console.error("PixiJS 初始化失败:", error);
+            }
+        }
+
+        initWebGPU();
+    </script>
+</body>
+</html>
