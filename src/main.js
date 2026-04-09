@@ -66,6 +66,7 @@ camera.lookAt(0, 0, 0);
 let renderer;
 let trail;
 let particles;
+let splashes;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -122,8 +123,10 @@ async function setupRenderer() {
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
   particles = new JuiceParticles(680);
+  splashes = new JuiceSplashes(360);
   scene.add(trail.mesh);
   scene.add(particles.points);
+  scene.add(splashes.group);
 
   renderer.setAnimationLoop(tick);
 }
@@ -171,6 +174,7 @@ function startGame() {
 
   trail.reset();
   particles.reset();
+  splashes.reset();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
@@ -197,6 +201,7 @@ function loadLevel(index) {
 
   trail.reset();
   particles.reset();
+  splashes.reset();
 
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
@@ -277,6 +282,7 @@ function randomizeCurrentLevelLayout() {
   clearQueuedSelections();
   trail.reset();
   particles.reset();
+  splashes.reset();
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
@@ -667,6 +673,7 @@ function tick() {
   }
 
   particles.update(dt);
+  splashes.update(dt);
   renderer.render(scene, camera);
 
   if (state.started && !state.gameOver && alive === 0) {
@@ -777,7 +784,8 @@ function settleQueuedSlices() {
 
     fruit.setSelected(false);
     fruit.slice(entry.sliceDir, entry.speed);
-    particles.spawnBurst(fruit.group.position, entry.sliceDir, fruit.peel);
+    particles.spawnFruitSplash(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
+    splashes.spawnFruitSplash(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
     gain += 1;
   }
 
@@ -1293,12 +1301,13 @@ class JuiceParticles {
     this.geometry.setDrawRange(0, 0);
 
     this.material = new THREE.PointsMaterial({
-      size: 0.09,
+      size: 0.24,
       vertexColors: true,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.96,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: false,
     });
 
     this.points = new THREE.Points(this.geometry, this.material);
@@ -1315,19 +1324,55 @@ class JuiceParticles {
     }
   }
 
-  spawnBurst(origin, sliceDir, baseColor) {
+  spawnFruitSplash(origin, sliceDir, peelColor, fleshColor, radius = 0.42) {
     const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
-    for (let i = 0; i < 22; i += 1) {
+    const tangent = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
+    const splashCount = Math.floor(34 + radius * 38);
+
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = 0; i < splashCount; i += 1) {
+        const p = this.alloc();
+        if (!p) return;
+
+        p.active = true;
+        p.life = 0;
+        p.ttl = THREE.MathUtils.randFloat(0.34, 0.82);
+        p.pos.copy(origin).add(
+          new THREE.Vector3(
+            THREE.MathUtils.randFloatSpread(radius * 0.9),
+            THREE.MathUtils.randFloatSpread(radius * 0.7),
+            0.03
+          )
+        );
+
+        p.vel.copy(normal).multiplyScalar(side * THREE.MathUtils.randFloat(2.2, 6.6));
+        p.vel.addScaledVector(tangent, THREE.MathUtils.randFloat(-1.6, 2.8));
+        p.vel.y += THREE.MathUtils.randFloat(1.0, 3.5);
+        p.vel.x += THREE.MathUtils.randFloatSpread(0.8);
+        p.vel.z += THREE.MathUtils.randFloat(0.1, 0.7);
+
+        p.color.copy(Math.random() < 0.45 ? peelColor : fleshColor);
+        p.color.offsetHSL(THREE.MathUtils.randFloatSpread(0.035), -0.1, THREE.MathUtils.randFloat(0.04, 0.2));
+      }
+    }
+
+    this.spawnBurst(origin, sliceDir, fleshColor, Math.floor(26 + radius * 26));
+  }
+
+  spawnBurst(origin, sliceDir, baseColor, count = 22) {
+    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
+    for (let i = 0; i < count; i += 1) {
       const p = this.alloc();
       if (!p) return;
 
       p.active = true;
       p.life = 0;
-      p.ttl = THREE.MathUtils.randFloat(0.2, 0.45);
-      p.pos.copy(origin).add(new THREE.Vector3(THREE.MathUtils.randFloatSpread(0.2), THREE.MathUtils.randFloatSpread(0.2), 0));
-      p.vel.copy(normal).multiplyScalar(THREE.MathUtils.randFloat(1.2, 3.6));
-      p.vel.y += THREE.MathUtils.randFloat(0.2, 1.8);
+      p.ttl = THREE.MathUtils.randFloat(0.3, 0.62);
+      p.pos.copy(origin).add(new THREE.Vector3(THREE.MathUtils.randFloatSpread(0.2), THREE.MathUtils.randFloatSpread(0.2), 0.03));
+      p.vel.copy(normal).multiplyScalar(THREE.MathUtils.randFloat(1.8, 4.8));
+      p.vel.y += THREE.MathUtils.randFloat(0.8, 2.6);
       p.vel.x += THREE.MathUtils.randFloatSpread(0.8);
+      p.vel.z += THREE.MathUtils.randFloat(0.08, 0.45);
       p.color.copy(baseColor).offsetHSL(0.02, -0.12, 0.14);
     }
   }
@@ -1351,7 +1396,8 @@ class JuiceParticles {
         continue;
       }
 
-      p.vel.y -= 7 * dt;
+      p.vel.y -= 6.1 * dt;
+      p.vel.z *= 0.92;
       p.pos.addScaledVector(p.vel, dt);
 
       const o = count * 3;
@@ -1372,5 +1418,133 @@ class JuiceParticles {
   reset() {
     for (let i = 0; i < this.capacity; i += 1) this.items[i].active = false;
     this.geometry.setDrawRange(0, 0);
+  }
+}
+
+class JuiceSplashes {
+  constructor(capacity) {
+    this.capacity = capacity;
+    this.items = [];
+    this.group = new THREE.Group();
+
+    const geo = new THREE.CircleGeometry(1, 14);
+    for (let i = 0; i < capacity; i += 1) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.NormalBlending,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      mesh.position.z = 0.05;
+      this.group.add(mesh);
+      this.items.push({
+        active: false,
+        mesh,
+        vel: new THREE.Vector3(),
+        life: 0,
+        ttl: 0,
+        baseScale: 0.12,
+        drag: 0,
+        drip: 0,
+        wobble: 0,
+        phase: 0,
+      });
+    }
+  }
+
+  spawnFruitSplash(origin, sliceDir, peelColor, fleshColor, radius = 0.42) {
+    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
+    const tangent = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
+    const count = Math.floor(24 + radius * 36);
+
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = 0; i < count; i += 1) {
+        const item = this.alloc();
+        if (!item) return;
+
+        item.active = true;
+        item.life = 0;
+        item.ttl = THREE.MathUtils.randFloat(0.34, 0.96);
+        item.baseScale = THREE.MathUtils.randFloat(radius * 0.09, radius * 0.26);
+        item.drag = THREE.MathUtils.randFloat(4.8, 7.8);
+        item.drip = THREE.MathUtils.randFloat(1.4, 3.8);
+        item.wobble = THREE.MathUtils.randFloat(0.06, 0.18);
+        item.phase = Math.random() * Math.PI * 2;
+
+        item.mesh.visible = true;
+        item.mesh.position.set(
+          origin.x + THREE.MathUtils.randFloatSpread(radius * 0.9),
+          origin.y + THREE.MathUtils.randFloatSpread(radius * 0.7),
+          0.06
+        );
+        item.mesh.rotation.z = Math.random() * Math.PI * 2;
+        item.mesh.scale.set(
+          item.baseScale * THREE.MathUtils.randFloat(1.1, 1.8),
+          item.baseScale * THREE.MathUtils.randFloat(0.64, 1.02),
+          1
+        );
+
+        item.vel.copy(normal).multiplyScalar(side * THREE.MathUtils.randFloat(2.1, 6.2));
+        item.vel.addScaledVector(tangent, THREE.MathUtils.randFloat(-1.5, 3.1));
+        item.vel.y += THREE.MathUtils.randFloat(0.9, 3.2);
+        item.vel.z = THREE.MathUtils.randFloat(0.1, 0.6);
+
+        item.mesh.material.color.copy(Math.random() < 0.48 ? peelColor : fleshColor);
+        item.mesh.material.color.offsetHSL(THREE.MathUtils.randFloatSpread(0.02), -0.08, -0.05);
+        item.mesh.material.opacity = THREE.MathUtils.randFloat(0.72, 0.94);
+      }
+    }
+  }
+
+  alloc() {
+    for (let i = 0; i < this.capacity; i += 1) {
+      if (!this.items[i].active) return this.items[i];
+    }
+    return null;
+  }
+
+  update(dt) {
+    for (let i = 0; i < this.capacity; i += 1) {
+      const item = this.items[i];
+      if (!item.active) continue;
+
+      item.life += dt;
+      if (item.life >= item.ttl) {
+        item.active = false;
+        item.mesh.visible = false;
+        item.mesh.material.opacity = 0;
+        continue;
+      }
+
+      const lifeT = item.life / item.ttl;
+      const dragFactor = Math.exp(-item.drag * dt);
+      item.vel.multiplyScalar(dragFactor);
+      item.vel.y -= (3.4 + item.drip * lifeT) * dt;
+      item.vel.z *= 0.92;
+      item.mesh.position.addScaledVector(item.vel, dt);
+      item.mesh.rotation.z = Math.atan2(item.vel.y, item.vel.x) + Math.sin(item.phase + item.life * 11) * item.wobble;
+
+      const speed2D = Math.hypot(item.vel.x, item.vel.y);
+      const base = item.baseScale * (1 - lifeT * 0.42);
+      const stretch = 1 + Math.min(speed2D * 0.12, 1.35) * (1 - lifeT * 0.5);
+      const thickness = Math.max(0.36, 0.82 - Math.min(speed2D * 0.05, 0.32) + lifeT * 0.14);
+      item.mesh.scale.set(base * stretch, base * thickness, 1);
+
+      const fade = lifeT < 0.52 ? 1 : 1 - (lifeT - 0.52) / 0.48;
+      item.mesh.material.opacity = Math.max(0, fade * 0.92);
+    }
+  }
+
+  reset() {
+    for (let i = 0; i < this.capacity; i += 1) {
+      const item = this.items[i];
+      item.active = false;
+      item.mesh.visible = false;
+      item.mesh.material.opacity = 0;
+    }
   }
 }
