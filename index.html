@@ -18,13 +18,17 @@
     <div id="phone-frame">
       <div id="hud">
         <div id="score">分数: 0</div>
+        <label class="trail-test-toggle">
+          <input id="trail-compare-toggle" type="checkbox" checked />
+          完整保留轨迹（测试）
+        </label>
       </div>
 
       <div id="commentary">开始后，先锁定一种颜色再连切。</div>
 
       <div id="start-screen" class="layer">
         <h1>刀切水果</h1>
-        <p>一刀只能切同色，碰到异色会断刀。<br />不限刀数，尽量拿高分。</p>
+        <p>一刀只能切同色，碰到异色会断刀。<br />共 6 个固定关卡，尽量拿高分。</p>
         <button id="start-btn">开始游戏</button>
       </div>
 
@@ -38,6 +42,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=6"></script>
+    <script type="module" src="./src/main.js?v=12"></script>
   </body>
 </html>
