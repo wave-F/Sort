@@ -26,6 +26,8 @@ const colors = [
   { id: "purple", name: "紫果", peel: 0x8170df, flesh: 0xbeb3ef },
 ];
 
+const selectedRingColor = 0xffdf73;
+
 const state = {
   started: false,
   gameOver: false,
@@ -580,7 +582,7 @@ class FruitEntity {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(this.radius * 1.03, this.radius * 1.22, 36),
       new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: selectedRingColor,
         transparent: true,
         opacity: 0.0,
         depthWrite: false,
@@ -647,7 +649,7 @@ class FruitEntity {
         this.selectedPulse += dt * 10;
         const pulse = 1 + Math.sin(this.selectedPulse) * 0.07;
         this.selectRing.visible = true;
-        this.selectRing.material.color.setHex(0xffffff);
+        this.selectRing.material.color.setHex(selectedRingColor);
         this.selectRing.scale.set(pulse, pulse, 1);
         this.selectRing.material.opacity = 0.52 + Math.sin(this.selectedPulse * 1.4) * 0.16;
       } else if (this.wrongFlash > 0) {
@@ -688,7 +690,7 @@ class FruitEntity {
       this.selectRing.scale.set(1, 1, 1);
     } else {
       this.selectedPulse = 0;
-      this.selectRing.material.color.setHex(0xffffff);
+      this.selectRing.material.color.setHex(selectedRingColor);
       this.selectRing.visible = true;
       this.selectRing.material.opacity = 0.62;
     }
