@@ -24,8 +24,8 @@ const scoring = {
 };
 
 const colors = [
-  { id: "red", name: "红果", peel: 0xff5c5c, flesh: 0xffb7b7 },
-  { id: "orange", name: "橙果", peel: 0xffa23b, flesh: 0xffd6a0 },
+  { id: "red", name: "红果", peel: 0xff2d2d, flesh: 0xff9f9f },
+  { id: "orange", name: "橙果", peel: 0xffd21f, flesh: 0xffee8a },
   { id: "green", name: "青果", peel: 0x61c85d, flesh: 0xbee8aa },
   { id: "purple", name: "紫果", peel: 0x8170df, flesh: 0xbeb3ef },
 ];
@@ -65,9 +65,6 @@ camera.lookAt(0, 0, 0);
 
 let renderer;
 let trail;
-let particles;
-let splashes;
-let stains;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -123,13 +120,7 @@ async function setupRenderer() {
 
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
-  particles = new JuiceParticles(680);
-  splashes = new JuiceSplashes(360);
-  stains = new JuiceStains(180);
   scene.add(trail.mesh);
-  scene.add(particles.points);
-  scene.add(splashes.group);
-  scene.add(stains.group);
 
   renderer.setAnimationLoop(tick);
 }
@@ -176,9 +167,6 @@ function startGame() {
   state.nowPoint = null;
 
   trail.reset();
-  particles.reset();
-  splashes.reset();
-  stains.reset();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
@@ -204,9 +192,6 @@ function loadLevel(index) {
   state.nowPoint = null;
 
   trail.reset();
-  particles.reset();
-  splashes.reset();
-  stains.reset();
 
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
@@ -286,9 +271,6 @@ function randomizeCurrentLevelLayout() {
 
   clearQueuedSelections();
   trail.reset();
-  particles.reset();
-  splashes.reset();
-  stains.reset();
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
@@ -678,9 +660,6 @@ function tick() {
     if (fruit.active) alive += 1;
   }
 
-  particles.update(dt);
-  splashes.update(dt);
-  stains.update(dt);
   renderer.render(scene, camera);
 
   if (state.started && !state.gameOver && alive === 0) {
@@ -791,9 +770,6 @@ function settleQueuedSlices() {
 
     fruit.setSelected(false);
     fruit.slice(entry.sliceDir, entry.speed);
-    particles.spawnFruitSplash(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
-    splashes.spawnFruitSplash(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
-    stains.spawnStains(fruit.group.position, entry.sliceDir, fruit.peel, fruit.flesh, fruit.radius);
     gain += 1;
   }
 
@@ -958,6 +934,13 @@ class FruitEntity {
     this.selectedPulse = 0;
     this.wrongFlash = 0;
     this.wrongShake = 0;
+    this.jellySpring = 0;
+    this.jellySpringVel = 0;
+    this.jellyTime = Math.random() * 10;
+    this.jellySeed = Math.random() * 100;
+    this.wholeShell = null;
+    this.wholeCore = null;
+    this.wholeSourcePos = null;
 
     this.vel = new THREE.Vector3(vx, vy, 0);
     this.velA = new THREE.Vector3();
@@ -975,45 +958,65 @@ class FruitEntity {
 
   createWhole() {
     const g = new THREE.Group();
-    const peelDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius, 28),
-      new THREE.MeshStandardMaterial({ color: this.peel, roughness: 0.55, metalness: 0.02 })
-    );
-    const fleshDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.78, 26),
-      new THREE.MeshStandardMaterial({ color: this.flesh, roughness: 0.74, metalness: 0.0 })
-    );
-    fleshDisk.position.z = 0.01;
+    const shellGeo = new THREE.SphereGeometry(this.radius, 30, 24);
+    this.wholeSourcePos = shellGeo.attributes.position.array.slice();
+    this.wholeShell = new THREE.Mesh(shellGeo, this.createJellyMaterial(this.peel, 0.9, 1.9));
 
-    const seed = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.08, 10),
-      new THREE.MeshBasicMaterial({ color: 0x3a2b1f })
+    this.wholeCore = new THREE.Mesh(
+      new THREE.SphereGeometry(this.radius * 0.72, 24, 18),
+      this.createJellyMaterial(this.flesh, 0.42, 1.3)
     );
-    seed.position.set(this.radius * 0.12, -this.radius * 0.1, 0.02);
 
-    const leaf = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.2, 14, 0, Math.PI),
-      new THREE.MeshBasicMaterial({ color: 0x4ca45f })
+    const highlight = new THREE.Mesh(
+      new THREE.SphereGeometry(this.radius * 0.22, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.24, depthWrite: false })
     );
-    leaf.position.set(0, this.radius * 0.92, 0.02);
+    highlight.position.set(this.radius * 0.26, this.radius * 0.3, this.radius * 0.46);
 
-    g.add(peelDisk, fleshDisk, seed, leaf);
+    g.add(this.wholeShell, this.wholeCore, highlight);
     return g;
   }
 
   createHalf(thetaStart, thetaLength) {
     const g = new THREE.Group();
     const peelHalf = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius, 24, thetaStart, thetaLength),
-      new THREE.MeshStandardMaterial({ color: this.peel, roughness: 0.55, metalness: 0.02 })
+      new THREE.SphereGeometry(this.radius, 22, 18, thetaStart, thetaLength, 0, Math.PI),
+      this.createJellyMaterial(this.peel, 0.78, 1.5)
     );
     const fleshHalf = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.78, 22, thetaStart, thetaLength),
-      new THREE.MeshStandardMaterial({ color: this.flesh, roughness: 0.74, metalness: 0.0 })
+      new THREE.SphereGeometry(this.radius * 0.74, 18, 14, thetaStart, thetaLength, 0, Math.PI),
+      this.createJellyMaterial(this.flesh, 0.58, 1.1)
     );
-    fleshHalf.position.z = 0.01;
-    g.add(peelHalf, fleshHalf);
+
+    const cutCap = new THREE.Mesh(
+      new THREE.CircleGeometry(this.radius * 0.74, 22),
+      new THREE.MeshStandardMaterial({ color: this.flesh, roughness: 0.28, metalness: 0.02, transparent: true, opacity: 0.8 })
+    );
+    cutCap.rotation.y = thetaStart < Math.PI * 0.5 ? -Math.PI * 0.5 : Math.PI * 0.5;
+    cutCap.position.x = thetaStart < Math.PI * 0.5 ? 0.01 : -0.01;
+    g.add(peelHalf, fleshHalf, cutCap);
     return g;
+  }
+
+  createJellyMaterial(color, opacity, thickness) {
+    const jellyColor = color.clone().offsetHSL(0, 0.32, 0.08);
+    const jellyEmissive = color.clone().offsetHSL(0, 0.24, -0.24);
+    return new THREE.MeshPhysicalMaterial({
+      color: jellyColor,
+      emissive: jellyEmissive,
+      emissiveIntensity: 0.22,
+      transparent: true,
+      opacity,
+      transmission: 0.62,
+      metalness: 0.0,
+      roughness: 0.03,
+      ior: 1.33,
+      thickness,
+      attenuationDistance: 1.6,
+      attenuationColor: jellyColor,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+    });
   }
 
   createSelectRing() {
@@ -1062,26 +1065,45 @@ class FruitEntity {
 
     if (!this.sliced) {
       this.group.position.addScaledVector(this.vel, dt);
+      let bounced = false;
 
       if (this.group.position.x < worldBounds.left + this.radius) {
         this.group.position.x = worldBounds.left + this.radius;
-        if (this.vel.x < 0) this.vel.x *= -0.5;
+        if (this.vel.x < 0) {
+          this.vel.x *= -0.5;
+          bounced = true;
+        }
       }
       if (this.group.position.x > worldBounds.right - this.radius) {
         this.group.position.x = worldBounds.right - this.radius;
-        if (this.vel.x > 0) this.vel.x *= -0.5;
+        if (this.vel.x > 0) {
+          this.vel.x *= -0.5;
+          bounced = true;
+        }
       }
       if (this.group.position.y < worldBounds.bottom + this.radius) {
         this.group.position.y = worldBounds.bottom + this.radius;
-        if (this.vel.y < 0) this.vel.y *= -0.5;
+        if (this.vel.y < 0) {
+          this.vel.y *= -0.5;
+          bounced = true;
+        }
       }
       if (this.group.position.y > worldBounds.top - this.radius) {
         this.group.position.y = worldBounds.top - this.radius;
-        if (this.vel.y > 0) this.vel.y *= -0.5;
+        if (this.vel.y > 0) {
+          this.vel.y *= -0.5;
+          bounced = true;
+        }
       }
 
       this.vel.multiplyScalar(0.985);
-      this.whole.rotation.z += dt * 0.35;
+      if (bounced) this.jellySpringVel -= 0.22;
+      this.jellySpringVel += (0 - this.jellySpring) * 0.16;
+      this.jellySpringVel *= 0.84;
+      this.jellySpring += this.jellySpringVel;
+      this.jellyTime += dt * 1.9;
+      this.animateJellyMesh();
+      this.whole.rotation.z += dt * 0.14;
 
       if (this.selected) {
         this.selectedPulse += dt * 10;
@@ -1157,6 +1179,45 @@ class FruitEntity {
     if (!this.active || this.sliced) return;
     this.wrongFlash = 0.22;
     this.wrongShake = 0.22;
+    this.jellySpringVel -= 0.3;
+  }
+
+  animateJellyMesh() {
+    if (!this.wholeShell || !this.wholeSourcePos) return;
+
+    const posAttr = this.wholeShell.geometry.attributes.position;
+    const arr = posAttr.array;
+    const src = this.wholeSourcePos;
+
+    const sx = 1 + this.jellySpring * 0.45;
+    const sy = 1 - this.jellySpring * 0.95;
+    const sz = 1 + this.jellySpring * 0.45;
+
+    for (let i = 0; i < arr.length; i += 3) {
+      const ox = src[i];
+      const oy = src[i + 1];
+      const oz = src[i + 2];
+      const invLen = 1 / Math.max(0.0001, Math.hypot(ox, oy, oz));
+      const nx = ox * invLen;
+      const ny = oy * invLen;
+      const nz = oz * invLen;
+
+      const wobbleA = Math.sin(ox * 2.6 + this.jellyTime * 2.1 + this.jellySeed) * 0.018;
+      const wobbleB = Math.cos(oy * 2.2 - this.jellyTime * 1.7 + this.jellySeed * 0.7) * 0.014;
+      const wobble = wobbleA + wobbleB;
+
+      arr[i] = (ox + nx * wobble) * sx;
+      arr[i + 1] = (oy + ny * wobble) * sy;
+      arr[i + 2] = (oz + nz * wobble) * sz;
+    }
+
+    posAttr.needsUpdate = true;
+    this.wholeShell.geometry.computeVertexNormals();
+
+    if (this.wholeCore) {
+      const coreSquish = 1 + Math.sin(this.jellyTime * 2.4 + this.jellySeed) * 0.03;
+      this.wholeCore.scale.set(coreSquish, 1 - (coreSquish - 1) * 1.2, coreSquish);
+    }
   }
 }
 
