@@ -1367,17 +1367,21 @@ function onTrailCompareToggleChange(ev) {
 }
 
 class RealisticWaterSplashFx {
-  constructor(dropCapacity, ringCapacity) {
+  constructor(dropCapacity, ringCapacity, crownCapacity = 96, puddleCapacity = 28) {
     this.dropCapacity = dropCapacity;
     this.ringCapacity = ringCapacity;
+    this.crownCapacity = crownCapacity;
+    this.puddleCapacity = puddleCapacity;
     this.group = new THREE.Group();
     this.drops = [];
     this.rings = [];
+    this.crowns = [];
+    this.puddles = [];
 
     const dropGeo = new THREE.CircleGeometry(1, 14);
     for (let i = 0; i < dropCapacity; i += 1) {
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: 0xe8f8ff,
         transparent: true,
         opacity: 0,
         blending: THREE.AdditiveBlending,
@@ -1386,7 +1390,7 @@ class RealisticWaterSplashFx {
       });
       const mesh = new THREE.Mesh(dropGeo, mat);
       mesh.visible = false;
-      mesh.position.z = 0.06;
+      mesh.position.z = 0.07;
       this.group.add(mesh);
       this.drops.push({
         active: false,
@@ -1399,7 +1403,7 @@ class RealisticWaterSplashFx {
       });
     }
 
-    const ringGeo = new THREE.RingGeometry(0.7, 1.0, 44);
+    const ringGeo = new THREE.RingGeometry(0.7, 1.0, 56);
     for (let i = 0; i < ringCapacity; i += 1) {
       const mat = new THREE.MeshBasicMaterial({
         color: 0xdff5ff,
@@ -1423,64 +1427,173 @@ class RealisticWaterSplashFx {
         end: 1,
       });
     }
-  }
 
-  spawn(origin, sliceDir, speed, radius) {
-    const power = THREE.MathUtils.clamp(speed / 10, 0.6, 1.5);
-    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
-    const tangent = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
-    const dropCount = Math.floor(22 + radius * 36 + power * 20);
+    const crownGeo = this.createCrownBladeGeometry();
+    for (let i = 0; i < crownCapacity; i += 1) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xe3f7ff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const mesh = new THREE.Mesh(crownGeo, mat);
+      mesh.visible = false;
+      mesh.position.z = 0.05;
+      this.group.add(mesh);
+      this.crowns.push({
+        active: false,
+        mesh,
+        vel: new THREE.Vector3(),
+        life: 0,
+        ttl: 0,
+        length: 0,
+        width: 0,
+        curl: 0,
+      });
+    }
 
-    this.spawnRing(origin, radius * 0.8, radius * (2.2 + power * 0.6), 0.28);
-    this.spawnRing(origin, radius * 0.45, radius * (1.5 + power * 0.5), 0.2);
-
-    for (let i = 0; i < dropCount; i += 1) {
-      const item = this.allocDrop();
-      if (!item) return;
-
-      const side = Math.random() < 0.5 ? -1 : 1;
-      const spread = THREE.MathUtils.randFloat(1.8, 5.8) * power;
-      const lift = THREE.MathUtils.randFloat(1.1, 4.4) * power;
-      const drift = THREE.MathUtils.randFloat(-1.8, 2.6) * power;
-
-      item.active = true;
-      item.life = 0;
-      item.ttl = THREE.MathUtils.randFloat(0.24, 0.66);
-      item.size = THREE.MathUtils.randFloat(radius * 0.055, radius * 0.15);
-      item.stretch = THREE.MathUtils.randFloat(1.1, 2.8);
-      item.mesh.visible = true;
-      item.mesh.position.set(
-        origin.x + THREE.MathUtils.randFloatSpread(radius * 0.5),
-        origin.y + THREE.MathUtils.randFloatSpread(radius * 0.5),
-        0.06
-      );
-
-      item.vel.copy(normal).multiplyScalar(side * spread);
-      item.vel.addScaledVector(tangent, drift);
-      item.vel.y += lift;
-      item.vel.z = THREE.MathUtils.randFloat(0.08, 0.58);
-
-      const tint = new THREE.Color(0xd8f4ff).offsetHSL(THREE.MathUtils.randFloatSpread(0.015), -0.05, THREE.MathUtils.randFloat(0.0, 0.07));
-      item.mesh.material.color.copy(tint);
-      item.mesh.material.opacity = THREE.MathUtils.randFloat(0.62, 0.95);
-      item.mesh.scale.set(item.size * item.stretch, item.size, 1);
-      item.mesh.rotation.z = Math.atan2(item.vel.y, item.vel.x);
+    const puddleGeo = new THREE.CircleGeometry(1, 36);
+    for (let i = 0; i < puddleCapacity; i += 1) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xd9f2ff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const mesh = new THREE.Mesh(puddleGeo, mat);
+      mesh.visible = false;
+      mesh.position.z = 0.02;
+      this.group.add(mesh);
+      this.puddles.push({
+        active: false,
+        mesh,
+        life: 0,
+        ttl: 0,
+        start: 0,
+        end: 0,
+      });
     }
   }
 
-  spawnRing(origin, startScale, endScale, ttl) {
-    const ring = this.allocRing();
-    if (!ring) return;
+  createCrownBladeGeometry() {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.bezierCurveTo(0.15, 0.28, 0.18, 0.62, 0.06, 1.0);
+    shape.bezierCurveTo(0.03, 1.14, -0.03, 1.14, -0.06, 1.0);
+    shape.bezierCurveTo(-0.18, 0.62, -0.15, 0.28, 0, 0);
+    return new THREE.ShapeGeometry(shape, 10);
+  }
 
-    ring.active = true;
-    ring.life = 0;
-    ring.ttl = ttl;
-    ring.start = startScale;
-    ring.end = endScale;
-    ring.mesh.visible = true;
-    ring.mesh.position.set(origin.x, origin.y, 0.03);
-    ring.mesh.scale.set(startScale, startScale, 1);
-    ring.mesh.material.opacity = 0.56;
+  spawn(origin, sliceDir, speed, radius) {
+    const power = THREE.MathUtils.clamp(speed / 9, 0.7, 1.8);
+    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
+    const tangent = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
+    const dropCount = Math.floor(36 + radius * 48 + power * 26);
+    const crownCount = Math.floor(14 + power * 8 + radius * 6);
+
+    this.spawnRing(origin, radius * 0.58, radius * (1.8 + power * 0.45), 0.22, 0.66);
+    this.spawnRing(origin, radius * 0.95, radius * (2.6 + power * 0.7), 0.34, 0.5);
+    this.spawnRing(origin, radius * 1.45, radius * (3.5 + power * 0.9), 0.48, 0.36);
+    this.spawnPuddle(origin, radius * 0.72, radius * (1.7 + power * 0.4), 0.28, 0.42);
+    this.spawnPuddle(origin, radius * 0.2, radius * (0.84 + power * 0.25), 0.16, 0.62);
+
+    for (let i = 0; i < crownCount; i += 1) {
+      const c = this.allocCrown();
+      if (!c) break;
+
+      const a = (i / crownCount) * Math.PI * 2 + THREE.MathUtils.randFloatSpread(0.18);
+      const rx = Math.cos(a);
+      const ry = Math.sin(a);
+
+      c.active = true;
+      c.life = 0;
+      c.ttl = THREE.MathUtils.randFloat(0.22, 0.52);
+      c.length = THREE.MathUtils.randFloat(radius * 0.9, radius * 2.1) * (0.9 + power * 0.18);
+      c.width = THREE.MathUtils.randFloat(radius * 0.12, radius * 0.26);
+      c.curl = THREE.MathUtils.randFloat(0.05, 0.28);
+      c.mesh.visible = true;
+      c.mesh.position.set(
+        origin.x + rx * THREE.MathUtils.randFloat(radius * 0.18, radius * 0.62),
+        origin.y + ry * THREE.MathUtils.randFloat(radius * 0.18, radius * 0.62),
+        0.05
+      );
+
+      c.vel.set(
+        rx * THREE.MathUtils.randFloat(2.6, 6.8) * power + tangent.x * THREE.MathUtils.randFloat(-0.8, 1.3),
+        ry * THREE.MathUtils.randFloat(2.4, 6.4) * power + tangent.y * THREE.MathUtils.randFloat(-0.8, 1.3) + THREE.MathUtils.randFloat(1.6, 4.8),
+        THREE.MathUtils.randFloat(0.1, 0.6)
+      );
+      c.mesh.rotation.z = a;
+      c.mesh.scale.set(c.length, c.width, 1);
+      c.mesh.material.opacity = THREE.MathUtils.randFloat(0.5, 0.86);
+    }
+
+    for (let i = 0; i < dropCount; i += 1) {
+      const d = this.allocDrop();
+      if (!d) break;
+
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const spread = THREE.MathUtils.randFloat(2.2, 7.6) * power;
+      const lift = THREE.MathUtils.randFloat(1.2, 5.6) * power;
+      const drift = THREE.MathUtils.randFloat(-2.2, 3.3) * power;
+
+      d.active = true;
+      d.life = 0;
+      d.ttl = THREE.MathUtils.randFloat(0.24, 0.74);
+      d.size = THREE.MathUtils.randFloat(radius * 0.05, radius * 0.17);
+      d.stretch = THREE.MathUtils.randFloat(1.2, 3.4);
+      d.mesh.visible = true;
+      d.mesh.position.set(
+        origin.x + THREE.MathUtils.randFloatSpread(radius * 0.62),
+        origin.y + THREE.MathUtils.randFloatSpread(radius * 0.62),
+        0.07
+      );
+
+      d.vel.copy(normal).multiplyScalar(side * spread);
+      d.vel.addScaledVector(tangent, drift);
+      d.vel.y += lift;
+      d.vel.z = THREE.MathUtils.randFloat(0.08, 0.62);
+
+      d.mesh.material.color.setHex(0xe7f9ff);
+      d.mesh.material.opacity = THREE.MathUtils.randFloat(0.56, 0.92);
+      d.mesh.scale.set(d.size * d.stretch, d.size, 1);
+      d.mesh.rotation.z = Math.atan2(d.vel.y, d.vel.x);
+    }
+  }
+
+  spawnRing(origin, startScale, endScale, ttl, alpha) {
+    const r = this.allocRing();
+    if (!r) return;
+
+    r.active = true;
+    r.life = 0;
+    r.ttl = ttl;
+    r.start = startScale;
+    r.end = endScale;
+    r.mesh.visible = true;
+    r.mesh.position.set(origin.x, origin.y, 0.03);
+    r.mesh.scale.set(startScale, startScale, 1);
+    r.mesh.material.opacity = alpha;
+  }
+
+  spawnPuddle(origin, startScale, endScale, ttl, alpha) {
+    const p = this.allocPuddle();
+    if (!p) return;
+
+    p.active = true;
+    p.life = 0;
+    p.ttl = ttl;
+    p.start = startScale;
+    p.end = endScale;
+    p.mesh.visible = true;
+    p.mesh.position.set(origin.x, origin.y, 0.02);
+    p.mesh.scale.set(startScale, startScale, 1);
+    p.mesh.material.opacity = alpha;
   }
 
   allocDrop() {
@@ -1493,6 +1606,20 @@ class RealisticWaterSplashFx {
   allocRing() {
     for (let i = 0; i < this.ringCapacity; i += 1) {
       if (!this.rings[i].active) return this.rings[i];
+    }
+    return null;
+  }
+
+  allocCrown() {
+    for (let i = 0; i < this.crownCapacity; i += 1) {
+      if (!this.crowns[i].active) return this.crowns[i];
+    }
+    return null;
+  }
+
+  allocPuddle() {
+    for (let i = 0; i < this.puddleCapacity; i += 1) {
+      if (!this.puddles[i].active) return this.puddles[i];
     }
     return null;
   }
@@ -1511,20 +1638,49 @@ class RealisticWaterSplashFx {
       }
 
       const t = d.life / d.ttl;
-      d.vel.multiplyScalar(Math.exp(-4.6 * dt));
-      d.vel.y -= (4.8 + t * 2.8) * dt;
+      d.vel.multiplyScalar(Math.exp(-4.2 * dt));
+      d.vel.y -= (5.8 + t * 3.5) * dt;
       d.vel.z *= 0.9;
       d.mesh.position.addScaledVector(d.vel, dt);
       d.mesh.rotation.z = Math.atan2(d.vel.y, d.vel.x);
 
       const speed2D = Math.hypot(d.vel.x, d.vel.y);
-      const stretch = 1 + Math.min(speed2D * 0.08, 1.6) * (1 - t * 0.55);
-      const thickness = Math.max(0.42, 0.94 - Math.min(speed2D * 0.05, 0.4));
-      const size = d.size * (1 - t * 0.35);
+      const stretch = 1 + Math.min(speed2D * 0.09, 1.9) * (1 - t * 0.5);
+      const thickness = Math.max(0.36, 0.9 - Math.min(speed2D * 0.06, 0.42));
+      const size = d.size * (1 - t * 0.34);
       d.mesh.scale.set(size * d.stretch * stretch, size * thickness, 1);
 
-      const fade = t < 0.38 ? 1 : 1 - (t - 0.38) / 0.62;
-      d.mesh.material.opacity = Math.max(0, fade * 0.94);
+      const fade = t < 0.3 ? 1 : 1 - (t - 0.3) / 0.7;
+      d.mesh.material.opacity = Math.max(0, fade * 0.92);
+    }
+
+    for (let i = 0; i < this.crownCapacity; i += 1) {
+      const c = this.crowns[i];
+      if (!c.active) continue;
+
+      c.life += dt;
+      if (c.life >= c.ttl) {
+        c.active = false;
+        c.mesh.visible = false;
+        c.mesh.material.opacity = 0;
+        continue;
+      }
+
+      const t = c.life / c.ttl;
+      c.vel.multiplyScalar(Math.exp(-3.0 * dt));
+      c.vel.y -= (6.9 + t * 4.6) * dt;
+      c.vel.z *= 0.9;
+      c.mesh.position.addScaledVector(c.vel, dt);
+      const angle = Math.atan2(c.vel.y, c.vel.x);
+      c.mesh.rotation.z = angle + Math.sin(c.life * 13) * c.curl * (1 - t);
+
+      const speed2D = Math.hypot(c.vel.x, c.vel.y);
+      const len = c.length * (1 + Math.min(speed2D * 0.05, 0.8)) * (1 - t * 0.38);
+      const wid = c.width * (1 - t * 0.3);
+      c.mesh.scale.set(len, wid, 1);
+
+      const fade = t < 0.25 ? 1 : 1 - (t - 0.25) / 0.75;
+      c.mesh.material.opacity = Math.max(0, fade * 0.82);
     }
 
     for (let i = 0; i < this.ringCapacity; i += 1) {
@@ -1542,7 +1698,25 @@ class RealisticWaterSplashFx {
       const t = r.life / r.ttl;
       const scale = THREE.MathUtils.lerp(r.start, r.end, t);
       r.mesh.scale.set(scale, scale, 1);
-      r.mesh.material.opacity = Math.max(0, (1 - t) * 0.62);
+      r.mesh.material.opacity = Math.max(0, (1 - t) * 0.66);
+    }
+
+    for (let i = 0; i < this.puddleCapacity; i += 1) {
+      const p = this.puddles[i];
+      if (!p.active) continue;
+
+      p.life += dt;
+      if (p.life >= p.ttl) {
+        p.active = false;
+        p.mesh.visible = false;
+        p.mesh.material.opacity = 0;
+        continue;
+      }
+
+      const t = p.life / p.ttl;
+      const scale = THREE.MathUtils.lerp(p.start, p.end, t);
+      p.mesh.scale.set(scale, scale, 1);
+      p.mesh.material.opacity = Math.max(0, (1 - t) * 0.52);
     }
   }
 
@@ -1553,11 +1727,23 @@ class RealisticWaterSplashFx {
       d.mesh.visible = false;
       d.mesh.material.opacity = 0;
     }
+    for (let i = 0; i < this.crownCapacity; i += 1) {
+      const c = this.crowns[i];
+      c.active = false;
+      c.mesh.visible = false;
+      c.mesh.material.opacity = 0;
+    }
     for (let i = 0; i < this.ringCapacity; i += 1) {
       const r = this.rings[i];
       r.active = false;
       r.mesh.visible = false;
       r.mesh.material.opacity = 0;
+    }
+    for (let i = 0; i < this.puddleCapacity; i += 1) {
+      const p = this.puddles[i];
+      p.active = false;
+      p.mesh.visible = false;
+      p.mesh.material.opacity = 0;
     }
   }
 }
