@@ -24,12 +24,13 @@ const scoring = {
 };
 
 const colors = [
-  { id: "red", name: "红果", peel: 0xff5c5c, flesh: 0xffb7b7 },
+  { id: "red", name: "香蕉", peel: 0xffe135, flesh: 0xfff2b8 },
   { id: "orange", name: "橙果", peel: 0xffa23b, flesh: 0xffd6a0 },
   { id: "green", name: "西瓜", peel: 0x4caf50, flesh: 0xff8a8a },
   { id: "purple", name: "紫果", peel: 0x8170df, flesh: 0xbeb3ef },
 ];
 
+const bananaColorToken = "red";
 const watermelonColorToken = "green";
 let watermelonStripeTexture = null;
 
@@ -1509,6 +1510,10 @@ class FruitEntity {
   }
 
   createWhole() {
+    if (colors[this.colorId]?.id === bananaColorToken) {
+      return this.createBananaWhole();
+    }
+
     if (colors[this.colorId]?.id === watermelonColorToken) {
       return this.createWatermelonWhole();
     }
@@ -1565,6 +1570,54 @@ class FruitEntity {
     return g;
   }
 
+  createBananaWhole() {
+    const g = new THREE.Group();
+    const cfg = {
+      height: this.radius * 2.25,
+      radius: this.radius * 0.34,
+      bendAmount: this.radius * 0.62,
+      taperFactor: 0.45,
+    };
+
+    const bananaGeo = this.createBananaBodyGeometry({
+      height: cfg.height,
+      radius: cfg.radius,
+      bendAmount: cfg.bendAmount,
+      taperFactor: cfg.taperFactor,
+      radialSegments: 7,
+      heightSegments: 56,
+      thetaStart: 0,
+      thetaLength: Math.PI * 2,
+    });
+
+    const bodyMat = new THREE.MeshToonMaterial({ color: this.peel });
+    const outlineMat = new THREE.MeshBasicMaterial({ color: 0x4e342e, side: THREE.BackSide });
+
+    const body = new THREE.Mesh(bananaGeo, bodyMat);
+    const outline = new THREE.Mesh(bananaGeo, outlineMat);
+    outline.scale.set(1.1, 1.01, 1.1);
+    g.add(outline, body);
+
+    const darkMat = new THREE.MeshToonMaterial({ color: 0x3d2b1f });
+    const baseY = -cfg.height / 2;
+    const topY = cfg.height / 2;
+
+    const bottomTip = new THREE.Mesh(new THREE.SphereGeometry(this.radius * 0.09, 6, 6), darkMat);
+    bottomTip.position.set(this.getBananaXOffset(baseY, cfg.height, cfg.bendAmount), baseY, 0);
+    g.add(bottomTip);
+
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(this.radius * 0.06, this.radius * 0.1, this.radius * 0.34, 6),
+      darkMat
+    );
+    stem.position.set(this.getBananaXOffset(topY, cfg.height, cfg.bendAmount), topY + this.radius * 0.15, 0);
+    stem.rotation.z = -0.2;
+    g.add(stem);
+
+    g.rotation.z = Math.PI / 4.5;
+    return g;
+  }
+
   createWatermelonWhole() {
     const g = new THREE.Group();
     const bodyGeo = new THREE.SphereGeometry(this.radius, 52, 52);
@@ -1602,6 +1655,10 @@ class FruitEntity {
   }
 
   createHalf(thetaStart, thetaLength) {
+    if (colors[this.colorId]?.id === bananaColorToken) {
+      return this.createBananaHalf(thetaStart, thetaLength);
+    }
+
     if (colors[this.colorId]?.id === watermelonColorToken) {
       return this.createWatermelonHalf(thetaStart, thetaLength);
     }
@@ -1631,6 +1688,97 @@ class FruitEntity {
 
     g.add(outline, peelHalf, cutFace, seed);
     return g;
+  }
+
+  createBananaHalf(thetaStart, thetaLength) {
+    const g = new THREE.Group();
+    const cfg = {
+      height: this.radius * 2.25,
+      radius: this.radius * 0.34,
+      bendAmount: this.radius * 0.62,
+      taperFactor: 0.45,
+    };
+
+    const peelHalfGeo = this.createBananaBodyGeometry({
+      height: cfg.height,
+      radius: cfg.radius,
+      bendAmount: cfg.bendAmount,
+      taperFactor: cfg.taperFactor,
+      radialSegments: 10,
+      heightSegments: 48,
+      thetaStart,
+      thetaLength,
+    });
+    const fleshHalfGeo = this.createBananaBodyGeometry({
+      height: cfg.height * 0.94,
+      radius: cfg.radius * 0.76,
+      bendAmount: cfg.bendAmount * 0.8,
+      taperFactor: cfg.taperFactor,
+      radialSegments: 10,
+      heightSegments: 48,
+      thetaStart,
+      thetaLength,
+    });
+
+    const peelHalf = new THREE.Mesh(
+      peelHalfGeo,
+      new THREE.MeshToonMaterial({ color: this.peel, side: THREE.DoubleSide })
+    );
+    const outline = new THREE.Mesh(peelHalfGeo, new THREE.MeshBasicMaterial({ color: 0x4e342e, side: THREE.BackSide }));
+    outline.scale.set(1.1, 1.01, 1.1);
+
+    const fleshHalf = new THREE.Mesh(
+      fleshHalfGeo,
+      new THREE.MeshToonMaterial({ color: this.flesh, side: THREE.DoubleSide })
+    );
+    fleshHalf.position.z = 0.015;
+
+    g.add(outline, peelHalf, fleshHalf);
+    g.rotation.z = Math.PI / 4.5;
+    return g;
+  }
+
+  createBananaBodyGeometry({
+    height,
+    radius,
+    bendAmount,
+    taperFactor,
+    radialSegments,
+    heightSegments,
+    thetaStart,
+    thetaLength,
+  }) {
+    const geo = new THREE.CylinderGeometry(
+      radius,
+      radius,
+      height,
+      radialSegments,
+      heightSegments,
+      false,
+      thetaStart,
+      thetaLength
+    );
+
+    const posAttr = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < posAttr.count; i += 1) {
+      v.fromBufferAttribute(posAttr, i);
+      const pct = v.y / (height / 2);
+      v.x += this.getBananaXOffset(v.y, height, bendAmount);
+
+      const taper = Math.cos(pct * Math.PI * taperFactor);
+      const scale = 0.35 + 0.65 * taper;
+      v.x *= scale;
+      v.z *= scale;
+      posAttr.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  getBananaXOffset(y, height, bendAmount) {
+    const pct = y / (height / 2);
+    return (pct * pct - 1) * bendAmount;
   }
 
   createWatermelonHalf(thetaStart, thetaLength) {
