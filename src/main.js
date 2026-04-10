@@ -20,7 +20,6 @@ const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
-const trailCompareToggleEl = document.getElementById("trail-compare-toggle");
 
 const rules = {
   worldHeight: 10,
@@ -180,11 +179,6 @@ function clampNumber(value, min, max, fallback) {
 }
 
 function init() {
-  if (trailCompareToggleEl) {
-    state.keepFullTrailDuringDrag = trailCompareToggleEl.checked;
-    trailCompareToggleEl.addEventListener("change", onTrailCompareToggleChange);
-  }
-
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
 
@@ -1666,11 +1660,4 @@ class SliceTrail {
     this.geometry.setIndex(this.indices);
     this.geometry.setDrawRange(0, 0);
   }
-}
-
-function onTrailCompareToggleChange(ev) {
-  const enabled = ev?.target?.checked !== false;
-  state.keepFullTrailDuringDrag = enabled;
-  if (trail) trail.setKeepFullMode(enabled);
-  if (enabled && !state.pointerDown) trail?.reset();
 }

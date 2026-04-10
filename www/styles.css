@@ -76,23 +76,6 @@ body {
   color: var(--accent);
 }
 
-.trail-test-toggle {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.95;
-  user-select: none;
-}
-
-.trail-test-toggle input {
-  width: 14px;
-  height: 14px;
-  accent-color: #4e9be6;
-}
-
 #cuts,
 #slice-state {
   margin-top: 4px;
