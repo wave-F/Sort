@@ -9,6 +9,8 @@ const rootDir = path.resolve(__dirname, "..");
 const webDir = path.join(rootDir, "www");
 const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
 const popAudioWebDir = path.join(webDir, "assets", "audio", "pop");
+const bgImageSrcDir = path.join(rootDir, "assets", "images", "backgrounds");
+const bgImageWebDir = path.join(webDir, "assets", "images", "backgrounds");
 
 await mkdir(webDir, { recursive: true });
 
@@ -25,6 +27,7 @@ await build({
 const css = await readFile(path.join(rootDir, "src", "styles.css"), "utf8");
 await writeFile(path.join(webDir, "styles.css"), css, "utf8");
 await cp(popAudioSrcDir, popAudioWebDir, { recursive: true, force: true });
+await cp(bgImageSrcDir, bgImageWebDir, { recursive: true, force: true });
 
 const html = `<!doctype html>
 <html lang="zh-CN">
@@ -37,14 +40,23 @@ const html = `<!doctype html>
   <body>
     <div id="phone-frame">
       <div id="hud">
-        <div id="score">分数: 0</div>
+        <div id="score">步数: -</div>
+      </div>
+
+      <div id="level-test">
+        <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
+        <div id="level-test-panel" class="hidden">
+          <label for="level-test-select">选择关卡</label>
+          <select id="level-test-select"></select>
+          <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
+        </div>
       </div>
 
       <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
 
       <div id="start-screen" class="layer">
         <h1>切泡泡</h1>
-        <p>一刀只能戳同色，碰到异色会断刀。<br />不限刀数，尽量拿高分。</p>
+        <p>一刀只能戳同色，碰到异色会断刀。<br />每关有步数限制，尽量用更少步通关。</p>
         <button id="start-btn">开始游戏</button>
       </div>
 

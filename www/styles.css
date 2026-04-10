@@ -63,6 +63,62 @@ body {
   backdrop-filter: blur(6px);
 }
 
+#level-test {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.tool-btn {
+  margin-top: 0;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(21, 38, 58, 0.84);
+  box-shadow: 0 10px 20px rgba(8, 16, 28, 0.32);
+  color: #eff8ff;
+}
+
+#level-test-panel {
+  width: 176px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(10, 20, 33, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#level-test-panel label {
+  font-size: 12px;
+  color: #cae9ff;
+  font-weight: 700;
+}
+
+#level-test-select {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(169, 216, 255, 0.55);
+  background: #f2f8ff;
+  color: #1f425f;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 8px;
+}
+
+#level-test-jump {
+  width: 100%;
+}
+
 #title {
   font-size: 14px;
   letter-spacing: 0.08em;

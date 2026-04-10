@@ -1,89 +1,84 @@
-const C = {
-  RED: 0,
-  ORANGE: 1,
-  GREEN: 2,
-  PURPLE: 3,
-};
+import levelsConfig from "./config/levels.json" with { type: "json" };
 
-export const LEVELS = [
-  {
-    id: 1,
-    name: "双色入门",
-    targetScore: 100,
-    seed: 12031,
-    colorCounts: [
-      { colorId: C.ORANGE, count: 5 },
-      { colorId: C.PURPLE, count: 5 },
-    ],
-    radiusRange: [0.28, 0.62],
-    speedRange: [0.0, 0.12],
-  },
-  {
-    id: 2,
-    name: "三色试炼",
-    targetScore: 170,
-    seed: 12079,
-    colorCounts: [
-      { colorId: C.RED, count: 6 },
-      { colorId: C.ORANGE, count: 6 },
-      { colorId: C.GREEN, count: 6 },
-    ],
-    radiusRange: [0.37, 0.44],
-    speedRange: [0.02, 0.18],
-  },
-  {
-    id: 3,
-    name: "三色加速",
-    targetScore: 250,
-    seed: 12137,
-    colorCounts: [
-      { colorId: C.RED, count: 8 },
-      { colorId: C.ORANGE, count: 7 },
-      { colorId: C.GREEN, count: 7 },
-    ],
-    radiusRange: [0.35, 0.42],
-    speedRange: [0.06, 0.24],
-  },
-  {
-    id: 4,
-    name: "四色混切",
-    targetScore: 340,
-    seed: 12211,
-    colorCounts: [
-      { colorId: C.RED, count: 6 },
-      { colorId: C.ORANGE, count: 6 },
-      { colorId: C.GREEN, count: 6 },
-      { colorId: C.PURPLE, count: 6 },
-    ],
-    radiusRange: [0.34, 0.41],
-    speedRange: [0.08, 0.28],
-  },
-  {
-    id: 5,
-    name: "高压连切",
-    targetScore: 450,
-    seed: 12319,
-    colorCounts: [
-      { colorId: C.RED, count: 8 },
-      { colorId: C.ORANGE, count: 7 },
-      { colorId: C.GREEN, count: 6 },
-      { colorId: C.PURPLE, count: 6 },
-    ],
-    radiusRange: [0.32, 0.39],
-    speedRange: [0.1, 0.32],
-  },
-  {
-    id: 6,
-    name: "终局冲分",
-    targetScore: 580,
-    seed: 12401,
-    colorCounts: [
-      { colorId: C.RED, count: 8 },
-      { colorId: C.ORANGE, count: 8 },
-      { colorId: C.GREEN, count: 7 },
-      { colorId: C.PURPLE, count: 7 },
-    ],
-    radiusRange: [0.31, 0.38],
-    speedRange: [0.12, 0.36],
-  },
-];
+function asNumber(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeRange(range, fallbackMin, fallbackMax) {
+  if (!Array.isArray(range) || range.length < 2) {
+    return [fallbackMin, fallbackMax];
+  }
+
+  const a = asNumber(range[0], fallbackMin);
+  const b = asNumber(range[1], fallbackMax);
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
+function normalizeColorCounts(rawCounts) {
+  if (!Array.isArray(rawCounts)) return [];
+
+  const counts = [];
+  for (const row of rawCounts) {
+    const colorId = Math.floor(asNumber(row?.colorId, -1));
+    const count = Math.floor(asNumber(row?.count, 0));
+    if (colorId < 0 || count <= 0) continue;
+    counts.push({ colorId, count });
+  }
+
+  return counts;
+}
+
+function normalizeFruits(rawFruits) {
+  if (!Array.isArray(rawFruits)) return [];
+
+  const fruits = [];
+  for (const item of rawFruits) {
+    if (!item) continue;
+    const colorId = Math.floor(asNumber(item.colorId, -1));
+    if (colorId < 0) continue;
+
+    fruits.push({
+      x: asNumber(item.x, 0),
+      y: asNumber(item.y, 0),
+      colorId,
+      radius: asNumber(item.radius, 0.34),
+      vx: asNumber(item.vx, 0),
+      vy: asNumber(item.vy, 0),
+    });
+  }
+
+  return fruits;
+}
+
+function normalizeLevel(rawLevel, index) {
+  const id = Math.floor(asNumber(rawLevel?.id, index + 1));
+  const stepLimit = Math.max(1, Math.floor(asNumber(rawLevel?.stepLimit, 8)));
+  const seed = Math.floor(asNumber(rawLevel?.seed, 10000 + id * 137));
+  const name = String(rawLevel?.name ?? `关卡${id}`).trim() || `关卡${id}`;
+  const colorCounts = normalizeColorCounts(rawLevel?.colorCounts);
+  const fruits = normalizeFruits(rawLevel?.fruits);
+
+  if (!colorCounts.length) {
+    throw new Error(`Invalid levels config: level id=${id} has empty colorCounts`);
+  }
+
+  return {
+    id,
+    name,
+    stepLimit,
+    seed,
+    colorCounts,
+    radiusRange: normalizeRange(rawLevel?.radiusRange, 0.34, 0.44),
+    speedRange: normalizeRange(rawLevel?.speedRange, 0, 0.16),
+    fruits,
+  };
+}
+
+const rawLevels = Array.isArray(levelsConfig?.levels) ? levelsConfig.levels : [];
+
+if (!rawLevels.length) {
+  throw new Error("Invalid levels config: src/config/levels.json has no levels");
+}
+
+export const LEVELS = rawLevels.map(normalizeLevel);

@@ -12,7 +12,7 @@ import { LEVELS } from "./levels.js";
 
 const appEl = document.getElementById("app");
 const titleEl = document.getElementById("title");
-const scoreEl = document.getElementById("score");
+const stepsEl = document.getElementById("score");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
 const startScreenEl = document.getElementById("start-screen");
@@ -20,18 +20,23 @@ const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
+const levelTestToggleBtn = document.getElementById("level-test-toggle");
+const levelTestPanelEl = document.getElementById("level-test-panel");
+const levelTestSelectEl = document.getElementById("level-test-select");
+const levelTestJumpBtn = document.getElementById("level-test-jump");
 
 const rules = {
   worldHeight: 10,
   minSliceSegment: 0.02,
-};
-
-const scoring = {
-  perFruit: 5,
-  comboBonusFactor: 2,
+  playAreaInset: 0.18,
 };
 
 const slicePopStaggerStep = 0.075;
+const spawnEdgePadding = 0.01;
+const spawnEdgeBias = 0.38;
+const spawnEdgeBand = 0.9;
+const wallSlideDamping = 0.992;
+const wallContactGain = 0.8;
 
 const bubbleRadiusScale = 3;
 const bubbleTuningStorageKey = "bubble_tuning_v1";
@@ -55,6 +60,10 @@ const colors = [
   { id: "orange", name: "橙泡", base: 0xff9800 },
   { id: "green", name: "绿泡", base: 0x12cf5b },
   { id: "blue", name: "蓝泡", base: 0x1b8fff },
+  { id: "purple", name: "紫泡", base: 0x8a4dff },
+  { id: "cyan", name: "青泡", base: 0x00c8ff },
+  { id: "yellow", name: "黄泡", base: 0xffde59 },
+  { id: "pink", name: "粉泡", base: 0xff6fcf },
 ];
 
 const defaultBubbleTuning = {
@@ -85,7 +94,6 @@ const state = {
   levelTransitioning: false,
   currentLevelIndex: 0,
   activeLevel: null,
-  score: 0,
   pointerDown: false,
   sliceColorId: null,
   sliceBroken: false,
@@ -97,11 +105,8 @@ const state = {
   lastPoint: null,
   nowPoint: null,
   lastMoveAt: 0,
-};
-
-const levelEditor = {
-  lastSeed: Math.floor(Date.now() % 1000000),
-  savedLayouts: [],
+  stepLimit: 0,
+  stepsUsed: 0,
 };
 
 const audioState = {
@@ -115,7 +120,7 @@ const audioState = {
 };
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xeef6ff);
+scene.background = new THREE.Color(0xfffefc);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.set(0, 0, 12.1);
@@ -206,15 +211,60 @@ function clampNumber(value, min, max, fallback) {
 function init() {
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
+  setupLevelTestControls();
 
   window.addEventListener("resize", resize);
-  window.addEventListener("keydown", onEditorHotkey);
   window.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
   setupRenderer();
+}
+
+function setupLevelTestControls() {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn) {
+    return;
+  }
+
+  levelTestSelectEl.innerHTML = "";
+  for (let i = 0; i < LEVELS.length; i += 1) {
+    const level = LEVELS[i];
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = `第${i + 1}关 ${level.name}`;
+    levelTestSelectEl.appendChild(option);
+  }
+
+  levelTestToggleBtn.addEventListener("click", () => {
+    levelTestPanelEl.classList.toggle("hidden");
+  });
+
+  levelTestJumpBtn.addEventListener("click", () => {
+    const targetIndex = Number(levelTestSelectEl.value);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= LEVELS.length) {
+      return;
+    }
+    jumpToLevelForTest(targetIndex);
+  });
+}
+
+function setLevelTestSelection(index) {
+  if (!levelTestSelectEl) return;
+  levelTestSelectEl.value = String(index);
+}
+
+function jumpToLevelForTest(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) return;
+
+  if (!state.started || state.gameOver) {
+    startGame();
+  }
+
+  state.levelTransitioning = false;
+  loadLevel(index);
+  if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
+  showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
 }
 
 async function setupRenderer() {
@@ -265,7 +315,6 @@ function startGame() {
   state.levelTransitioning = false;
   state.currentLevelIndex = 0;
   state.activeLevel = null;
-  state.score = 0;
   state.pointerDown = false;
   state.sliceColorId = null;
   state.sliceBroken = false;
@@ -276,6 +325,8 @@ function startGame() {
   state.pendingPops.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
+  state.stepLimit = 0;
+  state.stepsUsed = 0;
 
   trail.reset();
 
@@ -286,7 +337,6 @@ function startGame() {
     showCommentary("已应用调试页同步参数。", 1300);
   }
 
-  updateHud();
   loadLevel(0);
 }
 
@@ -307,12 +357,16 @@ function loadLevel(index) {
   state.pendingPops.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
+  state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
+  state.stepsUsed = 0;
+  setLevelTestSelection(index);
+  updateStepsHud();
 
   trail.reset();
 
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
-    `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount}（R随机/S保存/E导出）`,
+    `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount} · 步数${state.stepLimit}`,
     2400
   );
 
@@ -347,111 +401,6 @@ function resetFruits(level) {
   }
 }
 
-function onEditorHotkey(ev) {
-  if (!state.started || state.gameOver || state.levelTransitioning) return;
-  if (ev.repeat) return;
-
-  const key = ev.key.toLowerCase();
-  if (key === "r") {
-    ev.preventDefault();
-    randomizeCurrentLevelLayout();
-  } else if (key === "s") {
-    ev.preventDefault();
-    saveCurrentLevelLayout();
-  } else if (key === "e") {
-    ev.preventDefault();
-    void exportSavedLayouts();
-  }
-}
-
-function randomizeCurrentLevelLayout() {
-  if (!state.activeLevel) return;
-
-  const seed = nextEditorSeed();
-  const template = state.activeLevel;
-
-  const randomized = generateRandomFruits({
-    seed,
-    fruitCount: template.fruitCount,
-    colorCounts: template.colorCounts,
-    radiusMin: template.radiusRange.min,
-    radiusMax: template.radiusRange.max,
-    speedMin: template.speedRange.min,
-    speedMax: template.speedRange.max,
-  });
-
-  state.activeLevel = {
-    ...template,
-    seed,
-    name: `${template.name}·随机`,
-    fruits: randomized,
-  };
-
-  clearQueuedSelections();
-  trail.reset();
-  state.pointerDown = false;
-  state.lastPoint = null;
-  state.nowPoint = null;
-
-  resetFruits(state.activeLevel);
-  showCommentary(`已生成随机布局 seed=${seed}（颜色${template.colorIds.length}种/数量${template.fruitCount}）按 S 保存`, 1900);
-}
-
-function saveCurrentLevelLayout() {
-  if (!state.activeLevel) return;
-
-  const candidateIndex = levelEditor.savedLayouts.length + 1;
-  const candidate = {
-    id: candidateIndex,
-    name: `L${state.currentLevelIndex + 1}-候选${candidateIndex}`,
-    targetScore: state.activeLevel.targetScore,
-    seed: state.activeLevel.seed,
-    fruitCount: state.activeLevel.fruitCount,
-    colorIds: [...state.activeLevel.colorIds],
-    colorCounts: state.activeLevel.colorCounts.map((item) => ({ colorId: item.colorId, count: item.count })),
-    radiusRange: [round3(state.activeLevel.radiusRange.min), round3(state.activeLevel.radiusRange.max)],
-    speedRange: [round3(state.activeLevel.speedRange.min), round3(state.activeLevel.speedRange.max)],
-    fruits: state.activeLevel.fruits.map(roundFruitDef),
-  };
-
-  levelEditor.savedLayouts.push(candidate);
-  window.__FRUIT_LEVEL_CANDIDATES__ = levelEditor.savedLayouts;
-  showCommentary(`已保存候选 ${candidateIndex}，按 E 导出数据`, 1600);
-}
-
-async function exportSavedLayouts() {
-  if (!levelEditor.savedLayouts.length) {
-    showCommentary("还没有已保存候选，先按 S 保存一个。", 1400);
-    return;
-  }
-
-  const payload = JSON.stringify(levelEditor.savedLayouts, null, 2);
-  const filename = `level-candidates-${Date.now()}.json`;
-  let copied = false;
-
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(payload);
-      copied = true;
-    }
-  } catch (_err) {
-    // ignore clipboard failure; file download still works
-  }
-
-  const blob = new Blob([payload], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-
-  const copyTip = copied ? "并复制到剪贴板" : "请在下载文件中查看";
-  showCommentary(`已导出 ${levelEditor.savedLayouts.length} 份候选（${copyTip}）`, 1800);
-}
-
 function normalizeLevelDefinition(level, index) {
   const fruitsDef = Array.isArray(level.fruits) ? level.fruits : [];
   const parsedColorCounts = normalizeColorCounts(level.colorCounts);
@@ -468,13 +417,14 @@ function normalizeLevelDefinition(level, index) {
   };
   const speedRange = normalizeRange(level.speedRange, inferSpeedRangeFromFruits(fruitsDef, index), 0, 0.9);
   const seed = Math.floor(level.seed ?? 1000 + (level.id ?? index + 1) * 137);
+  const stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 8));
 
   const fruits = fruitsDef.length
     ? fruitsDef.map((f) => ({
         x: f.x,
         y: f.y,
         colorId: f.colorId,
-        radius: (f.radius ?? 0.42) * bubbleRadiusScale,
+        radius: f.radius ?? 0.42 * bubbleRadiusScale,
         vx: f.vx ?? 0,
         vy: f.vy ?? 0,
       }))
@@ -491,20 +441,15 @@ function normalizeLevelDefinition(level, index) {
   return {
     id: level.id,
     name: level.name,
-    targetScore: level.targetScore,
     seed,
     fruitCount,
     colorIds,
     colorCounts,
     radiusRange,
     speedRange,
+    stepLimit,
     fruits,
   };
-}
-
-function nextEditorSeed() {
-  levelEditor.lastSeed += 1;
-  return levelEditor.lastSeed;
 }
 
 function normalizeColorIds(colorIds, fruitsDef) {
@@ -628,7 +573,7 @@ function generateRandomFruits({ seed, fruitCount, colorCounts, radiusMin, radius
 
   for (let i = 0; i < fruitCount; i += 1) {
     const radius = lerp(radiusMin, radiusMax, rng());
-    const margin = radius + 0.06;
+    const margin = radius + spawnEdgePadding;
 
     let x = 0;
     let y = 0;
@@ -636,7 +581,22 @@ function generateRandomFruits({ seed, fruitCount, colorCounts, radiusMin, radius
     const useCluster = rng() < 0.84;
 
     for (let k = 0; k < 180; k += 1) {
-      if (useCluster) {
+      const useEdge = rng() < spawnEdgeBias;
+
+      if (useEdge) {
+        const side = Math.floor(rng() * 4);
+        if (side === 0 || side === 1) {
+          const maxDepth = Math.max(0, Math.min(spawnEdgeBand, bounds.right - bounds.left - margin * 2));
+          const depth = Math.sqrt(rng()) * maxDepth;
+          x = side === 0 ? bounds.left + margin + depth : bounds.right - margin - depth;
+          y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
+        } else {
+          const maxDepth = Math.max(0, Math.min(spawnEdgeBand, bounds.top - bounds.bottom - margin * 2));
+          const depth = Math.sqrt(rng()) * maxDepth;
+          y = side === 2 ? bounds.bottom + margin + depth : bounds.top - margin - depth;
+          x = lerp(bounds.left + margin, bounds.right - margin, rng());
+        }
+      } else if (useCluster) {
         let pick = rng() * weightTotal;
         let cluster = clusters[0];
         for (let c = 0; c < clusters.length; c += 1) {
@@ -713,21 +673,6 @@ function buildColorBag(colorCounts, fruitCount) {
     while (bag.length < fruitCount) bag.push(fallbackColor);
   }
   return bag;
-}
-
-function roundFruitDef(def) {
-  return {
-    x: round3(def.x),
-    y: round3(def.y),
-    colorId: def.colorId,
-    radius: round3(def.radius),
-    vx: round3(def.vx ?? 0),
-    vy: round3(def.vy ?? 0),
-  };
-}
-
-function round3(value) {
-  return Math.round(value * 1000) / 1000;
 }
 
 function lerp(a, b, t) {
@@ -922,6 +867,10 @@ function playSelectTone() {
 
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+  if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
+    showCommentary("本关步数已用尽。", 1000);
+    return;
+  }
 
   ensureAudioUnlocked();
   void preloadPopAudio();
@@ -997,6 +946,19 @@ function tick() {
 
   if (state.started && !state.gameOver && alive === 0) {
     handleLevelCleared();
+    return;
+  }
+
+  if (
+    state.started
+    && !state.gameOver
+    && state.stepLimit > 0
+    && state.stepsUsed >= state.stepLimit
+    && alive > 0
+    && !state.pointerDown
+    && state.pendingPops.length === 0
+  ) {
+    endGame(`第${state.currentLevelIndex + 1}关失败：步数用尽`);
   }
 }
 
@@ -1067,6 +1029,7 @@ function processSliceSegment(dt) {
     if (state.sliceColorId === null) {
       if (!state.sliceCommitted) {
         state.sliceCommitted = true;
+        consumeStep();
       }
       state.sliceColorId = fruit.colorId;
       setSliceStatus(`状态: 锁定${colors[fruit.colorId].name}`);
@@ -1163,12 +1126,6 @@ function settleQueuedSlices() {
   }
 
   clearQueuedSelections();
-
-  if (gain > 0) {
-    const sliceScore = scoring.perFruit * gain + scoring.comboBonusFactor * gain * (gain - 1);
-    state.score += sliceScore;
-    updateHud();
-  }
 }
 
 function processPendingPops(dt) {
@@ -1197,6 +1154,18 @@ function clearQueuedSelections() {
   }
   state.sliceQueue.length = 0;
   state.sliceHitIds.clear();
+}
+
+function consumeStep() {
+  if (state.stepLimit <= 0) return;
+  state.stepsUsed = Math.min(state.stepLimit, state.stepsUsed + 1);
+  updateStepsHud();
+}
+
+function updateStepsHud() {
+  if (!stepsEl) return;
+  const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
+  stepsEl.textContent = `步数: ${remaining}`;
 }
 
 function resolveFruitCollisions() {
@@ -1296,14 +1265,10 @@ function resize() {
 
   const worldHalfH = rules.worldHeight / 2;
   const worldHalfW = worldHalfH * aspect;
-  bounds.left = -worldHalfW + 0.5;
-  bounds.right = worldHalfW - 0.5;
-  bounds.top = worldHalfH - 0.5;
-  bounds.bottom = -worldHalfH + 0.5;
-}
-
-function updateHud() {
-  scoreEl.textContent = `分数: ${state.score}`;
+  bounds.left = -worldHalfW + rules.playAreaInset;
+  bounds.right = worldHalfW - rules.playAreaInset;
+  bounds.top = worldHalfH - rules.playAreaInset;
+  bounds.bottom = -worldHalfH + rules.playAreaInset;
 }
 
 function setSliceStatus(text) {
@@ -1328,9 +1293,9 @@ function endGame(reason) {
   trail.reset();
 
   if (reason.startsWith("全部")) {
-    gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
+    gameOverTitleEl.textContent = "恭喜通关！";
   } else {
-    gameOverTitleEl.textContent = `本局结束！本局分数 ${state.score}`;
+    gameOverTitleEl.textContent = "本局结束";
   }
   gameOverEl.classList.remove("hidden");
   setSliceStatus(`状态: ${reason}`);
@@ -1535,21 +1500,40 @@ class BubbleEntity {
     if (!this.sliced) {
       this.group.position.addScaledVector(this.vel, dt);
 
-      if (this.group.position.x < worldBounds.left + this.radius) {
-        this.group.position.x = worldBounds.left + this.radius;
-        if (this.vel.x < 0) this.vel.x *= -0.5;
+      const leftLimit = worldBounds.left + this.radius;
+      if (this.group.position.x < leftLimit) {
+        const overlap = leftLimit - this.group.position.x;
+        this.group.position.x = leftLimit;
+        if (this.vel.x < 0) this.vel.x = 0;
+        this.vel.y *= wallSlideDamping;
+        this.applyWallContact(1, 0, overlap);
       }
-      if (this.group.position.x > worldBounds.right - this.radius) {
-        this.group.position.x = worldBounds.right - this.radius;
-        if (this.vel.x > 0) this.vel.x *= -0.5;
+
+      const rightLimit = worldBounds.right - this.radius;
+      if (this.group.position.x > rightLimit) {
+        const overlap = this.group.position.x - rightLimit;
+        this.group.position.x = rightLimit;
+        if (this.vel.x > 0) this.vel.x = 0;
+        this.vel.y *= wallSlideDamping;
+        this.applyWallContact(-1, 0, overlap);
       }
-      if (this.group.position.y < worldBounds.bottom + this.radius) {
-        this.group.position.y = worldBounds.bottom + this.radius;
-        if (this.vel.y < 0) this.vel.y *= -0.5;
+
+      const bottomLimit = worldBounds.bottom + this.radius;
+      if (this.group.position.y < bottomLimit) {
+        const overlap = bottomLimit - this.group.position.y;
+        this.group.position.y = bottomLimit;
+        if (this.vel.y < 0) this.vel.y = 0;
+        this.vel.x *= wallSlideDamping;
+        this.applyWallContact(0, 1, overlap);
       }
-      if (this.group.position.y > worldBounds.top - this.radius) {
-        this.group.position.y = worldBounds.top - this.radius;
-        if (this.vel.y > 0) this.vel.y *= -0.5;
+
+      const topLimit = worldBounds.top - this.radius;
+      if (this.group.position.y > topLimit) {
+        const overlap = this.group.position.y - topLimit;
+        this.group.position.y = topLimit;
+        if (this.vel.y > 0) this.vel.y = 0;
+        this.vel.x *= wallSlideDamping;
+        this.applyWallContact(0, -1, overlap);
       }
 
       this.vel.multiplyScalar(0.985);
@@ -1676,6 +1660,10 @@ class BubbleEntity {
     this.contactStrength = boost;
     this.contactDir.set(nx, ny, 0).normalize();
     this.springVel -= boost * 0.09;
+  }
+
+  applyWallContact(nx, ny, overlap) {
+    this.applyContact(nx, ny, overlap * wallContactGain);
   }
 
   setBurstState(nextState) {

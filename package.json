@@ -4,9 +4,16 @@
   "description": "Minimal playable prototype:",
   "main": "index.js",
   "scripts": {
+    "excel:levels": "node ./scripts/convert-levels.mjs",
+    "excel:sync": "node ./scripts/excel-sync.mjs",
+    "excel:watch": "node ./scripts/excel-watch.mjs",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "prebuild:standalone": "npm run excel:sync",
     "build:standalone": "node ./scripts/build-standalone.mjs",
+    "prebuild:web": "npm run excel:sync",
     "build:web": "node ./scripts/build-capacitor.mjs",
+    "steps:analyze": "node ./scripts/step-level-lab.mjs analyze",
+    "steps:generate": "node ./scripts/step-level-lab.mjs generate",
     "cap:add:ios": "npx cap add ios",
     "cap:sync:ios": "npm run build:web && npx cap sync ios",
     "cap:open:ios": "npx cap open ios"
@@ -23,6 +30,8 @@
     "@capacitor/core": "^8.3.0",
     "@capacitor/ios": "^8.3.0",
     "capacitor-haptic-plugin": "file:HabbyHapticForWeb-main/HapticForWeb/capacitor-haptic-plugin",
-    "three": "^0.183.2"
+    "chokidar": "^4.0.3",
+    "three": "^0.183.2",
+    "xlsx": "^0.18.5"
   }
 }
