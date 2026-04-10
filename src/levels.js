@@ -12,10 +12,10 @@ export const LEVELS = [
     targetScore: 100,
     seed: 12031,
     colorCounts: [
-      { colorId: C.RED, count: 7 },
-      { colorId: C.ORANGE, count: 7 },
+      { colorId: C.ORANGE, count: 5 },
+      { colorId: C.PURPLE, count: 5 },
     ],
-    radiusRange: [0.39, 0.46],
+    radiusRange: [0.28, 0.62],
     speedRange: [0.0, 0.12],
   },
   {

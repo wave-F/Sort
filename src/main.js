@@ -32,14 +32,39 @@ const scoring = {
   comboBonusFactor: 2,
 };
 
+const slicePopStaggerStep = 0.075;
+
+const bubbleRadiusScale = 3;
+const bubbleTuningStorageKey = "bubble_tuning_v1";
+
 const colors = [
-  { id: "red", name: "玫泡", base: 0xff2f63 },
-  { id: "orange", name: "橙泡", base: 0xff8a00 },
-  { id: "green", name: "青泡", base: 0x00c36e },
-  { id: "purple", name: "紫泡", base: 0x6a4dff },
+  { id: "red", name: "红泡", base: 0xff1f4b },
+  { id: "orange", name: "橙泡", base: 0xff9800 },
+  { id: "green", name: "绿泡", base: 0x12cf5b },
+  { id: "blue", name: "蓝泡", base: 0x1b8fff },
 ];
 
-const selectedRingColor = 0xffdf73;
+const defaultBubbleTuning = {
+  transmission: 0.93,
+  roughness: 0.1,
+  clearcoat: 0.42,
+  wobble: 0.022,
+  flow: 1.15,
+  dye: 1.12,
+  edge: 0.3,
+  iri: 0.75,
+  springTension: 0.12,
+  springDamping: 0.84,
+  lightKey: 1.25,
+  lightAmbient: 0.62,
+  toggleDye: true,
+  toggleEdge: true,
+  toggleIri: true,
+};
+
+const loadedBubbleTuning = loadBubbleTuning();
+const bubbleTuning = loadedBubbleTuning.value;
+const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 
 const state = {
   started: false,
@@ -55,6 +80,7 @@ const state = {
   keepFullTrailDuringDrag: true,
   sliceHitIds: new Set(),
   sliceQueue: [],
+  pendingPops: [],
   lastPoint: null,
   nowPoint: null,
   lastMoveAt: 0,
@@ -74,7 +100,6 @@ camera.lookAt(0, 0, 0);
 
 let renderer;
 let trail;
-let particles;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -88,8 +113,8 @@ const workA = new THREE.Vector3();
 
 let commentaryTimer = 0;
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.62));
-const key = new THREE.DirectionalLight(0xffffff, 1.25);
+scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
+const key = new THREE.DirectionalLight(0xffffff, bubbleTuning.lightKey);
 key.position.set(4, 7, 4);
 scene.add(key);
 
@@ -103,8 +128,56 @@ scene.add(fill);
 
 const bubbleBaseRadius = 1.2;
 const bubbleGeometry = new THREE.SphereGeometry(bubbleBaseRadius, 120, 120);
+const burstBubbleCount = 10;
+const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
+
+const BubbleBurstState = {
+  IDLE: "IDLE",
+  PRE_BURST: "PRE_BURST",
+  BURST: "BURST",
+  DISSIPATE: "DISSIPATE",
+  RESET: "RESET",
+};
 
 init();
+
+function loadBubbleTuning() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { value: { ...defaultBubbleTuning }, fromStorage: false };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(bubbleTuningStorageKey);
+    if (!raw) return { value: { ...defaultBubbleTuning }, fromStorage: false };
+    const parsed = JSON.parse(raw);
+    const safe = {
+      transmission: clampNumber(parsed.transmission, 0.5, 1, defaultBubbleTuning.transmission),
+      roughness: clampNumber(parsed.roughness, 0.01, 0.3, defaultBubbleTuning.roughness),
+      clearcoat: clampNumber(parsed.clearcoat, 0, 1, defaultBubbleTuning.clearcoat),
+      wobble: clampNumber(parsed.wobble, 0, 0.08, defaultBubbleTuning.wobble),
+      flow: clampNumber(parsed.flow, 0.2, 2.5, defaultBubbleTuning.flow),
+      dye: clampNumber(parsed.dye, 0.6, 2.4, defaultBubbleTuning.dye),
+      edge: clampNumber(parsed.edge, 0, 0.8, defaultBubbleTuning.edge),
+      iri: clampNumber(parsed.iri, 0, 1, defaultBubbleTuning.iri),
+      springTension: clampNumber(parsed.springTension, 0.04, 0.25, defaultBubbleTuning.springTension),
+      springDamping: clampNumber(parsed.springDamping, 0.7, 0.98, defaultBubbleTuning.springDamping),
+      lightKey: clampNumber(parsed.lightKey, 0.3, 2, defaultBubbleTuning.lightKey),
+      lightAmbient: clampNumber(parsed.lightAmbient, 0.1, 1, defaultBubbleTuning.lightAmbient),
+      toggleDye: parsed.toggleDye !== false,
+      toggleEdge: parsed.toggleEdge !== false,
+      toggleIri: parsed.toggleIri !== false,
+    };
+    return { value: safe, fromStorage: true };
+  } catch (_err) {
+    return { value: { ...defaultBubbleTuning }, fromStorage: false };
+  }
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return THREE.MathUtils.clamp(n, min, max);
+}
 
 function init() {
   if (trailCompareToggleEl) {
@@ -134,9 +207,7 @@ async function setupRenderer() {
 
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
-  particles = new BubbleParticles(760);
   scene.add(trail.mesh);
-  scene.add(particles.points);
 
   renderer.setAnimationLoop(tick);
 }
@@ -179,14 +250,18 @@ function startGame() {
   clearQueuedSelections();
   state.sliceHitIds.clear();
   state.sliceQueue.length = 0;
+  state.pendingPops.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
 
   trail.reset();
-  particles.reset();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
+
+  if (hasBubbleTuningOverride) {
+    showCommentary("已应用调试页同步参数。", 1300);
+  }
 
   updateHud();
   loadLevel(0);
@@ -205,11 +280,11 @@ function loadLevel(index) {
   state.sliceBroken = false;
   state.sliceCommitted = false;
   clearQueuedSelections();
+  state.pendingPops.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
 
   trail.reset();
-  particles.reset();
 
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
@@ -221,6 +296,7 @@ function loadLevel(index) {
 }
 
 function resetFruits(level) {
+  state.pendingPops.length = 0;
   for (const fruit of fruits) scene.remove(fruit.group);
   fruits.length = 0;
 
@@ -231,14 +307,15 @@ function resetFruits(level) {
     const fruit = new BubbleEntity({
       id: i,
       colorId: colorIndex,
-      radius: THREE.MathUtils.clamp(def.radius ?? 0.42, 0.28, 0.62),
+      radius: THREE.MathUtils.clamp(def.radius ?? 0.42, 0.84, 1.86),
       vx: def.vx ?? 0,
       vy: def.vy ?? 0,
       baseColor: new THREE.Color(colors[colorIndex].base),
     });
+    const spawnMargin = fruit.radius + 0.06;
     fruit.setPosition(
-      THREE.MathUtils.clamp(def.x, bounds.left + 0.45, bounds.right - 0.45),
-      THREE.MathUtils.clamp(def.y, bounds.bottom + 0.45, bounds.top - 0.45),
+      THREE.MathUtils.clamp(def.x, bounds.left + spawnMargin, bounds.right - spawnMargin),
+      THREE.MathUtils.clamp(def.y, bounds.bottom + spawnMargin, bounds.top - spawnMargin),
       0
     );
     fruits.push(fruit);
@@ -288,7 +365,6 @@ function randomizeCurrentLevelLayout() {
 
   clearQueuedSelections();
   trail.reset();
-  particles.reset();
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
@@ -361,7 +437,11 @@ function normalizeLevelDefinition(level, index) {
   const fruitCount = hasColorCounts ? fruitCountFromCounts : Math.max(4, Math.floor(level.fruitCount ?? fallbackFruitCount));
   const colorIds = hasColorCounts ? parsedColorCounts.map((item) => item.colorId) : normalizeColorIds(level.colorIds, fruitsDef);
   const colorCounts = hasColorCounts ? parsedColorCounts : buildEvenColorCounts(colorIds, fruitCount);
-  const radiusRange = normalizeRange(level.radiusRange, inferRadiusRangeFromFruits(fruitsDef), 0.28, 0.62);
+  const baseRadiusRange = normalizeRange(level.radiusRange, inferRadiusRangeFromFruits(fruitsDef), 0.28, 0.62);
+  const radiusRange = {
+    min: baseRadiusRange.min * bubbleRadiusScale,
+    max: baseRadiusRange.max * bubbleRadiusScale,
+  };
   const speedRange = normalizeRange(level.speedRange, inferSpeedRangeFromFruits(fruitsDef, index), 0, 0.9);
   const seed = Math.floor(level.seed ?? 1000 + (level.id ?? index + 1) * 137);
 
@@ -370,7 +450,7 @@ function normalizeLevelDefinition(level, index) {
         x: f.x,
         y: f.y,
         colorId: f.colorId,
-        radius: f.radius,
+        radius: (f.radius ?? 0.42) * bubbleRadiusScale,
         vx: f.vx ?? 0,
         vy: f.vy ?? 0,
       }))
@@ -507,6 +587,21 @@ function generateRandomFruits({ seed, fruitCount, colorCounts, radiusMin, radius
   const colorBag = buildColorBag(colorCounts, fruitCount);
   shuffleInPlace(colorBag, rng);
 
+  const clusterCount = THREE.MathUtils.clamp(Math.round(fruitCount / 6), 3, 7);
+  const clusterMargin = 1.0;
+  const clusters = [];
+  for (let i = 0; i < clusterCount; i += 1) {
+    clusters.push({
+      x: lerp(bounds.left + clusterMargin, bounds.right - clusterMargin, rng()),
+      y: lerp(bounds.bottom + clusterMargin, bounds.top - clusterMargin, rng()),
+      spread: lerp(0.85, 1.55, rng()),
+      weight: lerp(0.7, 1.4, rng()),
+    });
+  }
+
+  let weightTotal = 0;
+  for (const c of clusters) weightTotal += c.weight;
+
   for (let i = 0; i < fruitCount; i += 1) {
     const radius = lerp(radiusMin, radiusMax, rng());
     const margin = radius + 0.06;
@@ -514,13 +609,35 @@ function generateRandomFruits({ seed, fruitCount, colorCounts, radiusMin, radius
     let x = 0;
     let y = 0;
     let placed = false;
+    const useCluster = rng() < 0.84;
+
     for (let k = 0; k < 180; k += 1) {
-      x = lerp(bounds.left + margin, bounds.right - margin, rng());
-      y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
+      if (useCluster) {
+        let pick = rng() * weightTotal;
+        let cluster = clusters[0];
+        for (let c = 0; c < clusters.length; c += 1) {
+          pick -= clusters[c].weight;
+          if (pick <= 0) {
+            cluster = clusters[c];
+            break;
+          }
+        }
+
+        const angle = rng() * Math.PI * 2;
+        const radial = Math.sqrt(rng()) * cluster.spread;
+        x = cluster.x + Math.cos(angle) * radial;
+        y = cluster.y + Math.sin(angle) * radial;
+      } else {
+        x = lerp(bounds.left + margin, bounds.right - margin, rng());
+        y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
+      }
+
+      x = THREE.MathUtils.clamp(x, bounds.left + margin, bounds.right - margin);
+      y = THREE.MathUtils.clamp(y, bounds.bottom + margin, bounds.top - margin);
 
       let overlap = false;
       for (const p of fruitsDef) {
-        const minDist = Math.max(0.76, radius + p.radius + 0.08);
+        const minDist = Math.max(0.42, (radius + p.radius) * 0.55);
         if (Math.hypot(x - p.x, y - p.y) < minDist) {
           overlap = true;
           break;
@@ -669,6 +786,7 @@ function tick() {
   const now = performance.now();
 
   updateTrail(now);
+  processPendingPops(dt);
 
   resolveFruitCollisions();
 
@@ -678,7 +796,6 @@ function tick() {
     if (fruit.active) alive += 1;
   }
 
-  particles.update(dt);
   renderer.render(scene, camera);
 
   if (state.started && !state.gameOver && alive === 0) {
@@ -788,8 +905,12 @@ function settleQueuedSlices() {
     if (!fruit || !fruit.active || fruit.sliced) continue;
 
     fruit.setSelected(false);
-    fruit.pop(entry.sliceDir, entry.speed);
-    particles.spawnBurst(fruit.group.position, entry.sliceDir, fruit.baseColor);
+    state.pendingPops.push({
+      fruit,
+      sliceDir: entry.sliceDir,
+      speed: entry.speed,
+      delay: gain * slicePopStaggerStep,
+    });
     gain += 1;
   }
 
@@ -799,6 +920,24 @@ function settleQueuedSlices() {
     const sliceScore = scoring.perFruit * gain + scoring.comboBonusFactor * gain * (gain - 1);
     state.score += sliceScore;
     updateHud();
+  }
+}
+
+function processPendingPops(dt) {
+  if (!state.pendingPops.length) return;
+  for (let i = 0; i < state.pendingPops.length; ) {
+    const item = state.pendingPops[i];
+    item.delay -= dt;
+    if (item.delay > 0) {
+      i += 1;
+      continue;
+    }
+
+    const fruit = item.fruit;
+    if (fruit && fruit.active && !fruit.sliced) {
+      fruit.pop(item.sliceDir, item.speed);
+    }
+    state.pendingPops.splice(i, 1);
   }
 }
 
@@ -822,8 +961,9 @@ function resolveFruitCollisions() {
       const dx = d2.group.position.x - d1.group.position.x;
       const dy = d2.group.position.y - d1.group.position.y;
       let dist = Math.hypot(dx, dy);
-      const minDist = d1.radius + d2.radius;
-      if (dist >= minDist) continue;
+      const hardDist = d1.radius + d2.radius;
+      const softContactDist = hardDist * 0.42;
+      if (dist >= softContactDist) continue;
 
       let nx = dx;
       let ny = dy;
@@ -835,7 +975,7 @@ function resolveFruitCollisions() {
 
       nx /= dist;
       ny /= dist;
-      const overlap = minDist - dist;
+      const overlap = softContactDist - dist;
 
       const m1 = d1.radius * d1.radius;
       const m2 = d2.radius * d2.radius;
@@ -843,18 +983,31 @@ function resolveFruitCollisions() {
       const r1 = m2 / totalM;
       const r2 = m1 / totalM;
 
-      d1.group.position.x -= nx * overlap * r1;
-      d1.group.position.y -= ny * overlap * r1;
-      d2.group.position.x += nx * overlap * r2;
-      d2.group.position.y += ny * overlap * r2;
+      const separation = overlap * 0.12;
+      d1.group.position.x -= nx * separation * r1;
+      d1.group.position.y -= ny * separation * r1;
+      d2.group.position.x += nx * separation * r2;
+      d2.group.position.y += ny * separation * r2;
+
+      d1.applyContact(-nx, -ny, overlap);
+      d2.applyContact(nx, ny, overlap);
 
       const kx = d1.vel.x - d2.vel.x;
       const ky = d1.vel.y - d2.vel.y;
       const p = (2.0 * (nx * kx + ny * ky)) / (m1 + m2);
-      d1.vel.x -= p * m2 * nx * 0.8;
-      d1.vel.y -= p * m2 * ny * 0.8;
-      d2.vel.x += p * m1 * nx * 0.8;
-      d2.vel.y += p * m1 * ny * 0.8;
+      const restitution = 0.12;
+      d1.vel.x -= p * m2 * nx * restitution;
+      d1.vel.y -= p * m2 * ny * restitution;
+      d2.vel.x += p * m1 * nx * restitution;
+      d2.vel.y += p * m1 * ny * restitution;
+
+      const stickiness = 0.22;
+      const avgVX = (d1.vel.x + d2.vel.x) * 0.5;
+      const avgVY = (d1.vel.y + d2.vel.y) * 0.5;
+      d1.vel.x = lerp(d1.vel.x, avgVX, stickiness);
+      d1.vel.y = lerp(d1.vel.y, avgVY, stickiness);
+      d2.vel.x = lerp(d2.vel.x, avgVX, stickiness);
+      d2.vel.y = lerp(d2.vel.y, avgVY, stickiness);
     }
   }
 }
@@ -922,6 +1075,7 @@ function endGame(reason) {
   state.levelTransitioning = false;
   state.pointerDown = false;
   clearQueuedSelections();
+  state.pendingPops.length = 0;
   trail.reset();
 
   if (reason.startsWith("全部")) {
@@ -936,31 +1090,34 @@ function endGame(reason) {
 function createBubbleMaterial(baseColor) {
   const accentColor = baseColor.clone().offsetHSL(0, -0.12, 0.26);
   const springUniform = uniform(0);
+  const crackGlowUniform = uniform(0);
+  const contactDirUniform = uniform(new THREE.Vector3(1, 0, 0));
+  const contactStrengthUniform = uniform(0);
   const tintUniform = uniform(baseColor.clone());
   const accentUniform = uniform(accentColor.clone());
 
-  const flowSpeedUniform = uniform(1.15);
-  const wobbleAmplitudeUniform = uniform(0.022);
-  const dyeContrastUniform = uniform(1.12);
-  const edgeGlowUniform = uniform(0.3);
-  const iridescenceUniform = uniform(0.75);
-  const dyeEnabledUniform = uniform(1.0);
-  const edgeEnabledUniform = uniform(1.0);
-  const iridescenceEnabledUniform = uniform(1.0);
+  const flowSpeedUniform = uniform(bubbleTuning.flow);
+  const wobbleAmplitudeUniform = uniform(bubbleTuning.wobble);
+  const dyeContrastUniform = uniform(bubbleTuning.dye);
+  const edgeGlowUniform = uniform(bubbleTuning.edge);
+  const iridescenceUniform = uniform(bubbleTuning.iri);
+  const dyeEnabledUniform = uniform(bubbleTuning.toggleDye ? 1.0 : 0.0);
+  const edgeEnabledUniform = uniform(bubbleTuning.toggleEdge ? 1.0 : 0.0);
+  const iridescenceEnabledUniform = uniform(bubbleTuning.toggleIri ? 1.0 : 0.0);
   const iridescenceBaseUniform = uniform(90.0);
   const iridescenceSpanUniform = uniform(520.0);
 
   const material = new THREE.MeshPhysicalNodeMaterial({
-    transmission: 0.86,
-    thickness: 1.42,
-    roughness: 0.13,
+    transmission: bubbleTuning.transmission,
+    thickness: 1.35,
+    roughness: bubbleTuning.roughness,
     metalness: 0.0,
-    clearcoat: 0.42,
+    clearcoat: bubbleTuning.clearcoat,
     clearcoatRoughness: 0.16,
     ior: 1.2,
     envMapIntensity: 0.72,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.9,
   });
 
   const flow = time.mul(flowSpeedUniform);
@@ -978,8 +1135,12 @@ function createBubbleMaterial(baseColor) {
   const squishY = springUniform.mul(-1.02).add(1.0);
   const squishZ = springUniform.mul(0.52).add(1.0);
 
+  const contactMask = normalLocal.dot(contactDirUniform).max(0.0);
+  const contactDent = contactDirUniform.mul(contactMask.mul(contactStrengthUniform).mul(-0.32));
+
   material.positionNode = positionLocal
     .add(normalLocal.mul(wobble))
+    .add(contactDent)
     .mul(vec3(squishX, squishY, squishZ));
 
   const dyeBlend = dyeMix.pow(dyeContrastUniform);
@@ -988,13 +1149,13 @@ function createBubbleMaterial(baseColor) {
 
   const viewDot = normalView.dot(positionViewDirection.negate()).abs().clamp(0.0, 1.0);
   const edgeGlow = viewDot.mul(-1.0).add(1.0).pow(2.8);
-  material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform).mul(edgeEnabledUniform));
+  material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform.add(crackGlowUniform)).mul(edgeEnabledUniform));
 
   material.iridescenceNode = iridescenceUniform.mul(iridescenceEnabledUniform);
   material.iridescenceIORNode = uniform(1.3);
   material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iridescenceBaseUniform);
 
-  return { material, springUniform };
+  return { material, springUniform, crackGlowUniform, contactDirUniform, contactStrengthUniform };
 }
 
 class BubbleEntity {
@@ -1007,36 +1168,76 @@ class BubbleEntity {
     this.sliced = false;
     this.life = 0;
     this.selected = false;
-    this.selectedPulse = 0;
     this.wrongFlash = 0;
     this.wrongShake = 0;
+    this.selectionScale = 1;
+    this.selectionTarget = 1;
+    this.selectionVel = 0;
 
     this.vel = new THREE.Vector3(vx, vy, 0);
-    this.blastDrift = new THREE.Vector3();
-
     this.springVal = 0;
     this.springVel = 0;
-    this.springTension = 0.12;
-    this.springDamping = 0.84;
+    this.springTension = bubbleTuning.springTension;
+    this.springDamping = bubbleTuning.springDamping;
+    this.contactStrength = 0;
+    this.contactDir = new THREE.Vector3(1, 0, 0);
 
     this.group = new THREE.Group();
 
     const nodeMaterialData = createBubbleMaterial(baseColor);
     this.bubbleMaterial = nodeMaterialData.material;
     this.springUniform = nodeMaterialData.springUniform;
+    this.crackGlowUniform = nodeMaterialData.crackGlowUniform;
+    this.contactDirUniform = nodeMaterialData.contactDirUniform;
+    this.contactStrengthUniform = nodeMaterialData.contactStrengthUniform;
     this.baseScale = this.radius / bubbleBaseRadius;
+    this.baseOpacity = 0.9;
 
     this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
     this.bubble.scale.setScalar(this.baseScale);
     this.selectRing = this.createSelectRing();
-    this.group.add(this.bubble, this.selectRing);
+
+    this.burstState = BubbleBurstState.IDLE;
+    this.stateElapsed = 0;
+    this.preBurstDuration = 0.09;
+    this.burstDuration = 0.18;
+    this.dissipateDuration = 1.6;
+    this.resetDelay = 0.2;
+    this.preBurstScaleMax = 1.08;
+    this.burstBubbleFadeInDuration = 0.16;
+    this.burstPointsVisible = false;
+
+    this.minBurstBubbleCount = 7;
+    this.maxBurstBubbleCount = 10;
+    this.activeBurstBubbleCount = 8;
+    this.burstBubbleVelocities = [];
+    this.burstBubbleLife = new Array(burstBubbleCount).fill(0);
+    this.burstBubbleLifeMax = new Array(burstBubbleCount).fill(1);
+    this.burstBubbleBaseScale = new Array(burstBubbleCount).fill(0.08);
+    this.burstBubbleMeshes = [];
+
+    for (let i = 0; i < burstBubbleCount; i += 1) {
+      const burstBubbleMaterial = this.bubbleMaterial.clone();
+      burstBubbleMaterial.transparent = true;
+      burstBubbleMaterial.opacity = 0;
+      burstBubbleMaterial.depthWrite = false;
+      burstBubbleMaterial.side = THREE.DoubleSide;
+
+      const burstBubbleMesh = new THREE.Mesh(burstBubbleGeometry, burstBubbleMaterial);
+      burstBubbleMesh.visible = false;
+      this.burstBubbleMeshes.push(burstBubbleMesh);
+      this.burstBubbleVelocities.push(new THREE.Vector3());
+    }
+
+    this.group.add(this.bubble, this.selectRing, ...this.burstBubbleMeshes);
+    this.resetBurstArtifacts();
   }
 
   createSelectRing() {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(1.06, 1.22, 42),
       new THREE.MeshBasicMaterial({
-        color: selectedRingColor,
+        color: 0xff5c5c,
         transparent: true,
         opacity: 0.0,
         depthWrite: false,
@@ -1055,18 +1256,19 @@ class BubbleEntity {
   }
 
   pop(sliceDir, speed) {
+    if (this.sliced) return;
     this.setSelected(false);
     this.sliced = true;
     this.life = 0;
     this.wrongFlash = 0;
     this.wrongShake = 0;
-
-    this.springVel -= THREE.MathUtils.clamp(speed * 0.08, 0.32, 0.88);
-
-    const out = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
-    this.blastDrift.copy(out).multiplyScalar(THREE.MathUtils.clamp(speed * 0.1, 0.35, 1.2));
-    this.blastDrift.y += 0.55;
-    this.vel.multiplyScalar(0.28).addScaledVector(out, 0.2);
+    this.springVel -= THREE.MathUtils.clamp(speed * 0.05, 0.08, 0.2);
+    this.crackGlowUniform.value = 0.12;
+    this.bubble.visible = true;
+    this.bubble.scale.setScalar(this.baseScale);
+    this.bubbleMaterial.opacity = this.baseOpacity;
+    this.resetBurstArtifacts();
+    this.setBurstState(BubbleBurstState.PRE_BURST);
   }
 
   update(dt, worldBounds) {
@@ -1076,6 +1278,9 @@ class BubbleEntity {
     this.springVel *= this.springDamping;
     this.springVal += this.springVel;
     this.springUniform.value = this.springVal;
+    this.contactStrength = Math.max(0, this.contactStrength - dt * 3.2);
+    this.contactStrengthUniform.value = this.contactStrength;
+    this.contactDirUniform.value.copy(this.contactDir);
 
     if (!this.sliced) {
       this.group.position.addScaledVector(this.vel, dt);
@@ -1098,16 +1303,10 @@ class BubbleEntity {
       }
 
       this.vel.multiplyScalar(0.985);
+      this.updateSelectionScale(dt);
+      this.bubble.scale.setScalar(this.baseScale * this.selectionScale);
 
-      if (this.selected) {
-        this.selectedPulse += dt * 10;
-        const pulse = 1 + Math.sin(this.selectedPulse) * 0.07;
-        this.selectRing.visible = true;
-        this.selectRing.material.color.setHex(selectedRingColor);
-        this.selectRing.scale.setScalar(this.radius * pulse);
-        this.selectRing.material.opacity = 0.52 + Math.sin(this.selectedPulse * 1.4) * 0.16;
-        this.bubble.position.set(0, 0, 0);
-      } else if (this.wrongFlash > 0) {
+      if (this.wrongFlash > 0) {
         this.wrongFlash = Math.max(0, this.wrongFlash - dt);
         this.wrongShake = Math.max(0, this.wrongShake - dt);
         const t = this.wrongFlash / 0.22;
@@ -1129,35 +1328,88 @@ class BubbleEntity {
       return;
     }
 
-    this.life += dt;
-    this.blastDrift.y -= 4.8 * dt;
-    this.group.position.addScaledVector(this.blastDrift, dt);
+    this.stateElapsed += dt;
 
-    const t = Math.min(this.life / 0.28, 1);
-    const scaleBoost = 1 + t * 0.5;
-    this.bubble.scale.setScalar(this.baseScale * scaleBoost);
-    this.bubbleMaterial.opacity = (1 - t) * 0.84;
+    if (this.burstState === BubbleBurstState.PRE_BURST) {
+      const t = Math.min(this.stateElapsed / this.preBurstDuration, 1);
+      const smooth = t * t * (3 - 2 * t);
+      this.bubble.visible = true;
+      this.bubble.scale.setScalar(this.baseScale * (1 + (this.preBurstScaleMax - 1) * smooth));
+      this.crackGlowUniform.value = 0.12 * smooth;
+      this.bubbleMaterial.opacity = this.baseOpacity;
 
-    if (this.life > 0.28) {
-      this.setSelected(false);
-      this.active = false;
-      this.group.visible = false;
+      if (t >= 1) {
+        this.setBurstState(BubbleBurstState.BURST);
+        this.initBurstParticles();
+      }
+      return;
+    }
+
+    if (this.burstState === BubbleBurstState.BURST) {
+      const t = Math.min(this.stateElapsed / this.burstDuration, 1);
+      this.crackGlowUniform.value = (1 - t) * 0.12;
+      this.bubbleMaterial.opacity = Math.max(0, this.baseOpacity * (1 - t * 1.85));
+      this.bubble.scale.setScalar(this.baseScale * (this.preBurstScaleMax + t * 0.03));
+      this.updateBurstParticles(dt);
+
+      if (t > 0.5) this.bubble.visible = false;
+
+      if (t >= 1) {
+        this.setBurstState(BubbleBurstState.DISSIPATE);
+        this.bubbleMaterial.opacity = 0;
+      }
+      return;
+    }
+
+    if (this.burstState === BubbleBurstState.DISSIPATE) {
+      this.crackGlowUniform.value = 0;
+      this.bubble.visible = false;
+      this.updateBurstParticles(dt);
+
+      if (this.stateElapsed >= this.dissipateDuration && !this.burstPointsVisible) {
+        this.setBurstState(BubbleBurstState.RESET);
+      }
+      return;
+    }
+
+    if (this.burstState === BubbleBurstState.RESET) {
+      if (this.stateElapsed >= this.resetDelay) {
+        this.active = false;
+        this.group.visible = false;
+      }
+      return;
     }
   }
 
   setSelected(flag) {
     const next = Boolean(flag) && this.active && !this.sliced;
+    const changed = next !== this.selected;
     this.selected = next;
+    this.selectionTarget = next ? 1.05 : 1;
+
+    if (changed && next) {
+      this.selectionScale = Math.max(this.selectionScale, 1.1);
+      this.selectionVel = 0;
+    }
+
     if (!next) {
       this.selectRing.visible = false;
       this.selectRing.material.opacity = 0;
       this.selectRing.scale.setScalar(this.radius);
       this.bubble.position.set(0, 0, 0);
-    } else {
-      this.selectedPulse = 0;
-      this.selectRing.material.color.setHex(selectedRingColor);
-      this.selectRing.visible = true;
-      this.selectRing.material.opacity = 0.62;
+    }
+  }
+
+  updateSelectionScale(dt) {
+    const spring = 120;
+    const damping = 9;
+    this.selectionVel += (this.selectionTarget - this.selectionScale) * spring * dt;
+    this.selectionVel *= Math.exp(-damping * dt);
+    this.selectionScale += this.selectionVel * dt;
+
+    if (Math.abs(this.selectionTarget - this.selectionScale) < 0.001 && Math.abs(this.selectionVel) < 0.001) {
+      this.selectionScale = this.selectionTarget;
+      this.selectionVel = 0;
     }
   }
 
@@ -1165,6 +1417,125 @@ class BubbleEntity {
     if (!this.active || this.sliced) return;
     this.wrongFlash = 0.22;
     this.wrongShake = 0.22;
+  }
+
+  applyContact(nx, ny, overlap) {
+    if (!this.active || this.sliced) return;
+    const strength = THREE.MathUtils.clamp(overlap / Math.max(this.radius * 1.05, 0.001), 0, 0.65);
+    const boost = Math.max(this.contactStrength * 0.7, strength);
+    this.contactStrength = boost;
+    this.contactDir.set(nx, ny, 0).normalize();
+    this.springVel -= boost * 0.09;
+  }
+
+  setBurstState(nextState) {
+    this.burstState = nextState;
+    this.stateElapsed = 0;
+  }
+
+  resetBurstArtifacts() {
+    for (let i = 0; i < burstBubbleCount; i += 1) {
+      this.burstBubbleLife[i] = 0;
+      this.burstBubbleLifeMax[i] = 1;
+      const burstBubbleMesh = this.burstBubbleMeshes[i];
+      burstBubbleMesh.visible = false;
+      burstBubbleMesh.position.set(9999, 9999, 9999);
+      burstBubbleMesh.scale.setScalar(0.0001);
+      burstBubbleMesh.material.opacity = 0;
+    }
+    this.burstPointsVisible = false;
+  }
+
+  initBurstParticles() {
+    this.activeBurstBubbleCount = this.minBurstBubbleCount + Math.floor(Math.random() * (this.maxBurstBubbleCount - this.minBurstBubbleCount + 1));
+
+    for (let i = 0; i < burstBubbleCount; i += 1) {
+      const burstBubbleMesh = this.burstBubbleMeshes[i];
+      const burstBubbleMaterial = burstBubbleMesh.material;
+      if (i >= this.activeBurstBubbleCount) {
+        this.burstBubbleLife[i] = 0;
+        this.burstBubbleLifeMax[i] = 1;
+        burstBubbleMesh.visible = false;
+        burstBubbleMaterial.opacity = 0;
+        continue;
+      }
+
+      burstBubbleMaterial.positionNode = this.bubbleMaterial.positionNode;
+      burstBubbleMaterial.colorNode = this.bubbleMaterial.colorNode;
+      burstBubbleMaterial.emissiveNode = this.bubbleMaterial.emissiveNode;
+      burstBubbleMaterial.iridescenceNode = this.bubbleMaterial.iridescenceNode;
+      burstBubbleMaterial.iridescenceIORNode = this.bubbleMaterial.iridescenceIORNode;
+      burstBubbleMaterial.iridescenceThicknessNode = this.bubbleMaterial.iridescenceThicknessNode;
+      burstBubbleMaterial.transmission = this.bubbleMaterial.transmission;
+      burstBubbleMaterial.roughness = Math.min(0.26, this.bubbleMaterial.roughness + 0.02);
+      burstBubbleMaterial.thickness = Math.min(0.7, this.bubbleMaterial.thickness * 0.5);
+      burstBubbleMaterial.ior = this.bubbleMaterial.ior;
+      burstBubbleMaterial.clearcoat = this.bubbleMaterial.clearcoat;
+      burstBubbleMaterial.clearcoatRoughness = this.bubbleMaterial.clearcoatRoughness;
+      burstBubbleMaterial.envMapIntensity = this.bubbleMaterial.envMapIntensity;
+
+      const randomDir = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1
+      ).normalize();
+
+      const spawnDir = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1
+      ).normalize();
+
+      const velocityDir = spawnDir.clone().lerp(randomDir, 0.22).normalize();
+      const speed = 0.34 + Math.random() * 0.5;
+      this.burstBubbleVelocities[i].copy(velocityDir).multiplyScalar(speed);
+
+      const innerRadius = bubbleBaseRadius * this.preBurstScaleMax * 0.9;
+      const spawnRadius = innerRadius * Math.cbrt(Math.random());
+      burstBubbleMesh.position.copy(this.bubble.position).addScaledVector(spawnDir, spawnRadius * this.baseScale);
+
+      const startScale = (0.055 + Math.random() * 0.11) * this.baseScale;
+      this.burstBubbleBaseScale[i] = startScale;
+      burstBubbleMesh.scale.setScalar(startScale);
+      burstBubbleMaterial.opacity = 0;
+      burstBubbleMesh.visible = true;
+
+      this.burstBubbleLife[i] = 1.05 + Math.random() * 0.75;
+      this.burstBubbleLifeMax[i] = this.burstBubbleLife[i];
+    }
+
+    this.burstPointsVisible = true;
+  }
+
+  updateBurstParticles(delta) {
+    let aliveCount = 0;
+
+    for (let i = 0; i < burstBubbleCount; i += 1) {
+      if (this.burstBubbleLife[i] <= 0) continue;
+
+      aliveCount += 1;
+      const burstBubbleMesh = this.burstBubbleMeshes[i];
+      this.burstBubbleLife[i] -= delta;
+
+      this.burstBubbleVelocities[i].multiplyScalar(Math.pow(0.94, delta * 60));
+      burstBubbleMesh.position.addScaledVector(this.burstBubbleVelocities[i], delta);
+
+      const lifeRatio = Math.max(this.burstBubbleLife[i], 0) / Math.max(this.burstBubbleLifeMax[i], 0.0001);
+      const age = Math.max(this.burstBubbleLifeMax[i] - this.burstBubbleLife[i], 0);
+      const appear = Math.min(age / this.burstBubbleFadeInDuration, 1);
+      const fade = Math.pow(lifeRatio, 0.62);
+      const scaleNow = this.burstBubbleBaseScale[i] * (0.68 + 0.32 * fade);
+
+      burstBubbleMesh.scale.setScalar(scaleNow);
+      burstBubbleMesh.material.opacity = this.baseOpacity * fade * appear;
+
+      if (this.burstBubbleLife[i] <= 0) {
+        burstBubbleMesh.visible = false;
+        burstBubbleMesh.material.opacity = 0;
+      }
+    }
+
+    if (aliveCount === 0) this.burstPointsVisible = false;
   }
 }
 
@@ -1302,105 +1673,4 @@ function onTrailCompareToggleChange(ev) {
   state.keepFullTrailDuringDrag = enabled;
   if (trail) trail.setKeepFullMode(enabled);
   if (enabled && !state.pointerDown) trail?.reset();
-}
-
-class BubbleParticles {
-  constructor(capacity) {
-    this.capacity = capacity;
-    this.items = [];
-    this.positions = new Float32Array(capacity * 3);
-    this.colors = new Float32Array(capacity * 3);
-
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.setDrawRange(0, 0);
-
-    this.material = new THREE.PointsMaterial({
-      size: 0.11,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.96,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-
-    this.points = new THREE.Points(this.geometry, this.material);
-
-    for (let i = 0; i < capacity; i += 1) {
-      this.items.push({
-        active: false,
-        pos: new THREE.Vector3(),
-        vel: new THREE.Vector3(),
-        life: 0,
-        ttl: 0,
-        color: new THREE.Color(),
-      });
-    }
-  }
-
-  spawnBurst(origin, sliceDir, baseColor) {
-    const outward = new THREE.Vector3(sliceDir.x, sliceDir.y, 0).normalize();
-    for (let i = 0; i < 30; i += 1) {
-      const p = this.alloc();
-      if (!p) return;
-
-      p.active = true;
-      p.life = 0;
-      p.ttl = THREE.MathUtils.randFloat(0.18, 0.38);
-      p.pos.copy(origin).add(new THREE.Vector3(THREE.MathUtils.randFloatSpread(0.16), THREE.MathUtils.randFloatSpread(0.16), 0));
-
-      const angle = Math.random() * Math.PI * 2;
-      const radial = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
-      const burstSpeed = THREE.MathUtils.randFloat(1.1, 3.8);
-      p.vel.copy(radial).multiplyScalar(burstSpeed);
-      p.vel.addScaledVector(outward, 0.9);
-      p.vel.y += THREE.MathUtils.randFloat(0.1, 1.3);
-
-      p.color.copy(baseColor).offsetHSL(THREE.MathUtils.randFloat(-0.03, 0.04), -0.08, 0.2);
-    }
-  }
-
-  alloc() {
-    for (let i = 0; i < this.capacity; i += 1) {
-      if (!this.items[i].active) return this.items[i];
-    }
-    return null;
-  }
-
-  update(dt) {
-    let count = 0;
-    for (let i = 0; i < this.capacity; i += 1) {
-      const p = this.items[i];
-      if (!p.active) continue;
-
-      p.life += dt;
-      if (p.life >= p.ttl) {
-        p.active = false;
-        continue;
-      }
-
-      p.vel.y -= 4.8 * dt;
-      p.vel.multiplyScalar(0.985);
-      p.pos.addScaledVector(p.vel, dt);
-
-      const o = count * 3;
-      this.positions[o] = p.pos.x;
-      this.positions[o + 1] = p.pos.y;
-      this.positions[o + 2] = p.pos.z;
-      this.colors[o] = p.color.r;
-      this.colors[o + 1] = p.color.g;
-      this.colors[o + 2] = p.color.b;
-      count += 1;
-    }
-
-    this.geometry.attributes.position.needsUpdate = true;
-    this.geometry.attributes.color.needsUpdate = true;
-    this.geometry.setDrawRange(0, count);
-  }
-
-  reset() {
-    for (let i = 0; i < this.capacity; i += 1) this.items[i].active = false;
-    this.geometry.setDrawRange(0, 0);
-  }
 }

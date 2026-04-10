@@ -157,7 +157,9 @@
         accent-color: #2f5f88;
       }
 
+      #pop-btn,
       #reset-btn,
+      #sync-btn,
       #back-btn {
         margin-top: 8px;
         width: 100%;
@@ -169,8 +171,16 @@
         cursor: pointer;
       }
 
+      #pop-btn {
+        background: #d84c62;
+      }
+
       #reset-btn {
         background: #2f5f88;
+      }
+
+      #sync-btn {
+        background: #26865e;
       }
 
       #back-btn {
@@ -194,10 +204,10 @@
       <div id="sub-info">点泡泡会触发爆弹并切换颜色，右侧可动态调参</div>
       <div id="compat">WebGPU 初始化失败时会在这里提示</div>
       <div id="palette" aria-label="颜色按钮组">
-        <button class="swatch is-active" data-color="#ff2f63" style="background:#ff2f63"></button>
-        <button class="swatch" data-color="#ff8a00" style="background:#ff8a00"></button>
-        <button class="swatch" data-color="#00c36e" style="background:#00c36e"></button>
-        <button class="swatch" data-color="#6a4dff" style="background:#6a4dff"></button>
+        <button class="swatch is-active" data-color="#ff1f4b" style="background:#ff1f4b"></button>
+        <button class="swatch" data-color="#ff9800" style="background:#ff9800"></button>
+        <button class="swatch" data-color="#12cf5b" style="background:#12cf5b"></button>
+        <button class="swatch" data-color="#1b8fff" style="background:#1b8fff"></button>
       </div>
     </div>
 
@@ -206,12 +216,12 @@
       <p>用于调单泡泡视觉，确认后再搬回游戏主界面。</p>
 
       <div class="ctrl-row">
-        <label for="p-transmission">透射强度<input id="p-transmission" type="range" min="0.5" max="1" step="0.01" value="0.86" /></label>
-        <span class="ctrl-value" data-value-for="p-transmission">0.86</span>
+        <label for="p-transmission">透射强度<input id="p-transmission" type="range" min="0.5" max="1" step="0.01" value="0.93" /></label>
+        <span class="ctrl-value" data-value-for="p-transmission">0.93</span>
       </div>
       <div class="ctrl-row">
-        <label for="p-roughness">表面粗糙度<input id="p-roughness" type="range" min="0.01" max="0.3" step="0.01" value="0.13" /></label>
-        <span class="ctrl-value" data-value-for="p-roughness">0.13</span>
+        <label for="p-roughness">表面粗糙度<input id="p-roughness" type="range" min="0.01" max="0.3" step="0.01" value="0.10" /></label>
+        <span class="ctrl-value" data-value-for="p-roughness">0.10</span>
       </div>
       <div class="ctrl-row">
         <label for="p-clearcoat">镜面清漆<input id="p-clearcoat" type="range" min="0" max="1" step="0.01" value="0.42" /></label>
@@ -253,6 +263,10 @@
         <label for="p-light-ambient">环境光强度<input id="p-light-ambient" type="range" min="0.1" max="1" step="0.01" value="0.62" /></label>
         <span class="ctrl-value" data-value-for="p-light-ambient">0.62</span>
       </div>
+      <div class="ctrl-row">
+        <label for="p-pop-progress">爆炸动画进度<input id="p-pop-progress" type="range" min="0" max="1" step="0.001" value="0" /></label>
+        <span class="ctrl-value" data-value-for="p-pop-progress">0.000</span>
+      </div>
 
       <div class="toggle-row">
         <label for="t-dye">内部染料流动</label>
@@ -271,10 +285,12 @@
         <input id="t-random" type="checkbox" checked />
       </div>
 
+      <button id="pop-btn" type="button">播放爆炸动画</button>
       <button id="reset-btn" type="button">恢复默认参数</button>
+      <button id="sync-btn" type="button">一键同步到主游戏</button>
       <button id="back-btn" type="button">返回主游戏</button>
     </div>
 
-    <script type="module" src="./src/bubble-debug.js"></script>
+    <script type="module" src="./src/bubble-debug.js?v=20260409-jelly-burst"></script>
   </body>
 </html>

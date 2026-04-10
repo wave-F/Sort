@@ -15,10 +15,17 @@ const compatEl = document.getElementById("compat");
 const swatches = Array.from(document.querySelectorAll(".swatch"));
 const controlsPanel = document.getElementById("controls");
 const backBtn = document.getElementById("back-btn");
+const syncBtn = document.getElementById("sync-btn");
+const popBtn = document.getElementById("pop-btn");
+const popProgressInput = document.getElementById("p-pop-progress");
+const popProgressValue = document.querySelector('[data-value-for="p-pop-progress"]');
+const tuningStorageKey = "bubble_tuning_v1";
+const debugBuildTag = "jelly-burst-2026-04-09";
+if (compatEl) compatEl.textContent = `调试页版本: ${debugBuildTag}`;
 
 const defaults = {
-  transmission: 0.86,
-  roughness: 0.13,
+  transmission: 0.93,
+  roughness: 0.1,
   clearcoat: 0.42,
   wobble: 0.022,
   flow: 1.15,
@@ -76,14 +83,16 @@ let tension = defaults.springTension;
 let damping = defaults.springDamping;
 let randomClickColorEnabled = defaults.toggleRandom;
 let activeColorIndex = 0;
+const clock = new THREE.Clock();
 
 const springUniform = uniform(0);
-const tintUniform = uniform(new THREE.Color(0xff2f63));
+const tintUniform = uniform(new THREE.Color(0xff1f4b));
 const accentUniform = uniform(new THREE.Color(0xffb3ca));
 const flowSpeedUniform = uniform(defaults.flow);
 const wobbleAmplitudeUniform = uniform(defaults.wobble);
 const dyeContrastUniform = uniform(defaults.dye);
 const edgeGlowUniform = uniform(defaults.edge);
+const crackGlowUniform = uniform(0.0);
 const iridescenceUniform = uniform(defaults.iri);
 const dyeEnabledUniform = uniform(1.0);
 const edgeEnabledUniform = uniform(1.0);
@@ -93,13 +102,15 @@ const iridescenceSpanUniform = uniform(520.0);
 
 const material = new MeshPhysicalNodeMaterial({
   transmission: defaults.transmission,
-  thickness: 1.42,
+  thickness: 1.35,
   roughness: defaults.roughness,
   metalness: 0.0,
   clearcoat: defaults.clearcoat,
   clearcoatRoughness: 0.16,
   ior: 1.2,
   envMapIntensity: 0.72,
+  transparent: true,
+  opacity: 0.95,
 });
 
 const flow = time.mul(flowSpeedUniform);
@@ -127,7 +138,7 @@ material.colorNode = tintUniform.mix(dyeColor, dyeEnabledUniform);
 
 const viewDot = normalView.dot(positionViewDirection.negate()).abs().clamp(0.0, 1.0);
 const edgeGlow = viewDot.mul(-1.0).add(1.0).pow(2.8);
-material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform).mul(edgeEnabledUniform));
+material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform.add(crackGlowUniform)).mul(edgeEnabledUniform));
 
 material.iridescenceNode = iridescenceUniform.mul(iridescenceEnabledUniform);
 material.iridescenceIORNode = uniform(1.3);
@@ -136,9 +147,60 @@ material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iride
 const bubble = new THREE.Mesh(bubbleGeometry, material);
 scene.add(bubble);
 
+const BubbleState = {
+  IDLE: "IDLE",
+  PRE_BURST: "PRE_BURST",
+  BURST: "BURST",
+  DISSIPATE: "DISSIPATE",
+  RESET: "RESET",
+};
+
+let bubbleState = BubbleState.IDLE;
+let stateElapsed = 0;
+let previewModeEnabled = false;
+
+const preBurstDuration = 0.09;
+const burstDuration = 0.18;
+const dissipateDuration = 1.6;
+const resetDelay = 0.2;
+const preBurstScaleMax = 1.08;
+const burstBubbleFadeInDuration = 0.16;
+const previewDuration = preBurstDuration + burstDuration + dissipateDuration;
+
+const burstBubbleCount = 10;
+const minBurstBubbleCount = 7;
+const maxBurstBubbleCount = 10;
+let activeBurstBubbleCount = 8;
+const burstBubbleVelocities = [];
+const burstBubbleStartPositions = [];
+const burstBubbleStartVelocities = [];
+const burstBubbleLife = new Array(burstBubbleCount).fill(0);
+const burstBubbleLifeMax = new Array(burstBubbleCount).fill(1);
+const burstBubbleBaseScale = new Array(burstBubbleCount).fill(0.08);
+const burstBubbleMeshes = [];
+const burstPoints = { visible: false };
+const bubbleRadius = 1.2;
+const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
+
+for (let i = 0; i < burstBubbleCount; i += 1) {
+  const burstBubbleMaterial = material.clone();
+  burstBubbleMaterial.transparent = true;
+  burstBubbleMaterial.opacity = 0;
+  burstBubbleMaterial.depthWrite = false;
+  burstBubbleMaterial.side = THREE.DoubleSide;
+
+  const burstBubbleMesh = new THREE.Mesh(burstBubbleGeometry, burstBubbleMaterial);
+  burstBubbleMesh.visible = false;
+  scene.add(burstBubbleMesh);
+  burstBubbleMeshes.push(burstBubbleMesh);
+  burstBubbleVelocities.push(new THREE.Vector3());
+  burstBubbleStartPositions.push(new THREE.Vector3());
+  burstBubbleStartVelocities.push(new THREE.Vector3());
+}
+
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-const palette = [0xff2f63, 0xff8a00, 0x00c36e, 0x6a4dff];
+const palette = [0xff1f4b, 0xff9800, 0x12cf5b, 0x1b8fff];
 
 function setBubbleColor(hexValue) {
   const base = new THREE.Color(hexValue);
@@ -167,6 +229,51 @@ controlsPanel.addEventListener("pointerdown", (event) => {
 
 backBtn.addEventListener("click", () => {
   window.location.href = "./index.html";
+});
+
+popBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  triggerBubblePop();
+});
+
+if (popProgressInput) {
+  popProgressInput.addEventListener("input", () => {
+    const t = THREE.MathUtils.clamp(Number(popProgressInput.value), 0, 1);
+    previewModeEnabled = true;
+    if (bubbleState === BubbleState.IDLE) {
+      resetBurstArtifacts();
+      initBurstParticles();
+    }
+    applyPreviewFrame(t);
+    setPopProgressUI(t);
+  });
+}
+
+syncBtn.addEventListener("click", () => {
+  const payload = {
+    transmission: material.transmission,
+    roughness: material.roughness,
+    clearcoat: material.clearcoat,
+    wobble: wobbleAmplitudeUniform.value,
+    flow: flowSpeedUniform.value,
+    dye: dyeContrastUniform.value,
+    edge: edgeGlowUniform.value,
+    iri: iridescenceUniform.value,
+    springTension: tension,
+    springDamping: damping,
+    lightKey: keyLight.intensity,
+    lightAmbient: ambientLight.intensity,
+    toggleDye: dyeEnabledUniform.value > 0.5,
+    toggleEdge: edgeEnabledUniform.value > 0.5,
+    toggleIri: iridescenceEnabledUniform.value > 0.5,
+  };
+
+  try {
+    window.localStorage.setItem(tuningStorageKey, JSON.stringify(payload));
+    compatEl.textContent = "已同步到主游戏。返回后开局会自动应用。";
+  } catch (_err) {
+    compatEl.textContent = "同步失败：浏览器不允许写入本地存储。";
+  }
 });
 
 function setControlValue(id, value) {
@@ -278,6 +385,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   material.transmission = defaults.transmission;
   material.roughness = defaults.roughness;
   material.clearcoat = defaults.clearcoat;
+  material.opacity = 0.95;
   wobbleAmplitudeUniform.value = defaults.wobble;
   flowSpeedUniform.value = defaults.flow;
   dyeContrastUniform.value = defaults.dye;
@@ -291,9 +399,19 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   edgeEnabledUniform.value = defaults.toggleEdge ? 1 : 0;
   iridescenceEnabledUniform.value = defaults.toggleIri ? 1 : 0;
   randomClickColorEnabled = defaults.toggleRandom;
+  previewModeEnabled = false;
+  bubbleState = BubbleState.IDLE;
+  stateElapsed = 0;
+  crackGlowUniform.value = 0;
+  resetBurstArtifacts();
+  bubble.visible = true;
+  bubble.scale.setScalar(1);
+  material.opacity = 0.95;
+  setPopProgressUI(0);
 });
 
 window.addEventListener("pointerdown", (event) => {
+  if (bubbleState !== BubbleState.IDLE || previewModeEnabled) return;
   pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -310,6 +428,259 @@ window.addEventListener("pointerdown", (event) => {
   }
 });
 
+function triggerBubblePop() {
+  if (bubbleState !== BubbleState.IDLE) return;
+  previewModeEnabled = false;
+  stateElapsed = 0;
+  bubbleState = BubbleState.PRE_BURST;
+  crackGlowUniform.value = 0.12;
+  bubble.visible = true;
+  material.opacity = 0.95;
+  bubble.scale.setScalar(1);
+  springVel -= 1.1;
+}
+
+function updatePopState(dt) {
+  if (previewModeEnabled) {
+    applyPreviewFrame(THREE.MathUtils.clamp(Number(popProgressInput?.value ?? 0), 0, 1));
+    return;
+  }
+
+  if (bubbleState === BubbleState.IDLE) {
+    crackGlowUniform.value = 0;
+    bubble.visible = true;
+    material.opacity = 0.95;
+    bubble.scale.setScalar(1);
+    return;
+  }
+
+  stateElapsed += dt;
+
+  if (bubbleState === BubbleState.PRE_BURST) {
+    const t = Math.min(stateElapsed / preBurstDuration, 1);
+    const smooth = t * t * (3 - 2 * t);
+    bubble.visible = true;
+    bubble.scale.setScalar(1 + (preBurstScaleMax - 1) * smooth);
+    crackGlowUniform.value = 0.12 * smooth;
+    material.opacity = 0.95;
+
+    if (t >= 1) {
+      bubbleState = BubbleState.BURST;
+      stateElapsed = 0;
+      initBurstParticles();
+    }
+    return;
+  }
+
+  if (bubbleState === BubbleState.BURST) {
+    const t = Math.min(stateElapsed / burstDuration, 1);
+    crackGlowUniform.value = (1 - t) * 0.12;
+    material.opacity = Math.max(0, 0.95 * (1 - t * 1.85));
+    bubble.scale.setScalar(preBurstScaleMax + t * 0.03);
+    updateBurstParticles(dt);
+
+    if (t > 0.5) bubble.visible = false;
+
+    if (t >= 1) {
+      bubbleState = BubbleState.DISSIPATE;
+      stateElapsed = 0;
+      material.opacity = 0;
+    }
+    return;
+  }
+
+  if (bubbleState === BubbleState.DISSIPATE) {
+    crackGlowUniform.value = 0;
+    bubble.visible = false;
+    updateBurstParticles(dt);
+
+    if (stateElapsed >= dissipateDuration && !burstPoints.visible) {
+      bubbleState = BubbleState.RESET;
+      stateElapsed = 0;
+    }
+    return;
+  }
+
+  if (bubbleState === BubbleState.RESET) {
+    if (stateElapsed >= resetDelay) {
+      bubbleState = BubbleState.IDLE;
+      stateElapsed = 0;
+      crackGlowUniform.value = 0;
+      bubble.visible = true;
+      bubble.scale.setScalar(1);
+      material.opacity = 0.95;
+      resetBurstArtifacts();
+    }
+  }
+}
+
+function setPopProgressUI(t) {
+  if (popProgressInput) popProgressInput.value = String(t);
+  if (popProgressValue) popProgressValue.textContent = `${Math.round(t * 100)}%`;
+}
+
+function resetBurstArtifacts() {
+  for (let i = 0; i < burstBubbleCount; i += 1) {
+    burstBubbleLife[i] = 0;
+    burstBubbleLifeMax[i] = 1;
+    const burstBubbleMesh = burstBubbleMeshes[i];
+    burstBubbleMesh.visible = false;
+    burstBubbleMesh.position.set(9999, 9999, 9999);
+    burstBubbleMesh.scale.setScalar(0.0001);
+    burstBubbleMesh.material.opacity = 0;
+  }
+  burstPoints.visible = false;
+}
+
+function initBurstParticles() {
+  activeBurstBubbleCount = minBurstBubbleCount + Math.floor(Math.random() * (maxBurstBubbleCount - minBurstBubbleCount + 1));
+
+  for (let i = 0; i < burstBubbleCount; i += 1) {
+    const burstBubbleMesh = burstBubbleMeshes[i];
+    const burstBubbleMaterial = burstBubbleMesh.material;
+    if (i >= activeBurstBubbleCount) {
+      burstBubbleLife[i] = 0;
+      burstBubbleLifeMax[i] = 1;
+      burstBubbleMesh.visible = false;
+      burstBubbleMaterial.opacity = 0;
+      continue;
+    }
+
+    burstBubbleMaterial.positionNode = material.positionNode;
+    burstBubbleMaterial.colorNode = material.colorNode;
+    burstBubbleMaterial.emissiveNode = material.emissiveNode;
+    burstBubbleMaterial.iridescenceNode = material.iridescenceNode;
+    burstBubbleMaterial.iridescenceIORNode = material.iridescenceIORNode;
+    burstBubbleMaterial.iridescenceThicknessNode = material.iridescenceThicknessNode;
+    burstBubbleMaterial.transmission = material.transmission;
+    burstBubbleMaterial.roughness = Math.min(0.26, material.roughness + 0.02);
+    burstBubbleMaterial.thickness = Math.min(0.7, material.thickness * 0.5);
+    burstBubbleMaterial.ior = material.ior;
+    burstBubbleMaterial.clearcoat = material.clearcoat;
+    burstBubbleMaterial.clearcoatRoughness = material.clearcoatRoughness;
+    burstBubbleMaterial.envMapIntensity = material.envMapIntensity;
+
+    const randomDir = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+    const spawnDir = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+    const velocityDir = spawnDir.clone().lerp(randomDir, 0.22).normalize();
+
+    const speed = 0.34 + Math.random() * 0.5;
+    burstBubbleVelocities[i].copy(velocityDir).multiplyScalar(speed);
+    burstBubbleStartVelocities[i].copy(burstBubbleVelocities[i]);
+
+    const innerRadius = bubbleRadius * preBurstScaleMax * 0.9;
+    const spawnRadius = innerRadius * Math.cbrt(Math.random());
+    burstBubbleMesh.position.copy(bubble.position).addScaledVector(spawnDir, spawnRadius);
+    burstBubbleStartPositions[i].copy(burstBubbleMesh.position);
+
+    const startScale = 0.055 + Math.random() * 0.11;
+    burstBubbleBaseScale[i] = startScale;
+    burstBubbleMesh.scale.setScalar(startScale);
+    burstBubbleMaterial.opacity = 0;
+    burstBubbleMesh.visible = true;
+
+    burstBubbleLife[i] = 1.05 + Math.random() * 0.75;
+    burstBubbleLifeMax[i] = burstBubbleLife[i];
+  }
+
+  burstPoints.visible = true;
+}
+
+function updateBurstParticles(delta) {
+  let aliveCount = 0;
+
+  for (let i = 0; i < burstBubbleCount; i += 1) {
+    if (burstBubbleLife[i] <= 0) continue;
+
+    aliveCount += 1;
+    const burstBubbleMesh = burstBubbleMeshes[i];
+    burstBubbleLife[i] -= delta;
+
+    burstBubbleVelocities[i].multiplyScalar(Math.pow(0.94, delta * 60));
+    burstBubbleMesh.position.addScaledVector(burstBubbleVelocities[i], delta);
+
+    const lifeRatio = Math.max(burstBubbleLife[i], 0) / Math.max(burstBubbleLifeMax[i], 0.0001);
+    const age = Math.max(burstBubbleLifeMax[i] - burstBubbleLife[i], 0);
+    const appear = Math.min(age / burstBubbleFadeInDuration, 1);
+    const fade = Math.pow(lifeRatio, 0.62);
+    const scaleNow = burstBubbleBaseScale[i] * (0.68 + 0.32 * fade);
+
+    burstBubbleMesh.scale.setScalar(scaleNow);
+    burstBubbleMesh.material.opacity = 0.9 * fade * appear;
+
+    if (burstBubbleLife[i] <= 0) {
+      burstBubbleMesh.visible = false;
+      burstBubbleMesh.material.opacity = 0;
+    }
+  }
+
+  if (aliveCount === 0) burstPoints.visible = false;
+}
+
+function applyPreviewFrame(progress01) {
+  const tSec = THREE.MathUtils.clamp(progress01, 0, 1) * previewDuration;
+
+  if (tSec <= preBurstDuration) {
+    const p = preBurstDuration > 0 ? tSec / preBurstDuration : 1;
+    const smooth = p * p * (3 - 2 * p);
+    bubble.visible = true;
+    bubble.scale.setScalar(1 + (preBurstScaleMax - 1) * smooth);
+    material.opacity = 0.95;
+    crackGlowUniform.value = 0.08 * smooth;
+    burstPoints.visible = false;
+    return;
+  }
+
+  const burstElapsed = tSec - preBurstDuration;
+  const burstT = Math.min(burstElapsed / burstDuration, 1);
+  bubble.scale.setScalar(preBurstScaleMax + 0.03 * burstT);
+  material.opacity = Math.max(0, 0.95 * (1 - burstT * 1.85));
+  crackGlowUniform.value = Math.max(0, 0.1 * (1 - burstT));
+  bubble.visible = burstT < 0.5;
+
+  let alive = 0;
+  for (let i = 0; i < burstBubbleCount; i += 1) {
+    const burstBubbleMesh = burstBubbleMeshes[i];
+    if (i >= activeBurstBubbleCount) {
+      burstBubbleMesh.visible = false;
+      burstBubbleMesh.material.opacity = 0;
+      continue;
+    }
+
+    const lifeMax = burstBubbleLifeMax[i];
+    const lifeRemain = 1 - burstElapsed / Math.max(lifeMax, 0.0001);
+    if (lifeRemain <= 0) {
+      burstBubbleMesh.visible = false;
+      burstBubbleMesh.material.opacity = 0;
+      continue;
+    }
+
+    alive += 1;
+    burstBubbleMesh.visible = true;
+    const fade = Math.pow(lifeRemain, 0.62);
+    const appear = Math.min(burstElapsed / burstBubbleFadeInDuration, 1);
+    const previewMove = burstElapsed * 0.62;
+
+    burstBubbleMesh.position.set(
+      burstBubbleStartPositions[i].x + burstBubbleStartVelocities[i].x * previewMove,
+      burstBubbleStartPositions[i].y + burstBubbleStartVelocities[i].y * previewMove,
+      burstBubbleStartPositions[i].z + burstBubbleStartVelocities[i].z * previewMove
+    );
+    burstBubbleMesh.scale.setScalar(burstBubbleBaseScale[i] * (0.68 + 0.32 * fade));
+    burstBubbleMesh.material.opacity = 0.9 * fade * appear;
+  }
+
+  burstPoints.visible = alive > 0;
+}
+
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -325,12 +696,18 @@ async function bootstrap() {
   }
 
   applyPaletteIndex(0);
+  resetBurstArtifacts();
+  setPopProgressUI(0);
 
   renderer.setAnimationLoop(() => {
+    const dt = Math.min(clock.getDelta(), 1 / 30);
+
     springVel += (0 - springVal) * tension;
     springVel *= damping;
     springVal += springVel;
     springUniform.value = springVal;
+
+    updatePopState(dt);
 
     controls.update();
     renderer.render(scene, camera);
