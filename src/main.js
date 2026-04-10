@@ -35,6 +35,12 @@ const ctlPanelMarginTopValueEl = document.getElementById("ctl-panel-margin-top-v
 const ctlPanelMarginRightValueEl = document.getElementById("ctl-panel-margin-right-value");
 const ctlPanelMarginBottomValueEl = document.getElementById("ctl-panel-margin-bottom-value");
 const ctlPanelMarginLeftValueEl = document.getElementById("ctl-panel-margin-left-value");
+const ctlResultWidthEl = document.getElementById("ctl-result-width");
+const ctlResultHeightEl = document.getElementById("ctl-result-height");
+const ctlResultYEl = document.getElementById("ctl-result-y");
+const ctlResultWidthValueEl = document.getElementById("ctl-result-width-value");
+const ctlResultHeightValueEl = document.getElementById("ctl-result-height-value");
+const ctlResultYValueEl = document.getElementById("ctl-result-y-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -184,6 +190,18 @@ function bindControlPanel() {
     ctlPanelMarginLeftEl.value = String(saved.sliceLeft);
     ctlPanelMarginLeftEl.addEventListener("input", onPanelSliceInput);
   }
+  if (ctlResultWidthEl) {
+    ctlResultWidthEl.value = String(saved.resultWidth);
+    ctlResultWidthEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlResultHeightEl) {
+    ctlResultHeightEl.value = String(saved.resultHeight);
+    ctlResultHeightEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlResultYEl) {
+    ctlResultYEl.value = String(saved.resultY);
+    ctlResultYEl.addEventListener("input", onResultLayoutInput);
+  }
 
   applyControlValues(saved);
   syncControlPanelLabels();
@@ -218,6 +236,11 @@ function onPanelSliceInput() {
   syncControlPanelLabels();
 }
 
+function onResultLayoutInput() {
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
+}
+
 function syncControlPanelLabels() {
   if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
   if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
@@ -226,6 +249,9 @@ function syncControlPanelLabels() {
   if (ctlPanelMarginRightValueEl) ctlPanelMarginRightValueEl.textContent = String(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)));
   if (ctlPanelMarginBottomValueEl) ctlPanelMarginBottomValueEl.textContent = String(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)));
   if (ctlPanelMarginLeftValueEl) ctlPanelMarginLeftValueEl.textContent = String(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)));
+  if (ctlResultWidthValueEl) ctlResultWidthValueEl.textContent = String(Math.floor(Number(ctlResultWidthEl?.value ?? 320)));
+  if (ctlResultHeightValueEl) ctlResultHeightValueEl.textContent = String(Math.floor(Number(ctlResultHeightEl?.value ?? 260)));
+  if (ctlResultYValueEl) ctlResultYValueEl.textContent = String(Math.floor(Number(ctlResultYEl?.value ?? 0)));
 }
 
 function readControlSave() {
@@ -237,6 +263,9 @@ function readControlSave() {
     sliceRight: 28,
     sliceBottom: 28,
     sliceLeft: 28,
+    resultWidth: 320,
+    resultHeight: 260,
+    resultY: 0,
   };
 
   try {
@@ -247,10 +276,13 @@ function readControlSave() {
       trailWidth: THREE.MathUtils.clamp(Number(parsed?.trailWidth) || defaults.trailWidth, 0.06, 0.22),
       particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
       scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
-      sliceTop: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceTop) || defaults.sliceTop), 8, 64),
-      sliceRight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceRight) || defaults.sliceRight), 8, 64),
-      sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceBottom) || defaults.sliceBottom), 8, 64),
-      sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceLeft) || defaults.sliceLeft), 8, 64),
+      sliceTop: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceTop) || defaults.sliceTop), 8, 200),
+      sliceRight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceRight) || defaults.sliceRight), 8, 200),
+      sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceBottom) || defaults.sliceBottom), 8, 200),
+      sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceLeft) || defaults.sliceLeft), 8, 200),
+      resultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultWidth) || defaults.resultWidth), 220, 420),
+      resultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultHeight) || defaults.resultHeight), 160, 560),
+      resultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultY) || defaults.resultY), -220, 220),
     };
   } catch (_err) {
     return defaults;
@@ -262,10 +294,13 @@ function collectControlValues() {
     trailWidth: THREE.MathUtils.clamp(Number(ctlTrailWidthEl?.value ?? 0.12), 0.06, 0.22),
     particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
     scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
-    sliceTop: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)), 8, 64),
-    sliceRight: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)), 8, 64),
-    sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)), 8, 64),
-    sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)), 8, 64),
+    sliceTop: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)), 8, 200),
+    sliceRight: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)), 8, 200),
+    sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)), 8, 200),
+    sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)), 8, 200),
+    resultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlResultWidthEl?.value ?? 320)), 220, 420),
+    resultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlResultHeightEl?.value ?? 260)), 160, 560),
+    resultY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultYEl?.value ?? 0)), -220, 220),
   };
 }
 
@@ -277,6 +312,9 @@ function setControlInputs(values) {
   if (ctlPanelMarginRightEl) ctlPanelMarginRightEl.value = String(values.sliceRight);
   if (ctlPanelMarginBottomEl) ctlPanelMarginBottomEl.value = String(values.sliceBottom);
   if (ctlPanelMarginLeftEl) ctlPanelMarginLeftEl.value = String(values.sliceLeft);
+  if (ctlResultWidthEl) ctlResultWidthEl.value = String(values.resultWidth);
+  if (ctlResultHeightEl) ctlResultHeightEl.value = String(values.resultHeight);
+  if (ctlResultYEl) ctlResultYEl.value = String(values.resultY);
 }
 
 function applyControlValues(values) {
@@ -290,6 +328,9 @@ function applyControlValues(values) {
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
   rootStyle.setProperty("--panel-slice-left", String(values.sliceLeft));
+  rootStyle.setProperty("--result-card-width", `${values.resultWidth}px`);
+  rootStyle.setProperty("--result-card-height", `${values.resultHeight}px`);
+  rootStyle.setProperty("--result-card-y", `${values.resultY}px`);
 }
 
 function saveAndApplyControls() {

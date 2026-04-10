@@ -59,32 +59,57 @@
 
           <label class="control-row">
             <span>切片上</span>
-            <input id="ctl-panel-margin-top" type="range" min="8" max="64" step="1" value="28" />
+            <input id="ctl-panel-margin-top" type="range" min="8" max="200" step="1" value="28" />
             <em id="ctl-panel-margin-top-value">28</em>
           </label>
 
           <label class="control-row">
             <span>切片右</span>
-            <input id="ctl-panel-margin-right" type="range" min="8" max="64" step="1" value="28" />
+            <input id="ctl-panel-margin-right" type="range" min="8" max="200" step="1" value="28" />
             <em id="ctl-panel-margin-right-value">28</em>
           </label>
 
           <label class="control-row">
             <span>切片下</span>
-            <input id="ctl-panel-margin-bottom" type="range" min="8" max="64" step="1" value="28" />
+            <input id="ctl-panel-margin-bottom" type="range" min="8" max="200" step="1" value="28" />
             <em id="ctl-panel-margin-bottom-value">28</em>
           </label>
 
           <label class="control-row">
             <span>切片左</span>
-            <input id="ctl-panel-margin-left" type="range" min="8" max="64" step="1" value="28" />
+            <input id="ctl-panel-margin-left" type="range" min="8" max="200" step="1" value="28" />
             <em id="ctl-panel-margin-left-value">28</em>
           </label>
         </fieldset>
 
+        <fieldset class="control-group">
+          <legend>结果页布局</legend>
+
+          <label class="control-row">
+            <span>结果宽度</span>
+            <input id="ctl-result-width" type="range" min="220" max="420" step="1" value="320" />
+            <em id="ctl-result-width-value">320</em>
+          </label>
+
+          <label class="control-row">
+            <span>结果高度</span>
+            <input id="ctl-result-height" type="range" min="160" max="560" step="1" value="260" />
+            <em id="ctl-result-height-value">260</em>
+          </label>
+
+          <label class="control-row">
+            <span>结果Y</span>
+            <input id="ctl-result-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-result-y-value">0</em>
+          </label>
+
+          <div class="control-group-actions">
+            <button id="show-result-btn" type="button">结果页</button>
+          </div>
+        </fieldset>
+
         <div class="control-actions">
           <button id="control-save-btn" type="button">保存</button>
-          <button id="show-result-btn" type="button">结果页</button>
           <button id="control-close-btn" type="button">关闭</button>
         </div>
       </div>
@@ -133,6 +158,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=35"></script>
+    <script type="module" src="./src/main.js?v=36"></script>
   </body>
 </html>
