@@ -144,6 +144,7 @@ const state = {
   nowPoint: null,
   lastMoveAt: 0,
   maxPassedLevel: 1,
+  coins: 16,
   resultOutcome: "lose",
 };
 
@@ -678,7 +679,25 @@ function applyControlValues(values) {
     }
   }
 
-  if (coinStatusTextEl && !coinStatusTextEl.textContent) coinStatusTextEl.textContent = "16";
+  updateCoinStatus();
+}
+
+function updateCoinStatus() {
+  if (!coinStatusTextEl) return;
+  coinStatusTextEl.textContent = String(Math.max(0, Math.floor(state.coins || 0)));
+}
+
+function getConfiguredWinCoinGain() {
+  const values = currentControlValues || collectControlValues();
+  return Math.max(0, Math.floor(values.winCoinGain || 0));
+}
+
+function addCoins(amount) {
+  const value = Math.max(0, Math.floor(amount || 0));
+  if (value <= 0) return;
+  state.coins = Math.max(0, Math.floor(state.coins || 0)) + value;
+  updateCoinStatus();
+  writeGameSave();
 }
 
 function applyResultLayoutForOutcome(outcome, values) {
@@ -761,6 +780,8 @@ function showResultPage() {
     resultPageTitleEl.classList.toggle("is-lose", !isWin);
   }
   resultPageEl.classList.toggle("is-win", isWin);
+  const coinBarEl = document.getElementById("coin-status");
+  if (coinBarEl) coinBarEl.classList.toggle("on-result-win", isWin);
   if (resultPageTitleTextEl) {
     resultPageTitleTextEl.textContent = isWin ? controlValues.winTitle : controlValues.failTitle;
   }
@@ -793,6 +814,7 @@ function showWinResultPreview() {
 
 function passCurrentLevelAndShowWinResult() {
   markLevelPassed(state.currentLevelIndex + 1);
+  addCoins(getConfiguredWinCoinGain());
   state.resultOutcome = "win";
   hideControlPanel();
   showResultPage();
@@ -802,6 +824,8 @@ function hideResultPage() {
   if (!resultPageEl) return;
   resultPageEl.classList.add("hidden");
   if (resultMaskEl) resultMaskEl.classList.add("hidden");
+  const coinBarEl = document.getElementById("coin-status");
+  if (coinBarEl) coinBarEl.classList.remove("on-result-win");
 }
 
 function retryFromResultPage() {
@@ -1702,15 +1726,20 @@ function readGameSave() {
   }
 
   const value = Number(parsed?.maxPassedLevel);
+  const coins = Number(parsed?.coins);
   if (!Number.isFinite(value)) {
     state.maxPassedLevel = 1;
+    state.coins = 16;
     writeGameSave();
     renderLadderProgress();
+    updateCoinStatus();
     return;
   }
   state.maxPassedLevel = THREE.MathUtils.clamp(Math.floor(value), 1, SAVE_TOTAL_LEVELS);
+  state.coins = Number.isFinite(coins) ? Math.max(0, Math.floor(coins)) : 16;
   if (Number(parsed?.totalLevels) !== SAVE_TOTAL_LEVELS) writeGameSave();
   renderLadderProgress();
+  updateCoinStatus();
 }
 
 function writeGameSave() {
@@ -1720,6 +1749,7 @@ function writeGameSave() {
       JSON.stringify({
         totalLevels: SAVE_TOTAL_LEVELS,
         maxPassedLevel: state.maxPassedLevel,
+        coins: Math.max(0, Math.floor(state.coins || 0)),
       })
     );
   } catch (_err) {
@@ -1763,6 +1793,7 @@ function endGame(reason) {
 
   if (reason.startsWith("全部")) {
     state.resultOutcome = "win";
+    addCoins(getConfiguredWinCoinGain());
     if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `恭喜通关！总分 ${state.score}`;
     else gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
   } else {

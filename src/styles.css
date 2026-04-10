@@ -180,6 +180,10 @@ body {
   pointer-events: none;
 }
 
+#coin-status.on-result-win {
+  z-index: 19;
+}
+
 #coin-status-icon {
   position: absolute;
   left: 6px;
