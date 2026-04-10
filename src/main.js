@@ -153,6 +153,7 @@ let trail;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
+const levelRuntimeCache = new Map();
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -381,9 +382,8 @@ function startGame() {
 }
 
 function loadLevel(index) {
-  const baseLevel = LEVELS[index];
-  if (!baseLevel) return;
-  const level = normalizeLevelDefinition(baseLevel, index);
+  const level = getNormalizedLevel(index);
+  if (!level) return;
 
   state.currentLevelIndex = index;
   state.activeLevel = level;
@@ -499,6 +499,41 @@ function normalizeLevelDefinition(level, index) {
     stepLimit,
     fruits,
   };
+}
+
+function getNormalizedLevel(index) {
+  const baseLevel = LEVELS[index];
+  if (!baseLevel) return null;
+
+  const key = `${index}|${bounds.left.toFixed(3)}|${bounds.right.toFixed(3)}|${bounds.top.toFixed(3)}|${bounds.bottom.toFixed(3)}`;
+  const cached = levelRuntimeCache.get(key);
+  if (cached) return cloneNormalizedLevel(cached);
+
+  const normalized = normalizeLevelDefinition(baseLevel, index);
+  levelRuntimeCache.set(key, normalized);
+  return cloneNormalizedLevel(normalized);
+}
+
+function cloneNormalizedLevel(level) {
+  return {
+    ...level,
+    colorIds: level.colorIds.map((id) => id),
+    colorCounts: level.colorCounts.map((item) => ({ colorId: item.colorId, count: item.count })),
+    radiusRange: { min: level.radiusRange.min, max: level.radiusRange.max },
+    speedRange: { min: level.speedRange.min, max: level.speedRange.max },
+    fruits: level.fruits.map((fruit) => ({
+      x: fruit.x,
+      y: fruit.y,
+      colorId: fruit.colorId,
+      radius: fruit.radius,
+      vx: fruit.vx,
+      vy: fruit.vy,
+    })),
+  };
+}
+
+function clearLevelRuntimeCache() {
+  levelRuntimeCache.clear();
 }
 
 function normalizeColorIds(colorIds, fruitsDef) {
@@ -1508,6 +1543,7 @@ function resize() {
   bounds.right = worldHalfW - rules.playAreaInset;
   bounds.top = worldHalfH - rules.playAreaInset;
   bounds.bottom = -worldHalfH + rules.playAreaInset;
+  clearLevelRuntimeCache();
 }
 
 function setSliceStatus(text) {
