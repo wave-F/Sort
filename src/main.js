@@ -18,6 +18,7 @@ const controlBlockerEl = document.getElementById("control-blocker");
 const controlPanelEl = document.getElementById("control-panel");
 const controlCloseBtn = document.getElementById("control-close-btn");
 const controlSaveBtn = document.getElementById("control-save-btn");
+const coinStatusTextEl = document.getElementById("coin-status-text");
 const showFailResultBtn = document.getElementById("show-fail-result-btn");
 const showWinResultBtn = document.getElementById("show-win-result-btn");
 const passWinResultBtn = document.getElementById("pass-win-result-btn");
@@ -48,6 +49,24 @@ const ctlControlPanelXValueEl = document.getElementById("ctl-control-panel-x-val
 const ctlTrailWidthValueEl = document.getElementById("ctl-trail-width-value");
 const ctlParticleSizeValueEl = document.getElementById("ctl-particle-size-value");
 const ctlScoreFruitValueEl = document.getElementById("ctl-score-fruit-value");
+const ctlCoinBarXEl = document.getElementById("ctl-coin-bar-x");
+const ctlCoinBarYEl = document.getElementById("ctl-coin-bar-y");
+const ctlCoinBarScaleEl = document.getElementById("ctl-coin-bar-scale");
+const ctlCoinIconXEl = document.getElementById("ctl-coin-icon-x");
+const ctlCoinIconYEl = document.getElementById("ctl-coin-icon-y");
+const ctlCoinIconScaleEl = document.getElementById("ctl-coin-icon-scale");
+const ctlCoinTextXEl = document.getElementById("ctl-coin-text-x");
+const ctlCoinTextYEl = document.getElementById("ctl-coin-text-y");
+const ctlCoinTextSizeEl = document.getElementById("ctl-coin-text-size");
+const ctlCoinBarXValueEl = document.getElementById("ctl-coin-bar-x-value");
+const ctlCoinBarYValueEl = document.getElementById("ctl-coin-bar-y-value");
+const ctlCoinBarScaleValueEl = document.getElementById("ctl-coin-bar-scale-value");
+const ctlCoinIconXValueEl = document.getElementById("ctl-coin-icon-x-value");
+const ctlCoinIconYValueEl = document.getElementById("ctl-coin-icon-y-value");
+const ctlCoinIconScaleValueEl = document.getElementById("ctl-coin-icon-scale-value");
+const ctlCoinTextXValueEl = document.getElementById("ctl-coin-text-x-value");
+const ctlCoinTextYValueEl = document.getElementById("ctl-coin-text-y-value");
+const ctlCoinTextSizeValueEl = document.getElementById("ctl-coin-text-size-value");
 const ctlPanelMarginTopEl = document.getElementById("ctl-panel-margin-top");
 const ctlPanelMarginRightEl = document.getElementById("ctl-panel-margin-right");
 const ctlPanelMarginBottomEl = document.getElementById("ctl-panel-margin-bottom");
@@ -225,6 +244,42 @@ function bindControlPanel() {
     ctlScoreFruitEl.value = String(saved.scorePerFruit);
     ctlScoreFruitEl.addEventListener("input", onScorePerFruitInput);
   }
+  if (ctlCoinBarXEl) {
+    ctlCoinBarXEl.value = String(saved.coinBarX);
+    ctlCoinBarXEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinBarYEl) {
+    ctlCoinBarYEl.value = String(saved.coinBarY);
+    ctlCoinBarYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinBarScaleEl) {
+    ctlCoinBarScaleEl.value = String(saved.coinBarScale);
+    ctlCoinBarScaleEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinIconXEl) {
+    ctlCoinIconXEl.value = String(saved.coinIconX);
+    ctlCoinIconXEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinIconYEl) {
+    ctlCoinIconYEl.value = String(saved.coinIconY);
+    ctlCoinIconYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinIconScaleEl) {
+    ctlCoinIconScaleEl.value = String(saved.coinIconScale);
+    ctlCoinIconScaleEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinTextXEl) {
+    ctlCoinTextXEl.value = String(saved.coinTextX);
+    ctlCoinTextXEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinTextYEl) {
+    ctlCoinTextYEl.value = String(saved.coinTextY);
+    ctlCoinTextYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlCoinTextSizeEl) {
+    ctlCoinTextSizeEl.value = String(saved.coinTextSize);
+    ctlCoinTextSizeEl.addEventListener("input", onResultLayoutInput);
+  }
   if (ctlPanelMarginTopEl) {
     ctlPanelMarginTopEl.value = String(saved.sliceTop);
     ctlPanelMarginTopEl.addEventListener("input", onPanelSliceInput);
@@ -378,6 +433,15 @@ function syncControlPanelLabels() {
   if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
   if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
   if (ctlScoreFruitValueEl) ctlScoreFruitValueEl.textContent = String(scoring.perFruit);
+  if (ctlCoinBarXValueEl) ctlCoinBarXValueEl.textContent = String(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)));
+  if (ctlCoinBarYValueEl) ctlCoinBarYValueEl.textContent = String(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)));
+  if (ctlCoinBarScaleValueEl) ctlCoinBarScaleValueEl.textContent = Number(ctlCoinBarScaleEl?.value ?? 1).toFixed(2);
+  if (ctlCoinIconXValueEl) ctlCoinIconXValueEl.textContent = String(Math.floor(Number(ctlCoinIconXEl?.value ?? 0)));
+  if (ctlCoinIconYValueEl) ctlCoinIconYValueEl.textContent = String(Math.floor(Number(ctlCoinIconYEl?.value ?? 0)));
+  if (ctlCoinIconScaleValueEl) ctlCoinIconScaleValueEl.textContent = Number(ctlCoinIconScaleEl?.value ?? 1).toFixed(2);
+  if (ctlCoinTextXValueEl) ctlCoinTextXValueEl.textContent = String(Math.floor(Number(ctlCoinTextXEl?.value ?? 0)));
+  if (ctlCoinTextYValueEl) ctlCoinTextYValueEl.textContent = String(Math.floor(Number(ctlCoinTextYEl?.value ?? 0)));
+  if (ctlCoinTextSizeValueEl) ctlCoinTextSizeValueEl.textContent = String(Math.floor(Number(ctlCoinTextSizeEl?.value ?? 34)));
   if (ctlPanelMarginTopValueEl) ctlPanelMarginTopValueEl.textContent = String(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)));
   if (ctlPanelMarginRightValueEl) ctlPanelMarginRightValueEl.textContent = String(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)));
   if (ctlPanelMarginBottomValueEl) ctlPanelMarginBottomValueEl.textContent = String(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)));
@@ -406,6 +470,15 @@ function readControlSave() {
     controlPanelX: 0,
     particleSize: 0.09,
     scorePerFruit: 5,
+    coinBarX: 0,
+    coinBarY: 0,
+    coinBarScale: 1,
+    coinIconX: 0,
+    coinIconY: 0,
+    coinIconScale: 1,
+    coinTextX: 0,
+    coinTextY: 0,
+    coinTextSize: 34,
     sliceTop: 28,
     sliceRight: 28,
     sliceBottom: 28,
@@ -442,6 +515,15 @@ function readControlSave() {
       controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.controlPanelX) || defaults.controlPanelX), -220, 420),
       particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
       scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
+      coinBarX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarX) || defaults.coinBarX), -260, 260),
+      coinBarY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarY) || defaults.coinBarY), -260, 260),
+      coinBarScale: THREE.MathUtils.clamp(Number(parsed?.coinBarScale) || defaults.coinBarScale, 0.2, 2),
+      coinIconX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinIconX) || defaults.coinIconX), -220, 220),
+      coinIconY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinIconY) || defaults.coinIconY), -220, 220),
+      coinIconScale: THREE.MathUtils.clamp(Number(parsed?.coinIconScale) || defaults.coinIconScale, 0.2, 2),
+      coinTextX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinTextX) || defaults.coinTextX), -220, 220),
+      coinTextY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinTextY) || defaults.coinTextY), -220, 220),
+      coinTextSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinTextSize) || defaults.coinTextSize), 12, 64),
       sliceTop: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceTop) || defaults.sliceTop), 8, 200),
       sliceRight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceRight) || defaults.sliceRight), 8, 200),
       sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceBottom) || defaults.sliceBottom), 8, 200),
@@ -479,6 +561,15 @@ function collectControlValues() {
     controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)), -220, 420),
     particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
     scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
+    coinBarX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)), -260, 260),
+    coinBarY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)), -260, 260),
+    coinBarScale: THREE.MathUtils.clamp(Number(ctlCoinBarScaleEl?.value ?? 1), 0.2, 2),
+    coinIconX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinIconXEl?.value ?? 0)), -220, 220),
+    coinIconY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinIconYEl?.value ?? 0)), -220, 220),
+    coinIconScale: THREE.MathUtils.clamp(Number(ctlCoinIconScaleEl?.value ?? 1), 0.2, 2),
+    coinTextX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinTextXEl?.value ?? 0)), -220, 220),
+    coinTextY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinTextYEl?.value ?? 0)), -220, 220),
+    coinTextSize: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinTextSizeEl?.value ?? 34)), 12, 64),
     sliceTop: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)), 8, 200),
     sliceRight: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)), 8, 200),
     sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)), 8, 200),
@@ -512,6 +603,15 @@ function setControlInputs(values) {
   if (ctlControlPanelXEl) ctlControlPanelXEl.value = String(values.controlPanelX);
   if (ctlParticleSizeEl) ctlParticleSizeEl.value = String(values.particleSize);
   if (ctlScoreFruitEl) ctlScoreFruitEl.value = String(values.scorePerFruit);
+  if (ctlCoinBarXEl) ctlCoinBarXEl.value = String(values.coinBarX);
+  if (ctlCoinBarYEl) ctlCoinBarYEl.value = String(values.coinBarY);
+  if (ctlCoinBarScaleEl) ctlCoinBarScaleEl.value = String(values.coinBarScale);
+  if (ctlCoinIconXEl) ctlCoinIconXEl.value = String(values.coinIconX);
+  if (ctlCoinIconYEl) ctlCoinIconYEl.value = String(values.coinIconY);
+  if (ctlCoinIconScaleEl) ctlCoinIconScaleEl.value = String(values.coinIconScale);
+  if (ctlCoinTextXEl) ctlCoinTextXEl.value = String(values.coinTextX);
+  if (ctlCoinTextYEl) ctlCoinTextYEl.value = String(values.coinTextY);
+  if (ctlCoinTextSizeEl) ctlCoinTextSizeEl.value = String(values.coinTextSize);
   if (ctlPanelMarginTopEl) ctlPanelMarginTopEl.value = String(values.sliceTop);
   if (ctlPanelMarginRightEl) ctlPanelMarginRightEl.value = String(values.sliceRight);
   if (ctlPanelMarginBottomEl) ctlPanelMarginBottomEl.value = String(values.sliceBottom);
@@ -547,6 +647,15 @@ function applyControlValues(values) {
 
   const rootStyle = document.documentElement.style;
   rootStyle.setProperty("--control-panel-x", `${values.controlPanelX}px`);
+  rootStyle.setProperty("--coin-bar-x", `${values.coinBarX}px`);
+  rootStyle.setProperty("--coin-bar-y", `${values.coinBarY}px`);
+  rootStyle.setProperty("--coin-bar-scale", String(values.coinBarScale));
+  rootStyle.setProperty("--coin-icon-x", `${values.coinIconX}px`);
+  rootStyle.setProperty("--coin-icon-y", `${values.coinIconY}px`);
+  rootStyle.setProperty("--coin-icon-scale", String(values.coinIconScale));
+  rootStyle.setProperty("--coin-text-x", `${values.coinTextX}px`);
+  rootStyle.setProperty("--coin-text-y", `${values.coinTextY}px`);
+  rootStyle.setProperty("--coin-text-size", `${values.coinTextSize}px`);
   rootStyle.setProperty("--panel-slice-top", String(values.sliceTop));
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
@@ -568,6 +677,8 @@ function applyControlValues(values) {
       if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.winBody, values.winCoinGain);
     }
   }
+
+  if (coinStatusTextEl && !coinStatusTextEl.textContent) coinStatusTextEl.textContent = "16";
 }
 
 function applyResultLayoutForOutcome(outcome, values) {
@@ -1566,7 +1677,7 @@ function resize() {
 }
 
 function updateHud() {
-  scoreEl.textContent = `分数: ${state.score}`;
+  if (scoreEl) scoreEl.textContent = `分数: ${state.score}`;
 }
 
 function setSliceStatus(text) {

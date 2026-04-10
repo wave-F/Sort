@@ -17,6 +17,15 @@
   --result-win-text-x: 0px;
   --result-win-text-y: 0px;
   --result-mask-opacity: 0.38;
+  --coin-bar-x: 0px;
+  --coin-bar-y: 0px;
+  --coin-bar-scale: 1;
+  --coin-icon-x: 0px;
+  --coin-icon-y: 0px;
+  --coin-icon-scale: 1;
+  --coin-text-x: 0px;
+  --coin-text-y: 0px;
+  --coin-text-size: 34px;
   --control-panel-x: 0px;
   --text: #fff6fb;
   --accent: #ffdf73;
@@ -156,6 +165,42 @@ body {
   margin: 0;
   padding: 10px 18px;
   font-size: 15px;
+}
+
+#coin-status {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 256px;
+  height: 64px;
+  z-index: 17;
+  background: url("../assets/images/label_Light1.png") center / 256px 64px no-repeat;
+  transform: translate(var(--coin-bar-x), var(--coin-bar-y)) scale(var(--coin-bar-scale));
+  transform-origin: top right;
+  pointer-events: none;
+}
+
+#coin-status-icon {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  transform: translate(calc(var(--coin-icon-x)), calc(-50% + var(--coin-icon-y))) scale(var(--coin-icon-scale));
+  transform-origin: center;
+}
+
+#coin-status-text {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  color: #fff8d6;
+  font-size: var(--coin-text-size);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 2px 6px rgba(53, 35, 63, 0.45);
+  transform: translate(var(--coin-text-x), calc(-50% + var(--coin-text-y)));
 }
 
 #control-blocker {

@@ -22,16 +22,13 @@
         <div class="bg-forest"></div>
       </div>
 
-      <div id="hud">
-        <div id="score">分数: 0</div>
-        <label class="trail-test-toggle">
-          <input id="trail-compare-toggle" type="checkbox" checked />
-          完整保留轨迹（测试）
-        </label>
-      </div>
-
       <button id="control-btn" type="button" aria-label="打开控制面板">控制</button>
       <div id="control-blocker" class="hidden" aria-hidden="true"></div>
+
+      <div id="coin-status" aria-label="金币状态栏">
+        <img id="coin-status-icon" src="./assets/images/currency128_Coin.png" alt="金币" />
+        <span id="coin-status-text">16</span>
+      </div>
 
       <div id="control-panel" class="panel-light hidden" role="dialog" aria-label="控制面板">
         <label class="control-row">
@@ -83,6 +80,64 @@
             <span>切片左</span>
             <input id="ctl-panel-margin-left" type="range" min="8" max="200" step="1" value="28" />
             <em id="ctl-panel-margin-left-value">28</em>
+          </label>
+        </fieldset>
+
+        <fieldset class="control-group">
+          <legend>金币状态栏</legend>
+
+          <label class="control-row">
+            <span>底图X</span>
+            <input id="ctl-coin-bar-x" type="range" min="-260" max="260" step="1" value="0" />
+            <em id="ctl-coin-bar-x-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>底图Y</span>
+            <input id="ctl-coin-bar-y" type="range" min="-260" max="260" step="1" value="0" />
+            <em id="ctl-coin-bar-y-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>底图缩放</span>
+            <input id="ctl-coin-bar-scale" type="range" min="0.2" max="2" step="0.01" value="1" />
+            <em id="ctl-coin-bar-scale-value">1.00</em>
+          </label>
+
+          <label class="control-row">
+            <span>金币X</span>
+            <input id="ctl-coin-icon-x" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-coin-icon-x-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>金币Y</span>
+            <input id="ctl-coin-icon-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-coin-icon-y-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>金币缩放</span>
+            <input id="ctl-coin-icon-scale" type="range" min="0.2" max="2" step="0.01" value="1" />
+            <em id="ctl-coin-icon-scale-value">1.00</em>
+          </label>
+
+          <label class="control-row">
+            <span>文本X</span>
+            <input id="ctl-coin-text-x" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-coin-text-x-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>文本Y</span>
+            <input id="ctl-coin-text-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-coin-text-y-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>文本字号</span>
+            <input id="ctl-coin-text-size" type="range" min="12" max="64" step="1" value="34" />
+            <em id="ctl-coin-text-size-value">34</em>
           </label>
         </fieldset>
 
@@ -285,6 +340,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=51"></script>
+    <script type="module" src="./src/main.js?v=53"></script>
   </body>
 </html>
