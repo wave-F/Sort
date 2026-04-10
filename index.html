@@ -9,7 +9,8 @@
       {
         "imports": {
           "three": "./node_modules/three/build/three.module.js",
-          "three/webgpu": "./node_modules/three/build/three.webgpu.js"
+          "three/webgpu": "./node_modules/three/build/three.webgpu.js",
+          "countup.js": "./node_modules/countup.js/dist/countUp.min.js"
         }
       }
     </script>
@@ -227,21 +228,22 @@
             <input id="ctl-win-title" type="text" value="胜利" />
           </label>
 
-          <label class="control-text-row">
-            <span>内容</span>
-            <input id="ctl-win-body" type="text" value="当前分数 {score} · 当前关卡 {level} · 金币 +{coin}" />
+          <label class="control-row">
+            <span>数字X</span>
+            <input id="ctl-win-gain-x" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-win-gain-x-value">0</em>
           </label>
 
           <label class="control-row">
-            <span>文字X</span>
-            <input id="ctl-win-text-x" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-text-x-value">0</em>
+            <span>数字Y</span>
+            <input id="ctl-win-gain-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-win-gain-y-value">0</em>
           </label>
 
           <label class="control-row">
-            <span>文字Y</span>
-            <input id="ctl-win-text-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-text-y-value">0</em>
+            <span>数字字号</span>
+            <input id="ctl-win-gain-size" type="range" min="18" max="96" step="1" value="44" />
+            <em id="ctl-win-gain-size-value">44</em>
           </label>
 
           <label class="control-text-row">
@@ -328,6 +330,7 @@
         <div class="result-card panel-light">
           <h2 id="result-page-title" class="result-title panel-title-ribbon is-lose"><span id="result-page-title-text">结果页</span></h2>
           <img id="result-coin-icon" class="result-coin hidden" src="./assets/images/currency128_Coin.png" alt="金币" />
+          <div id="result-coin-gain" class="result-coin-gain hidden">+0</div>
           <p id="result-page-text">当前暂无统计。</p>
           <div class="result-actions">
             <button id="result-retry-btn" type="button" class="hidden" aria-label="重试"></button>
@@ -340,6 +343,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=53"></script>
+    <script type="module" src="./src/main.js?v=55"></script>
   </body>
 </html>
