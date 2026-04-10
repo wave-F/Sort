@@ -9,6 +9,14 @@ import {
   vec3,
 } from "three/tsl";
 import { LEVELS } from "./levels.js";
+import { createLevelFlowController } from "./flow/level-flow.js";
+import { createCollisionSystem } from "./systems/collision-system.js";
+import { createSliceSystem } from "./systems/slice-system.js";
+import { createVictoryRainSystem } from "./systems/victory-rain-system.js";
+import { createBurstSystem } from "./systems/burst-system.js";
+import { createGameUI } from "./ui/game-ui.js";
+import { createGameAudio } from "./audio/game-audio.js";
+import { createLevelRuntime } from "./content/level-runtime.js";
 
 const appEl = document.getElementById("app");
 const titleEl = document.getElementById("title");
@@ -111,34 +119,6 @@ const state = {
   lastMoveAt: 0,
   stepLimit: 0,
   stepsUsed: 0,
-  levelClearReadyAt: 0,
-  victoryFxActive: false,
-  victoryFxElapsed: 0,
-  victoryUiShown: false,
-  pendingNextLevelIndex: -1,
-};
-
-const victoryRain = {
-  active: false,
-  elapsed: 0,
-  emitDuration: 0.78,
-  spawnRate: 74,
-  maxBubbles: 56,
-  spawnCarry: 0,
-  bubbles: [],
-  pool: [],
-  materials: [],
-  initialized: false,
-};
-
-const audioState = {
-  context: null,
-  unlocked: false,
-  loadingPromise: null,
-  popBuffers: [],
-  selectStep: 0,
-  selectLastAt: 0,
-  selectNoiseBuffer: null,
 };
 
 const scene = new THREE.Scene();
@@ -153,26 +133,12 @@ let trail;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
-const levelRuntimeCache = new Map();
-const collisionGridCellSize = 1.2;
-const collisionGridMaxNeighborRange = 2;
-const sliceGridCellSize = 1.2;
-
-const workCollisionGrid = new Map();
-const workCollisionActive = [];
-const workSliceGrid = new Map();
-const workSliceCandidates = [];
-const workSliceMeshes = [];
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
 const playPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 const workHit = new THREE.Vector3();
-const workA = new THREE.Vector3();
-const workProject = new THREE.Vector3();
-
-let commentaryTimer = 0;
 
 scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
 const key = new THREE.DirectionalLight(0xffffff, bubbleTuning.lightKey);
@@ -190,14 +156,6 @@ scene.add(fill);
 const bubbleBaseRadius = 1.2;
 const bubbleGeometry = new THREE.SphereGeometry(bubbleBaseRadius, 120, 120);
 const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
-const victoryBubbleGeometry = new THREE.SphereGeometry(1, 14, 14);
-const globalBurstPoolSize = 180;
-
-const globalBurstPool = {
-  initialized: false,
-  entries: [],
-  materialsByColor: {},
-};
 
 const BubbleBurstState = {
   IDLE: "IDLE",
@@ -207,7 +165,132 @@ const BubbleBurstState = {
   RESET: "RESET",
 };
 
+const gameRuntime = createGameRuntime();
+const {
+  gameUI,
+  burstSystem,
+  victoryRainSystem,
+  collisionSystem,
+  sliceSystem,
+  levelFlow,
+  gameAudio,
+  levelRuntime,
+} = gameRuntime;
+
 init();
+
+function createGameRuntime() {
+  const gameUI = createGameUI({
+    sliceStateEl,
+    commentaryEl,
+    gameOverEl,
+    gameOverTitleEl,
+    levelWinEl,
+    levelWinTitleEl,
+    levelWinDescEl,
+  });
+
+  const burstSystem = createBurstSystem({
+    scene,
+    colors,
+    bubbleTuning,
+    bubbleBaseRadius,
+    burstBubbleGeometry,
+    createBubbleMaterial,
+    poolSize: 180,
+  });
+
+  const gameAudio = createGameAudio({
+    popSoundUrls,
+    selectScaleFrequencies,
+  });
+
+  const victoryRainSystem = createVictoryRainSystem({
+    scene,
+    bounds,
+    colors,
+    bubbleRadiusScale,
+    bubbleBaseRadius,
+    emitDuration: 0.78,
+    spawnRate: 74,
+    maxBubbles: 56,
+  });
+
+  const collisionSystem = createCollisionSystem({
+    cellSize: 1.2,
+    neighborRange: 2,
+  });
+
+  const sliceSystem = createSliceSystem({
+    camera,
+    raycaster,
+    colors,
+    minSliceSegment: rules.minSliceSegment,
+    sliceGridCellSize: 1.2,
+  });
+
+  const levelFlow = createLevelFlowController({
+    levelCount: LEVELS.length,
+    isStarted: () => state.started,
+    isGameOver: () => state.gameOver,
+    isLevelTransitioning: () => state.levelTransitioning,
+    setLevelTransitioning: (value) => {
+      state.levelTransitioning = Boolean(value);
+    },
+    getCurrentLevelIndex: () => state.currentLevelIndex,
+    onAllLevelsCleared: (levelCount) => {
+      endGame(`全部${levelCount}关通关`);
+    },
+    onPrepareLevelWin: () => {
+      state.pointerDown = false;
+      clearQueuedSelections();
+      trail.reset();
+    },
+    onVictoryFxStart: () => {
+      victoryRainSystem.start();
+    },
+    onVictoryFxUpdate: (dt) => {
+      victoryRainSystem.update(dt);
+    },
+    onShowLevelWinOverlay: (current, next) => {
+      if (!levelWinNextBtn) return false;
+      return gameUI.showLevelWin(current, next);
+    },
+    onHideLevelWinOverlay: () => {
+      gameUI.hideLevelWin();
+    },
+    onContinueToLevel: (nextLevelIndex) => {
+      victoryRainSystem.reset();
+      loadLevel(nextLevelIndex);
+    },
+    showCommentary: (text, durationMs) => {
+      gameUI.showCommentary(text, durationMs);
+    },
+    clearDelayMs: 500,
+    overlayDelaySec: 1.12,
+  });
+
+  const levelRuntime = createLevelRuntime({
+    levels: LEVELS,
+    colors,
+    bounds,
+    bubbleRadiusScale,
+    spawnEdgePadding,
+    spawnEdgeBias,
+    spawnEdgeBand,
+  });
+
+  return {
+    gameUI,
+    burstSystem,
+    victoryRainSystem,
+    collisionSystem,
+    sliceSystem,
+    levelFlow,
+    gameAudio,
+    levelRuntime,
+  };
+}
 
 function loadBubbleTuning() {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -251,7 +334,7 @@ function init() {
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
   if (levelWinNextBtn) {
-    levelWinNextBtn.addEventListener("click", continueFromLevelWin);
+    levelWinNextBtn.addEventListener("click", () => levelFlow.continueToNextLevel());
   }
   setupLevelTestControls();
 
@@ -306,7 +389,7 @@ function jumpToLevelForTest(index) {
   state.levelTransitioning = false;
   loadLevel(index);
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
-  showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
+  gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
 }
 
 async function setupRenderer() {
@@ -348,9 +431,9 @@ function showWebGpuUnsupported() {
 }
 
 function startGame() {
-  ensureAudioUnlocked();
-  void preloadPopAudio();
-  resetSelectToneProgression();
+  gameAudio.ensureAudioUnlocked();
+  void gameAudio.preloadPopAudio();
+  gameAudio.resetSelectToneProgression();
 
   state.started = true;
   state.gameOver = false;
@@ -369,29 +452,24 @@ function startGame() {
   state.nowPoint = null;
   state.stepLimit = 0;
   state.stepsUsed = 0;
-  state.levelClearReadyAt = 0;
-  state.victoryFxActive = false;
-  state.victoryFxElapsed = 0;
-  state.victoryUiShown = false;
-  state.pendingNextLevelIndex = -1;
-  clearGlobalBurstParticles();
-  clearVictoryBubbleRain();
+  levelFlow.reset();
+  burstSystem.clear();
+  victoryRainSystem.reset();
 
   trail.reset();
 
   startScreenEl.classList.add("hidden");
-  gameOverEl.classList.add("hidden");
-  if (levelWinEl) levelWinEl.classList.add("hidden");
+  gameUI.hideGameOver();
 
   if (hasBubbleTuningOverride) {
-    showCommentary("已应用调试页同步参数。", 1300);
+    gameUI.showCommentary("已应用调试页同步参数。", 1300);
   }
 
   loadLevel(0);
 }
 
 function loadLevel(index) {
-  const level = getNormalizedLevel(index);
+  const level = levelRuntime.getNormalizedLevel(index);
   if (!level) return;
 
   state.currentLevelIndex = index;
@@ -401,28 +479,23 @@ function loadLevel(index) {
   state.sliceColorId = null;
   state.sliceBroken = false;
   state.sliceCommitted = false;
-  resetSelectToneProgression();
+  gameAudio.resetSelectToneProgression();
   clearQueuedSelections();
   state.pendingPops.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
   state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
   state.stepsUsed = 0;
-  state.levelClearReadyAt = 0;
-  state.victoryFxActive = false;
-  state.victoryFxElapsed = 0;
-  state.victoryUiShown = false;
-  state.pendingNextLevelIndex = -1;
-  clearGlobalBurstParticles();
-  clearVictoryBubbleRain();
-  if (levelWinEl) levelWinEl.classList.add("hidden");
+  levelFlow.reset();
+  burstSystem.clear();
+  victoryRainSystem.reset();
   setLevelTestSelection(index);
   updateStepsHud();
 
   trail.reset();
 
-  setSliceStatus(`状态: 第${index + 1}关`);
-  showCommentary(
+  gameUI.setSliceStatus(`状态: 第${index + 1}关`);
+  gameUI.showCommentary(
     `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount} · 步数${state.stepLimit}`,
     2400
   );
@@ -431,7 +504,7 @@ function loadLevel(index) {
 }
 
 function resetFruits(level) {
-  clearGlobalBurstParticles();
+  burstSystem.clear();
   state.pendingPops.length = 0;
   for (const fruit of fruits) scene.remove(fruit.group);
   fruits.length = 0;
@@ -459,523 +532,16 @@ function resetFruits(level) {
   }
 }
 
-function normalizeLevelDefinition(level, index) {
-  const fruitsDef = Array.isArray(level.fruits) ? level.fruits : [];
-  const parsedColorCounts = normalizeColorCounts(level.colorCounts);
-  const hasColorCounts = parsedColorCounts.length > 0;
-  const fruitCountFromCounts = hasColorCounts ? sumColorCounts(parsedColorCounts) : 0;
-  const fallbackFruitCount = fruitsDef.length > 0 ? fruitsDef.length : 20;
-  const fruitCount = hasColorCounts ? fruitCountFromCounts : Math.max(4, Math.floor(level.fruitCount ?? fallbackFruitCount));
-  const colorIds = hasColorCounts ? parsedColorCounts.map((item) => item.colorId) : normalizeColorIds(level.colorIds, fruitsDef);
-  const colorCounts = hasColorCounts ? parsedColorCounts : buildEvenColorCounts(colorIds, fruitCount);
-  const baseRadiusRange = normalizeRange(level.radiusRange, inferRadiusRangeFromFruits(fruitsDef), 0.28, 0.62);
-  const radiusRange = {
-    min: baseRadiusRange.min * bubbleRadiusScale,
-    max: baseRadiusRange.max * bubbleRadiusScale,
-  };
-  const speedRange = normalizeRange(level.speedRange, inferSpeedRangeFromFruits(fruitsDef, index), 0, 0.9);
-  const seed = Math.floor(level.seed ?? 1000 + (level.id ?? index + 1) * 137);
-  const stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 8));
-
-  const fruits = fruitsDef.length
-    ? fruitsDef.map((f) => ({
-        x: f.x,
-        y: f.y,
-        colorId: f.colorId,
-        radius: f.radius ?? 0.42 * bubbleRadiusScale,
-        vx: f.vx ?? 0,
-        vy: f.vy ?? 0,
-      }))
-    : generateRandomFruits({
-        seed,
-        fruitCount,
-        colorCounts,
-        radiusMin: radiusRange.min,
-        radiusMax: radiusRange.max,
-        speedMin: speedRange.min,
-        speedMax: speedRange.max,
-      });
-
-  return {
-    id: level.id,
-    name: level.name,
-    seed,
-    fruitCount,
-    colorIds,
-    colorCounts,
-    radiusRange,
-    speedRange,
-    stepLimit,
-    fruits,
-  };
-}
-
-function getNormalizedLevel(index) {
-  const baseLevel = LEVELS[index];
-  if (!baseLevel) return null;
-
-  const key = `${index}|${bounds.left.toFixed(3)}|${bounds.right.toFixed(3)}|${bounds.top.toFixed(3)}|${bounds.bottom.toFixed(3)}`;
-  const cached = levelRuntimeCache.get(key);
-  if (cached) return cloneNormalizedLevel(cached);
-
-  const normalized = normalizeLevelDefinition(baseLevel, index);
-  levelRuntimeCache.set(key, normalized);
-  return cloneNormalizedLevel(normalized);
-}
-
-function cloneNormalizedLevel(level) {
-  return {
-    ...level,
-    colorIds: level.colorIds.map((id) => id),
-    colorCounts: level.colorCounts.map((item) => ({ colorId: item.colorId, count: item.count })),
-    radiusRange: { min: level.radiusRange.min, max: level.radiusRange.max },
-    speedRange: { min: level.speedRange.min, max: level.speedRange.max },
-    fruits: level.fruits.map((fruit) => ({
-      x: fruit.x,
-      y: fruit.y,
-      colorId: fruit.colorId,
-      radius: fruit.radius,
-      vx: fruit.vx,
-      vy: fruit.vy,
-    })),
-  };
-}
-
-function clearLevelRuntimeCache() {
-  levelRuntimeCache.clear();
-}
-
-function normalizeColorIds(colorIds, fruitsDef) {
-  if (Array.isArray(colorIds) && colorIds.length) {
-    const valid = [];
-    for (const id of colorIds) {
-      const v = Math.floor(id);
-      if (v >= 0 && v < colors.length && !valid.includes(v)) valid.push(v);
-    }
-    if (valid.length) return valid;
-  }
-
-  const set = new Set();
-  for (const def of fruitsDef) set.add(Math.floor(def.colorId));
-  const inferred = [];
-  for (const id of set) {
-    if (id >= 0 && id < colors.length) inferred.push(id);
-  }
-  if (inferred.length) return inferred;
-  return colors.map((_c, idx) => idx);
-}
-
-function normalizeColorCounts(colorCounts) {
-  if (!Array.isArray(colorCounts) || colorCounts.length === 0) return [];
-
-  const merged = new Map();
-  for (const item of colorCounts) {
-    if (!item) continue;
-    const colorId = Math.floor(item.colorId);
-    const count = Math.floor(item.count);
-    if (colorId < 0 || colorId >= colors.length || count <= 0) continue;
-    merged.set(colorId, (merged.get(colorId) ?? 0) + count);
-  }
-
-  const result = [];
-  for (const [colorId, count] of merged.entries()) {
-    result.push({ colorId, count });
-  }
-  result.sort((a, b) => a.colorId - b.colorId);
-  return result;
-}
-
-function sumColorCounts(colorCounts) {
-  let total = 0;
-  for (const item of colorCounts) total += item.count;
-  return total;
-}
-
-function buildEvenColorCounts(colorIds, fruitCount) {
-  const ids = Array.isArray(colorIds) && colorIds.length ? colorIds : colors.map((_c, idx) => idx);
-  const counts = ids.map((colorId) => ({ colorId, count: 0 }));
-  for (let i = 0; i < fruitCount; i += 1) {
-    const idx = i % counts.length;
-    counts[idx].count += 1;
-  }
-  return counts;
-}
-
-function inferRadiusRangeFromFruits(fruitsDef) {
-  let min = Infinity;
-  let max = -Infinity;
-  for (const def of fruitsDef) {
-    min = Math.min(min, def.radius ?? 0.4);
-    max = Math.max(max, def.radius ?? 0.4);
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return { min: 0.34, max: 0.44 };
-  }
-  const lo = Math.min(min, max);
-  const hi = Math.max(min, max);
-  return {
-    min: THREE.MathUtils.clamp(lo, 0.28, 0.58),
-    max: THREE.MathUtils.clamp(hi, 0.3, 0.62),
-  };
-}
-
-function inferSpeedRangeFromFruits(fruitsDef, levelIndex) {
-  let sum = 0;
-  let count = 0;
-  for (const def of fruitsDef) {
-    const vx = def.vx ?? 0;
-    const vy = def.vy ?? 0;
-    sum += Math.hypot(vx, vy);
-    count += 1;
-  }
-  const avg = count > 0 ? sum / count : 0;
-  const base = Math.max(avg + 0.08, 0.14 + levelIndex * 0.04);
-  return {
-    min: 0,
-    max: THREE.MathUtils.clamp(base, 0.12, 0.58),
-  };
-}
-
-function normalizeRange(inputRange, fallbackRange, clampMin, clampMax) {
-  const src = Array.isArray(inputRange) && inputRange.length >= 2 ? { min: inputRange[0], max: inputRange[1] } : fallbackRange;
-  const lo = THREE.MathUtils.clamp(Math.min(src.min, src.max), clampMin, clampMax);
-  const hi = THREE.MathUtils.clamp(Math.max(src.min, src.max), clampMin, clampMax);
-  return { min: lo, max: hi };
-}
-
-function generateRandomFruits({ seed, fruitCount, colorCounts, radiusMin, radiusMax, speedMin, speedMax }) {
-  const rng = createSeededRandom(seed);
-  const fruitsDef = [];
-  const colorBag = buildColorBag(colorCounts, fruitCount);
-  shuffleInPlace(colorBag, rng);
-
-  const clusterCount = THREE.MathUtils.clamp(Math.round(fruitCount / 6), 3, 7);
-  const clusterMargin = 1.0;
-  const clusters = [];
-  for (let i = 0; i < clusterCount; i += 1) {
-    clusters.push({
-      x: lerp(bounds.left + clusterMargin, bounds.right - clusterMargin, rng()),
-      y: lerp(bounds.bottom + clusterMargin, bounds.top - clusterMargin, rng()),
-      spread: lerp(0.85, 1.55, rng()),
-      weight: lerp(0.7, 1.4, rng()),
-    });
-  }
-
-  let weightTotal = 0;
-  for (const c of clusters) weightTotal += c.weight;
-
-  for (let i = 0; i < fruitCount; i += 1) {
-    const radius = lerp(radiusMin, radiusMax, rng());
-    const margin = radius + spawnEdgePadding;
-
-    let x = 0;
-    let y = 0;
-    let placed = false;
-    const useCluster = rng() < 0.84;
-
-    for (let k = 0; k < 180; k += 1) {
-      const useEdge = rng() < spawnEdgeBias;
-
-      if (useEdge) {
-        const side = Math.floor(rng() * 4);
-        if (side === 0 || side === 1) {
-          const maxDepth = Math.max(0, Math.min(spawnEdgeBand, bounds.right - bounds.left - margin * 2));
-          const depth = Math.sqrt(rng()) * maxDepth;
-          x = side === 0 ? bounds.left + margin + depth : bounds.right - margin - depth;
-          y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
-        } else {
-          const maxDepth = Math.max(0, Math.min(spawnEdgeBand, bounds.top - bounds.bottom - margin * 2));
-          const depth = Math.sqrt(rng()) * maxDepth;
-          y = side === 2 ? bounds.bottom + margin + depth : bounds.top - margin - depth;
-          x = lerp(bounds.left + margin, bounds.right - margin, rng());
-        }
-      } else if (useCluster) {
-        let pick = rng() * weightTotal;
-        let cluster = clusters[0];
-        for (let c = 0; c < clusters.length; c += 1) {
-          pick -= clusters[c].weight;
-          if (pick <= 0) {
-            cluster = clusters[c];
-            break;
-          }
-        }
-
-        const angle = rng() * Math.PI * 2;
-        const radial = Math.sqrt(rng()) * cluster.spread;
-        x = cluster.x + Math.cos(angle) * radial;
-        y = cluster.y + Math.sin(angle) * radial;
-      } else {
-        x = lerp(bounds.left + margin, bounds.right - margin, rng());
-        y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
-      }
-
-      x = THREE.MathUtils.clamp(x, bounds.left + margin, bounds.right - margin);
-      y = THREE.MathUtils.clamp(y, bounds.bottom + margin, bounds.top - margin);
-
-      let overlap = false;
-      for (const p of fruitsDef) {
-        const minDist = Math.max(0.42, (radius + p.radius) * 0.55);
-        if (Math.hypot(x - p.x, y - p.y) < minDist) {
-          overlap = true;
-          break;
-        }
-      }
-      if (!overlap) {
-        placed = true;
-        break;
-      }
-    }
-
-    if (!placed) {
-      x = lerp(bounds.left + margin, bounds.right - margin, rng());
-      y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
-    }
-
-    const angle = rng() * Math.PI * 2;
-    const speed = lerp(speedMin, speedMax, rng());
-
-    fruitsDef.push({
-      x,
-      y,
-      colorId: colorBag[i],
-      radius,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-    });
-  }
-
-  return fruitsDef;
-}
-
-function buildColorBag(colorCounts, fruitCount) {
-  const normalized = normalizeColorCounts(colorCounts);
-  const bag = [];
-
-  for (const item of normalized) {
-    for (let i = 0; i < item.count; i += 1) bag.push(item.colorId);
-  }
-
-  if (bag.length === 0) {
-    for (let i = 0; i < fruitCount; i += 1) bag.push(i % colors.length);
-    return bag;
-  }
-
-  if (bag.length > fruitCount) return bag.slice(0, fruitCount);
-  if (bag.length < fruitCount) {
-    const fallbackColor = bag[bag.length - 1] ?? 0;
-    while (bag.length < fruitCount) bag.push(fallbackColor);
-  }
-  return bag;
-}
-
-function gridCoord(value, cellSize) {
-  return Math.floor(value / cellSize);
-}
-
-function gridKey(cellX, cellY) {
-  return `${cellX},${cellY}`;
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-function shuffleInPlace(arr, rng) {
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-function createSeededRandom(seed) {
-  let t = seed >>> 0;
-  return function rand() {
-    t += 0x6d2b79f5;
-    let r = t;
-    r = Math.imul(r ^ (r >>> 15), r | 1);
-    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function ensureAudioUnlocked() {
-  if (typeof window === "undefined") return false;
-  if (!window.AudioContext && !window.webkitAudioContext) return false;
-
-  if (!audioState.context) {
-    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    audioState.context = new AudioContextCtor();
-  }
-
-  if (audioState.context.state === "suspended") {
-    void audioState.context.resume();
-  }
-
-  audioState.unlocked = audioState.context.state === "running";
-  return audioState.unlocked;
-}
-
-async function decodeAudioBuffer(ctx, arrayBuffer) {
-  if (ctx.decodeAudioData.length === 1) {
-    return ctx.decodeAudioData(arrayBuffer);
-  }
-  return new Promise((resolve, reject) => {
-    ctx.decodeAudioData(arrayBuffer, resolve, reject);
-  });
-}
-
-async function preloadPopAudio() {
-  if (!ensureAudioUnlocked()) return;
-  if (audioState.popBuffers.length) return;
-  if (audioState.loadingPromise) {
-    await audioState.loadingPromise;
-    return;
-  }
-
-  audioState.loadingPromise = (async () => {
-    const ctx = audioState.context;
-    const tasks = popSoundUrls.map(async (url) => {
-      try {
-        const res = await fetch(url, { cache: "force-cache" });
-        if (!res.ok) return null;
-        const arr = await res.arrayBuffer();
-        const buffer = await decodeAudioBuffer(ctx, arr);
-        return buffer;
-      } catch (_err) {
-        return null;
-      }
-    });
-
-    const decoded = await Promise.all(tasks);
-    audioState.popBuffers = decoded.filter(Boolean);
-  })();
-
-  await audioState.loadingPromise;
-}
-
-function playRandomPopAudio() {
-  if (!ensureAudioUnlocked()) return;
-  const ctx = audioState.context;
-  const buffers = audioState.popBuffers;
-  if (!ctx || !buffers.length) return;
-
-  const buffer = buffers[Math.floor(Math.random() * buffers.length)];
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.playbackRate.value = THREE.MathUtils.lerp(0.94, 1.08, Math.random());
-
-  const gain = ctx.createGain();
-  gain.gain.value = THREE.MathUtils.lerp(0.2, 0.33, Math.random());
-
-  source.connect(gain);
-  gain.connect(ctx.destination);
-  source.start();
-}
-
-function resetSelectToneProgression() {
-  audioState.selectStep = 0;
-  audioState.selectLastAt = 0;
-}
-
-function getSelectNoiseBuffer(ctx) {
-  if (audioState.selectNoiseBuffer) return audioState.selectNoiseBuffer;
-  const length = Math.floor(ctx.sampleRate * 0.03);
-  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i += 1) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / length);
-  }
-  audioState.selectNoiseBuffer = buffer;
-  return buffer;
-}
-
-function playSelectTone() {
-  if (!ensureAudioUnlocked()) return;
-  const ctx = audioState.context;
-  if (!ctx) return;
-
-  const nowMs = performance.now();
-  if (nowMs - audioState.selectLastAt < 22) return;
-  audioState.selectLastAt = nowMs;
-
-  const noteIndex = Math.min(audioState.selectStep, selectScaleFrequencies.length - 1);
-  const freq = selectScaleFrequencies[noteIndex];
-  audioState.selectStep = Math.min(audioState.selectStep + 1, selectScaleFrequencies.length - 1);
-
-  const now = ctx.currentTime;
-  const attack = 0.003;
-  const release = 0.165;
-  const endAt = now + attack + release;
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(0.0001, now);
-  masterGain.gain.exponentialRampToValueAtTime(0.108, now + attack);
-  masterGain.gain.exponentialRampToValueAtTime(0.0001, endAt);
-
-  const body = ctx.createOscillator();
-  body.type = "sine";
-  body.frequency.setValueAtTime(freq * 1.11, now);
-  body.frequency.exponentialRampToValueAtTime(freq, now + 0.055);
-
-  const sparkle = ctx.createOscillator();
-  sparkle.type = "sine";
-  sparkle.frequency.setValueAtTime(freq * 1.76, now);
-  sparkle.frequency.exponentialRampToValueAtTime(freq * 1.42, now + 0.06);
-
-  const bodyGain = ctx.createGain();
-  bodyGain.gain.value = 0.8;
-  const sparkleGain = ctx.createGain();
-  sparkleGain.gain.value = 0.055;
-
-  const toneColor = ctx.createBiquadFilter();
-  toneColor.type = "lowpass";
-  toneColor.frequency.value = 1750;
-  toneColor.Q.value = 0.22;
-
-  const noiseSource = ctx.createBufferSource();
-  noiseSource.buffer = getSelectNoiseBuffer(ctx);
-  const noiseFilter = ctx.createBiquadFilter();
-  noiseFilter.type = "bandpass";
-  noiseFilter.frequency.value = 920;
-  noiseFilter.Q.value = 0.45;
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0.008, now);
-  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
-
-  const safety = ctx.createBiquadFilter();
-  safety.type = "highpass";
-  safety.frequency.value = 120;
-
-  body.connect(bodyGain);
-  sparkle.connect(sparkleGain);
-  bodyGain.connect(masterGain);
-  sparkleGain.connect(masterGain);
-  masterGain.connect(toneColor);
-  toneColor.connect(safety);
-  safety.connect(ctx.destination);
-
-  noiseSource.connect(noiseFilter);
-  noiseFilter.connect(noiseGain);
-  noiseGain.connect(safety);
-
-  body.start(now);
-  sparkle.start(now);
-  noiseSource.start(now);
-  body.stop(endAt + 0.012);
-  sparkle.stop(endAt);
-  noiseSource.stop(now + 0.042);
-}
-
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
   if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
-    showCommentary("本关步数已用尽。", 1000);
+    gameUI.showCommentary("本关步数已用尽。", 1000);
     return;
   }
 
-  ensureAudioUnlocked();
-  void preloadPopAudio();
-  resetSelectToneProgression();
+  gameAudio.ensureAudioUnlocked();
+  void gameAudio.preloadPopAudio();
+  gameAudio.resetSelectToneProgression();
 
   const rect = renderer.domElement.getBoundingClientRect();
   if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
@@ -995,7 +561,7 @@ function onPointerDown(ev) {
 
   trail.reset();
   trail.push(world, state.lastMoveAt);
-  setSliceStatus("状态: 划线中");
+  gameUI.setSliceStatus("状态: 划线中");
 }
 
 function onPointerMove(ev) {
@@ -1007,7 +573,18 @@ function onPointerMove(ev) {
   state.lastMoveAt = now;
 
   trail.push(state.nowPoint, now);
-  processSliceSegment(dt);
+  sliceSystem.processSliceSegment({
+    state,
+    fruits,
+    dt,
+    trail,
+    consumeStep,
+    settleQueuedSlices,
+    setSliceStatus: gameUI.setSliceStatus,
+    showCommentary: gameUI.showCommentary,
+    resetSelectToneProgression: gameAudio.resetSelectToneProgression,
+    playSelectTone: gameAudio.playSelectTone,
+  });
 }
 
 function onPointerUp() {
@@ -1015,15 +592,15 @@ function onPointerUp() {
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
-  resetSelectToneProgression();
+  gameAudio.resetSelectToneProgression();
 
   settleQueuedSlices();
   if (state.keepFullTrailDuringDrag) trail.reset();
 
   if (state.gameOver) return;
-  if (state.sliceBroken) setSliceStatus("状态: 断刀");
-  else if (state.sliceColorId !== null) setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
-  else setSliceStatus("状态: 空挥");
+  if (state.sliceBroken) gameUI.setSliceStatus("状态: 断刀");
+  else if (state.sliceColorId !== null) gameUI.setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
+  else gameUI.setSliceStatus("状态: 空挥");
 
 }
 
@@ -1035,9 +612,9 @@ function tick() {
   updateTrail(now);
   processPendingPops(dt);
 
-  resolveFruitCollisions();
-  updateGlobalBurstParticles(dt);
-  updateVictorySequence(dt);
+  collisionSystem.resolve(fruits);
+  burstSystem.update(dt);
+  levelFlow.updateVictory(dt);
 
   let remaining = 0;
   for (const fruit of fruits) {
@@ -1047,16 +624,7 @@ function tick() {
 
   renderer.render(scene, camera);
 
-  if (state.started && !state.gameOver && !state.levelTransitioning && remaining === 0) {
-    if (state.levelClearReadyAt <= 0) {
-      state.levelClearReadyAt = now + 500;
-    } else if (now >= state.levelClearReadyAt) {
-      handleLevelCleared();
-      return;
-    }
-  } else {
-    state.levelClearReadyAt = 0;
-  }
+  if (levelFlow.updateLevelClear(now, remaining)) return;
 
   if (
     state.started
@@ -1071,212 +639,6 @@ function tick() {
   }
 }
 
-function handleLevelCleared() {
-  if (state.gameOver || state.levelTransitioning) return;
-
-  const justCleared = state.currentLevelIndex;
-  const next = justCleared + 1;
-  const lastLevel = next >= LEVELS.length;
-
-  if (lastLevel) {
-    endGame(`全部${LEVELS.length}关通关`);
-    return;
-  }
-
-  state.levelTransitioning = true;
-  state.levelClearReadyAt = 0;
-  state.pointerDown = false;
-  clearQueuedSelections();
-  trail.reset();
-
-  beginLevelWinSequence(justCleared, next);
-}
-
-function beginLevelWinSequence(justCleared, nextLevelIndex) {
-  state.victoryFxActive = true;
-  state.victoryFxElapsed = 0;
-  state.victoryUiShown = false;
-  state.pendingNextLevelIndex = nextLevelIndex;
-
-  beginVictoryBubbleRain();
-  showCommentary(`第${justCleared + 1}关胜利！泡泡雨喷发中...`, 1300);
-}
-
-function updateVictorySequence(dt) {
-  if (!state.victoryFxActive || state.gameOver) return;
-
-  state.victoryFxElapsed += dt;
-  updateVictoryBubbleRain(dt);
-
-  if (!state.victoryUiShown && state.victoryFxElapsed >= 1.12) {
-    state.victoryUiShown = true;
-    showLevelWinOverlay();
-  }
-}
-
-function showLevelWinOverlay() {
-  if (!levelWinEl || !levelWinTitleEl || !levelWinDescEl || !levelWinNextBtn) {
-    continueFromLevelWin();
-    return;
-  }
-  const current = state.currentLevelIndex + 1;
-  const next = state.pendingNextLevelIndex + 1;
-  levelWinTitleEl.textContent = `第${current}关胜利！`;
-  levelWinDescEl.textContent = `彩色泡泡雨已送达，准备进入第${next}关。`;
-  levelWinEl.classList.remove("hidden");
-}
-
-function continueFromLevelWin() {
-  if (!state.started || state.gameOver) return;
-  const next = state.pendingNextLevelIndex;
-  if (!Number.isInteger(next) || next < 0 || next >= LEVELS.length) return;
-
-  if (levelWinEl) levelWinEl.classList.add("hidden");
-  state.victoryFxActive = false;
-  state.victoryFxElapsed = 0;
-  state.victoryUiShown = false;
-  clearVictoryBubbleRain();
-  loadLevel(next);
-}
-
-function beginVictoryBubbleRain() {
-  ensureVictoryRainResources();
-  clearVictoryBubbleRain();
-  victoryRain.active = true;
-  victoryRain.elapsed = 0;
-  victoryRain.spawnCarry = 0;
-}
-
-function updateVictoryBubbleRain(dt) {
-  if (victoryRain.active) {
-    victoryRain.elapsed += dt;
-    if (victoryRain.elapsed <= victoryRain.emitDuration) {
-      victoryRain.spawnCarry += victoryRain.spawnRate * dt;
-      while (victoryRain.spawnCarry >= 1) {
-        victoryRain.spawnCarry -= 1;
-        spawnVictoryBubble();
-      }
-    } else {
-      victoryRain.active = false;
-    }
-  }
-
-  for (let i = victoryRain.bubbles.length - 1; i >= 0; i -= 1) {
-    const bubble = victoryRain.bubbles[i];
-    bubble.life -= dt;
-
-    bubble.vel.y -= 1.45 * dt;
-    bubble.vel.multiplyScalar(Math.pow(0.988, dt * 60));
-    bubble.mesh.position.addScaledVector(bubble.vel, dt);
-
-    bubble.mesh.rotation.x += bubble.spin.x * dt;
-    bubble.mesh.rotation.y += bubble.spin.y * dt;
-    bubble.mesh.rotation.z += bubble.spin.z * dt;
-    const age = bubble.lifeMax - bubble.life;
-    const appear = Math.min(age / 0.09, 1);
-    const lifeRatio = Math.max(0, bubble.life / bubble.lifeMax);
-    const scaleFade = (0.66 + 0.34 * lifeRatio) * appear;
-    bubble.mesh.scale.setScalar(bubble.baseScale * scaleFade);
-
-    if (bubble.life <= 0 || bubble.mesh.position.y > bounds.top + 3.6) {
-      bubble.active = false;
-      bubble.mesh.visible = false;
-      victoryRain.bubbles.splice(i, 1);
-    }
-  }
-}
-
-function spawnVictoryBubble() {
-  if (victoryRain.bubbles.length >= victoryRain.maxBubbles) return;
-
-  const pooled = victoryRain.pool.find((entry) => !entry.active);
-  if (!pooled) return;
-
-  const color = colors[Math.floor(Math.random() * colors.length)];
-  const mesh = pooled.mesh;
-  mesh.material = victoryRain.materials[color.id];
-
-  const radius = (0.08 + Math.random() * 0.22) * bubbleRadiusScale;
-  const baseScale = radius / bubbleBaseRadius;
-  mesh.scale.setScalar(baseScale * 0.2);
-  mesh.position.set(
-    THREE.MathUtils.lerp(bounds.left + radius, bounds.right - radius, Math.random()),
-    bounds.bottom - radius - Math.random() * 0.8,
-    -0.45 + Math.random() * 1.1
-  );
-  mesh.visible = true;
-
-  const lifeMax = 1.08 + Math.random() * 0.52;
-  pooled.baseScale = baseScale;
-  pooled.life = lifeMax;
-  pooled.lifeMax = lifeMax;
-  pooled.active = true;
-  pooled.vel.set(
-    (Math.random() * 2 - 1) * 0.58,
-    6.4 + Math.random() * 3.4,
-    (Math.random() * 2 - 1) * 0.18
-  );
-  pooled.spin.set(
-    (Math.random() * 2 - 1) * 2,
-    (Math.random() * 2 - 1) * 1.8,
-    (Math.random() * 2 - 1) * 1.6
-  );
-
-  victoryRain.bubbles.push(pooled);
-}
-
-function clearVictoryBubbleRain() {
-  victoryRain.active = false;
-  victoryRain.elapsed = 0;
-  victoryRain.spawnCarry = 0;
-
-  for (let i = 0; i < victoryRain.bubbles.length; i += 1) {
-    const bubble = victoryRain.bubbles[i];
-    bubble.active = false;
-    bubble.mesh.visible = false;
-  }
-  victoryRain.bubbles.length = 0;
-}
-
-function ensureVictoryRainResources() {
-  if (victoryRain.initialized) return;
-
-  for (let i = 0; i < colors.length; i += 1) {
-    const color = colors[i];
-    victoryRain.materials[color.id] = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(color.base),
-      transmission: 0.88,
-      thickness: 1.1,
-      roughness: 0.15,
-      metalness: 0,
-      clearcoat: 0.36,
-      clearcoatRoughness: 0.24,
-      ior: 1.2,
-      envMapIntensity: 0.68,
-      transparent: true,
-      opacity: 0.82,
-      depthWrite: false,
-    });
-  }
-
-  for (let i = 0; i < victoryRain.maxBubbles; i += 1) {
-    const mesh = new THREE.Mesh(victoryBubbleGeometry, victoryRain.materials[colors[0].id]);
-    mesh.visible = false;
-    scene.add(mesh);
-    victoryRain.pool.push({
-      mesh,
-      active: false,
-      baseScale: 1,
-      life: 0,
-      lifeMax: 1,
-      vel: new THREE.Vector3(),
-      spin: new THREE.Vector3(),
-    });
-  }
-
-  victoryRain.initialized = true;
-}
-
 function updateTrail(now) {
   if (state.keepFullTrailDuringDrag) {
     if (!state.pointerDown) return;
@@ -1287,164 +649,6 @@ function updateTrail(now) {
   trail.prune(now, 260);
   trail.rebuild(state.sliceBroken);
   if (!state.pointerDown && now - state.lastMoveAt > 320) trail.reset();
-}
-
-function processSliceSegment(dt) {
-  if (!state.pointerDown || state.gameOver || state.sliceBroken || !state.lastPoint || !state.nowPoint) return;
-
-  workA.copy(state.nowPoint).sub(state.lastPoint);
-  const len = workA.length();
-  if (len < rules.minSliceSegment) return;
-
-  const sliceDir = workA.multiplyScalar(1 / len);
-  const speed = Math.min(len / Math.max(dt, 0.001), 14);
-
-  // Use raycast top-hit sampling so selection follows visible overlap.
-  const ax = state.lastPoint.x;
-  const ay = state.lastPoint.y;
-  const bx = state.nowPoint.x;
-  const by = state.nowPoint.y;
-  const hits = collectSliceHitsSorted(ax, ay, bx, by);
-  for (let i = 0; i < hits.length; i += 1) {
-    const { fruit, hitRadius } = hits[i];
-
-    if (state.sliceHitIds.has(fruit.id)) {
-      const dx = bx - fruit.group.position.x;
-      const dy = by - fruit.group.position.y;
-      if (dx * dx + dy * dy <= hitRadius * hitRadius) {
-        return;
-      }
-      continue;
-    }
-
-    if (state.sliceColorId === null) {
-      if (!state.sliceCommitted) {
-        state.sliceCommitted = true;
-        consumeStep();
-      }
-      state.sliceColorId = fruit.colorId;
-      setSliceStatus(`状态: 锁定${colors[fruit.colorId].name}`);
-      showCommentary(`这刀只戳${colors[fruit.colorId].name}。`, 1200);
-    }
-
-    if (fruit.colorId !== state.sliceColorId) {
-      fruit.flashWrongHit();
-      settleQueuedSlices();
-      if (state.keepFullTrailDuringDrag) trail.reset();
-      state.sliceBroken = true;
-      state.pointerDown = false;
-      state.lastPoint = null;
-      state.nowPoint = null;
-      resetSelectToneProgression();
-      setSliceStatus(`状态: 断刀（碰到${colors[fruit.colorId].name}，已结算）`);
-      showCommentary(`碰到${colors[fruit.colorId].name}，已结算已选泡泡。`, 1500);
-      return;
-    }
-
-    state.sliceHitIds.add(fruit.id);
-    state.sliceQueue.push({
-      fruit,
-      sliceDir: sliceDir.clone(),
-      speed,
-    });
-    fruit.setSelected(true);
-    playSelectTone();
-    setSliceStatus(`状态: 已选${state.sliceHitIds.size}个${colors[state.sliceColorId].name}`);
-    return;
-  }
-}
-
-function collectSliceHitsSorted(ax, ay, bx, by) {
-  const result = [];
-  const seen = new Set();
-  const len = Math.hypot(bx - ax, by - ay);
-  const sampleCount = Math.max(1, Math.ceil(len / 0.08));
-  const spatial = buildSliceSpatialIndex();
-  if (spatial.maxRadius <= 0) return result;
-
-  for (let i = 1; i <= sampleCount; i += 1) {
-    const t = i / sampleCount;
-    const x = lerp(ax, bx, t);
-    const y = lerp(ay, by, t);
-    const candidateCount = collectSliceCandidatesAtPoint(x, y, spatial, workSliceCandidates);
-    if (candidateCount === 0) continue;
-    workSliceMeshes.length = 0;
-    for (let k = 0; k < candidateCount; k += 1) {
-      workSliceMeshes.push(workSliceCandidates[k].bubble);
-    }
-
-    const fruit = pickTopFruitAtWorldPoint(x, y, workSliceMeshes);
-    if (!fruit || seen.has(fruit.id)) continue;
-
-    seen.add(fruit.id);
-    const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
-    result.push({ fruit, hitRadius });
-  }
-
-  return result;
-}
-
-function buildSliceSpatialIndex() {
-  workSliceGrid.clear();
-  let maxRadius = 0;
-
-  for (let i = 0; i < fruits.length; i += 1) {
-    const fruit = fruits[i];
-    if (!fruit.active || fruit.sliced || !fruit.bubble.visible) continue;
-
-    const px = fruit.group.position.x;
-    const py = fruit.group.position.y;
-    const cellX = gridCoord(px, sliceGridCellSize);
-    const cellY = gridCoord(py, sliceGridCellSize);
-    const key = gridKey(cellX, cellY);
-    const bucket = workSliceGrid.get(key);
-    if (bucket) bucket.push(fruit);
-    else workSliceGrid.set(key, [fruit]);
-
-    const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
-    if (hitRadius > maxRadius) maxRadius = hitRadius;
-  }
-
-  return { grid: workSliceGrid, maxRadius };
-}
-
-function collectSliceCandidatesAtPoint(x, y, spatial, out) {
-  out.length = 0;
-  if (!spatial.grid.size || spatial.maxRadius <= 0) return 0;
-
-  const queryPadding = 0.28;
-  const queryRadius = spatial.maxRadius + queryPadding;
-  const rangeCells = Math.max(1, Math.ceil(queryRadius / sliceGridCellSize));
-  const centerCellX = gridCoord(x, sliceGridCellSize);
-  const centerCellY = gridCoord(y, sliceGridCellSize);
-
-  for (let oy = -rangeCells; oy <= rangeCells; oy += 1) {
-    for (let ox = -rangeCells; ox <= rangeCells; ox += 1) {
-      const bucket = spatial.grid.get(gridKey(centerCellX + ox, centerCellY + oy));
-      if (!bucket) continue;
-      for (let i = 0; i < bucket.length; i += 1) {
-        const fruit = bucket[i];
-        const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1) + queryPadding;
-        const dx = x - fruit.group.position.x;
-        const dy = y - fruit.group.position.y;
-        if (dx * dx + dy * dy <= hitRadius * hitRadius) {
-          out.push(fruit);
-        }
-      }
-    }
-  }
-
-  return out.length;
-}
-
-function pickTopFruitAtWorldPoint(worldX, worldY, bubbleMeshes) {
-  workProject.set(worldX, worldY, 0).project(camera);
-  raycaster.setFromCamera({ x: workProject.x, y: workProject.y }, camera);
-
-  const intersections = raycaster.intersectObjects(bubbleMeshes, false);
-  if (!intersections.length) return null;
-
-  return intersections[0].object.userData.fruit ?? null;
 }
 
 function settleQueuedSlices() {
@@ -1482,7 +686,7 @@ function processPendingPops(dt) {
     const fruit = item.fruit;
     if (fruit && fruit.active && !fruit.sliced) {
       fruit.pop(item.sliceDir, item.speed);
-      playRandomPopAudio();
+      gameAudio.playRandomPopAudio();
     }
     state.pendingPops.splice(i, 1);
   }
@@ -1509,100 +713,6 @@ function updateStepsHud() {
   stepsEl.textContent = `步数: ${remaining}`;
 }
 
-function resolveFruitCollisions() {
-  const activeCount = buildCollisionSpatialIndex();
-  if (activeCount < 2) return;
-
-  for (let i = 0; i < activeCount; i += 1) {
-    const d1 = workCollisionActive[i];
-    const baseCellX = gridCoord(d1.group.position.x, collisionGridCellSize);
-    const baseCellY = gridCoord(d1.group.position.y, collisionGridCellSize);
-
-    for (let oy = -collisionGridMaxNeighborRange; oy <= collisionGridMaxNeighborRange; oy += 1) {
-      for (let ox = -collisionGridMaxNeighborRange; ox <= collisionGridMaxNeighborRange; ox += 1) {
-        const bucket = workCollisionGrid.get(gridKey(baseCellX + ox, baseCellY + oy));
-        if (!bucket) continue;
-
-        for (let j = 0; j < bucket.length; j += 1) {
-          const d2 = bucket[j];
-          if (d2.id <= d1.id || !d2.active || d2.sliced) continue;
-
-          const dx = d2.group.position.x - d1.group.position.x;
-          const dy = d2.group.position.y - d1.group.position.y;
-          let dist = Math.hypot(dx, dy);
-          const hardDist = d1.radius + d2.radius;
-          const softContactDist = hardDist * 0.42;
-          if (dist >= softContactDist) continue;
-
-          let nx = dx;
-          let ny = dy;
-          if (dist === 0) {
-            nx = 1;
-            ny = 0;
-            dist = 1;
-          }
-
-          nx /= dist;
-          ny /= dist;
-          const overlap = softContactDist - dist;
-
-          const m1 = d1.radius * d1.radius;
-          const m2 = d2.radius * d2.radius;
-          const totalM = m1 + m2;
-          const r1 = m2 / totalM;
-          const r2 = m1 / totalM;
-
-          const separation = overlap * 0.12;
-          d1.group.position.x -= nx * separation * r1;
-          d1.group.position.y -= ny * separation * r1;
-          d2.group.position.x += nx * separation * r2;
-          d2.group.position.y += ny * separation * r2;
-
-          d1.applyContact(-nx, -ny, overlap);
-          d2.applyContact(nx, ny, overlap);
-
-          const kx = d1.vel.x - d2.vel.x;
-          const ky = d1.vel.y - d2.vel.y;
-          const p = (2.0 * (nx * kx + ny * ky)) / (m1 + m2);
-          const restitution = 0.12;
-          d1.vel.x -= p * m2 * nx * restitution;
-          d1.vel.y -= p * m2 * ny * restitution;
-          d2.vel.x += p * m1 * nx * restitution;
-          d2.vel.y += p * m1 * ny * restitution;
-
-          const stickiness = 0.22;
-          const avgVX = (d1.vel.x + d2.vel.x) * 0.5;
-          const avgVY = (d1.vel.y + d2.vel.y) * 0.5;
-          d1.vel.x = lerp(d1.vel.x, avgVX, stickiness);
-          d1.vel.y = lerp(d1.vel.y, avgVY, stickiness);
-          d2.vel.x = lerp(d2.vel.x, avgVX, stickiness);
-          d2.vel.y = lerp(d2.vel.y, avgVY, stickiness);
-        }
-      }
-    }
-  }
-}
-
-function buildCollisionSpatialIndex() {
-  workCollisionGrid.clear();
-  workCollisionActive.length = 0;
-
-  for (let i = 0; i < fruits.length; i += 1) {
-    const fruit = fruits[i];
-    if (!fruit.active || fruit.sliced) continue;
-
-    workCollisionActive.push(fruit);
-    const cellX = gridCoord(fruit.group.position.x, collisionGridCellSize);
-    const cellY = gridCoord(fruit.group.position.y, collisionGridCellSize);
-    const key = gridKey(cellX, cellY);
-    const bucket = workCollisionGrid.get(key);
-    if (bucket) bucket.push(fruit);
-    else workCollisionGrid.set(key, [fruit]);
-  }
-
-  return workCollisionActive.length;
-}
-
 function screenToWorld(clientX, clientY) {
   const rect = renderer.domElement.getBoundingClientRect();
   const x = THREE.MathUtils.clamp(clientX, rect.left, rect.right);
@@ -1613,18 +723,6 @@ function screenToWorld(clientX, clientY) {
   raycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
   raycaster.ray.intersectPlane(playPlane, workHit);
   return workHit.clone();
-}
-
-function distSegmentToPointNumeric(ax, ay, bx, by, px, py) {
-  const abx = bx - ax;
-  const aby = by - ay;
-  const ab2 = abx * abx + aby * aby;
-  if (ab2 < 1e-6) return Math.hypot(px - ax, py - ay);
-
-  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / ab2));
-  const cx = ax + abx * t;
-  const cy = ay + aby * t;
-  return Math.hypot(px - cx, py - cy);
 }
 
 function resize() {
@@ -1642,19 +740,7 @@ function resize() {
   bounds.right = worldHalfW - rules.playAreaInset;
   bounds.top = worldHalfH - rules.playAreaInset;
   bounds.bottom = -worldHalfH + rules.playAreaInset;
-  clearLevelRuntimeCache();
-}
-
-function setSliceStatus(text) {
-  if (!sliceStateEl) return;
-  sliceStateEl.textContent = text;
-}
-
-function showCommentary(text, durationMs) {
-  commentaryEl.textContent = text;
-  commentaryEl.classList.add("show");
-  if (commentaryTimer) clearTimeout(commentaryTimer);
-  commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
+  levelRuntime.clearCache();
 }
 
 function endGame(reason) {
@@ -1662,25 +748,15 @@ function endGame(reason) {
   state.gameOver = true;
   state.levelTransitioning = false;
   state.pointerDown = false;
-  state.levelClearReadyAt = 0;
-  state.victoryFxActive = false;
-  state.victoryFxElapsed = 0;
-  state.victoryUiShown = false;
-  state.pendingNextLevelIndex = -1;
-  clearGlobalBurstParticles();
+  levelFlow.reset();
+  burstSystem.clear();
   clearQueuedSelections();
   state.pendingPops.length = 0;
-  clearVictoryBubbleRain();
+  victoryRainSystem.reset();
   trail.reset();
-  if (levelWinEl) levelWinEl.classList.add("hidden");
 
-  if (reason.startsWith("全部")) {
-    gameOverTitleEl.textContent = "恭喜通关！";
-  } else {
-    gameOverTitleEl.textContent = "本局结束";
-  }
-  gameOverEl.classList.remove("hidden");
-  setSliceStatus(`状态: ${reason}`);
+  gameUI.showGameOver(reason);
+  gameUI.setSliceStatus(`状态: ${reason}`);
 }
 
 function createBubbleMaterial(baseColor) {
@@ -1752,155 +828,6 @@ function createBubbleMaterial(baseColor) {
   material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iridescenceBaseUniform);
 
   return { material, springUniform, crackGlowUniform, contactDirUniform, contactStrengthUniform };
-}
-
-function ensureGlobalBurstPool() {
-  if (globalBurstPool.initialized) return;
-
-  for (let i = 0; i < colors.length; i += 1) {
-    const color = colors[i];
-    const nodeData = createBubbleMaterial(new THREE.Color(color.base));
-    const material = nodeData.material;
-    material.transparent = true;
-    material.opacity = 0;
-    material.depthWrite = false;
-    material.side = THREE.DoubleSide;
-    material.transmission = bubbleTuning.transmission;
-    material.roughness = Math.min(0.26, bubbleTuning.roughness + 0.02);
-    material.thickness = Math.min(0.7, 1.35 * 0.5);
-    material.ior = 1.2;
-    material.clearcoat = bubbleTuning.clearcoat;
-    material.clearcoatRoughness = 0.16;
-    material.envMapIntensity = 0.72;
-    globalBurstPool.materialsByColor[color.id] = material;
-  }
-
-  for (let i = 0; i < globalBurstPoolSize; i += 1) {
-    const mesh = new THREE.Mesh(burstBubbleGeometry, globalBurstPool.materialsByColor[colors[0].id]);
-    mesh.visible = false;
-    scene.add(mesh);
-    globalBurstPool.entries.push({
-      mesh,
-      vel: new THREE.Vector3(),
-      life: 0,
-      lifeMax: 1,
-      baseScale: 0.08,
-      baseOpacity: 0.9,
-      active: false,
-      owner: null,
-    });
-  }
-
-  globalBurstPool.initialized = true;
-}
-
-function spawnBurstParticlesForBubble(entity) {
-  ensureGlobalBurstPool();
-
-  const targetCount = entity.minBurstBubbleCount
-    + Math.floor(Math.random() * (entity.maxBurstBubbleCount - entity.minBurstBubbleCount + 1));
-  entity.activeBurstBubbleCount = 0;
-
-  for (let i = 0; i < targetCount; i += 1) {
-    let entry = null;
-    for (let j = 0; j < globalBurstPool.entries.length; j += 1) {
-      if (!globalBurstPool.entries[j].active) {
-        entry = globalBurstPool.entries[j];
-        break;
-      }
-    }
-    if (!entry) break;
-
-    const randomDir = new THREE.Vector3(
-      Math.random() * 2 - 1,
-      Math.random() * 2 - 1,
-      Math.random() * 2 - 1
-    ).normalize();
-
-    const spawnDir = new THREE.Vector3(
-      Math.random() * 2 - 1,
-      Math.random() * 2 - 1,
-      Math.random() * 2 - 1
-    ).normalize();
-
-    const velocityDir = spawnDir.clone().lerp(randomDir, 0.22).normalize();
-    const speed = 0.34 + Math.random() * 0.5;
-    entry.vel.copy(velocityDir).multiplyScalar(speed);
-
-    const innerRadius = bubbleBaseRadius * entity.preBurstScaleMax * 0.9;
-    const spawnRadius = innerRadius * Math.cbrt(Math.random());
-
-    entry.mesh.material = globalBurstPool.materialsByColor[colors[entity.colorId].id] ?? globalBurstPool.materialsByColor[colors[0].id];
-    entry.mesh.position.copy(entity.group.position)
-      .add(entity.bubble.position)
-      .addScaledVector(spawnDir, spawnRadius * entity.baseScale);
-
-    const startScale = (0.055 + Math.random() * 0.11) * entity.baseScale;
-    entry.baseScale = startScale;
-    entry.mesh.scale.setScalar(startScale);
-    entry.mesh.material.opacity = 0;
-    entry.mesh.visible = true;
-
-    entry.life = 1.05 + Math.random() * 0.75;
-    entry.lifeMax = entry.life;
-    entry.baseOpacity = entity.baseOpacity;
-    entry.active = true;
-    entry.owner = entity;
-    entity.activeBurstBubbleCount += 1;
-  }
-
-  entity.burstPointsVisible = entity.activeBurstBubbleCount > 0;
-}
-
-function updateGlobalBurstParticles(delta) {
-  if (!globalBurstPool.initialized) return;
-
-  for (let i = 0; i < globalBurstPool.entries.length; i += 1) {
-    const entry = globalBurstPool.entries[i];
-    if (!entry.active) continue;
-
-    entry.life -= delta;
-    entry.vel.multiplyScalar(Math.pow(0.94, delta * 60));
-    entry.mesh.position.addScaledVector(entry.vel, delta);
-
-    const lifeRatio = Math.max(entry.life, 0) / Math.max(entry.lifeMax, 0.0001);
-    const age = Math.max(entry.lifeMax - entry.life, 0);
-    const appear = Math.min(age / 0.16, 1);
-    const fade = Math.pow(lifeRatio, 0.62);
-    const scaleNow = entry.baseScale * (0.68 + 0.32 * fade);
-
-    entry.mesh.scale.setScalar(scaleNow);
-    entry.mesh.material.opacity = entry.baseOpacity * fade * appear;
-
-    if (entry.life <= 0) {
-      entry.mesh.visible = false;
-      entry.mesh.material.opacity = 0;
-      entry.active = false;
-
-      if (entry.owner) {
-        entry.owner.activeBurstBubbleCount = Math.max(0, entry.owner.activeBurstBubbleCount - 1);
-        entry.owner.burstPointsVisible = entry.owner.activeBurstBubbleCount > 0;
-      }
-      entry.owner = null;
-    }
-  }
-}
-
-function clearGlobalBurstParticles() {
-  if (!globalBurstPool.initialized) return;
-
-  for (let i = 0; i < globalBurstPool.entries.length; i += 1) {
-    const entry = globalBurstPool.entries[i];
-    if (entry.owner) {
-      entry.owner.activeBurstBubbleCount = 0;
-      entry.owner.burstPointsVisible = false;
-    }
-    entry.owner = null;
-    entry.active = false;
-    entry.life = 0;
-    entry.mesh.visible = false;
-    entry.mesh.material.opacity = 0;
-  }
 }
 
 class BubbleEntity {
@@ -2187,7 +1114,7 @@ class BubbleEntity {
   }
 
   initBurstParticles() {
-    spawnBurstParticlesForBubble(this);
+    burstSystem.spawnForEntity(this);
   }
 }
 
