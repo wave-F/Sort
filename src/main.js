@@ -35,6 +35,19 @@ const slicePopStaggerStep = 0.075;
 
 const bubbleRadiusScale = 3;
 const bubbleTuningStorageKey = "bubble_tuning_v1";
+const popSoundFiles = [
+  "oga-pop1.ogg",
+  "oga-pop2.ogg",
+  "oga-pop3.ogg",
+  "oga-pop4.ogg",
+  "oga-pop5.ogg",
+  "oga-pop6.ogg",
+  "oga-pop7.ogg",
+  "oga-pop8.ogg",
+  "oga-pop9.ogg",
+  "oga-pop10.ogg",
+];
+const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
 
 const colors = [
   { id: "red", name: "红泡", base: 0xff1f4b },
@@ -88,6 +101,13 @@ const state = {
 const levelEditor = {
   lastSeed: Math.floor(Date.now() % 1000000),
   savedLayouts: [],
+};
+
+const audioState = {
+  context: null,
+  unlocked: false,
+  loadingPromise: null,
+  popBuffers: [],
 };
 
 const scene = new THREE.Scene();
@@ -232,6 +252,9 @@ function showWebGpuUnsupported() {
 }
 
 function startGame() {
+  ensureAudioUnlocked();
+  void preloadPopAudio();
+
   state.started = true;
   state.gameOver = false;
   state.levelTransitioning = false;
@@ -723,8 +746,85 @@ function createSeededRandom(seed) {
   };
 }
 
+function ensureAudioUnlocked() {
+  if (typeof window === "undefined") return false;
+  if (!window.AudioContext && !window.webkitAudioContext) return false;
+
+  if (!audioState.context) {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    audioState.context = new AudioContextCtor();
+  }
+
+  if (audioState.context.state === "suspended") {
+    void audioState.context.resume();
+  }
+
+  audioState.unlocked = audioState.context.state === "running";
+  return audioState.unlocked;
+}
+
+async function decodeAudioBuffer(ctx, arrayBuffer) {
+  if (ctx.decodeAudioData.length === 1) {
+    return ctx.decodeAudioData(arrayBuffer);
+  }
+  return new Promise((resolve, reject) => {
+    ctx.decodeAudioData(arrayBuffer, resolve, reject);
+  });
+}
+
+async function preloadPopAudio() {
+  if (!ensureAudioUnlocked()) return;
+  if (audioState.popBuffers.length) return;
+  if (audioState.loadingPromise) {
+    await audioState.loadingPromise;
+    return;
+  }
+
+  audioState.loadingPromise = (async () => {
+    const ctx = audioState.context;
+    const tasks = popSoundUrls.map(async (url) => {
+      try {
+        const res = await fetch(url, { cache: "force-cache" });
+        if (!res.ok) return null;
+        const arr = await res.arrayBuffer();
+        const buffer = await decodeAudioBuffer(ctx, arr);
+        return buffer;
+      } catch (_err) {
+        return null;
+      }
+    });
+
+    const decoded = await Promise.all(tasks);
+    audioState.popBuffers = decoded.filter(Boolean);
+  })();
+
+  await audioState.loadingPromise;
+}
+
+function playRandomPopAudio() {
+  if (!ensureAudioUnlocked()) return;
+  const ctx = audioState.context;
+  const buffers = audioState.popBuffers;
+  if (!ctx || !buffers.length) return;
+
+  const buffer = buffers[Math.floor(Math.random() * buffers.length)];
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = THREE.MathUtils.lerp(0.94, 1.08, Math.random());
+
+  const gain = ctx.createGain();
+  gain.gain.value = THREE.MathUtils.lerp(0.2, 0.33, Math.random());
+
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start();
+}
+
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+
+  ensureAudioUnlocked();
+  void preloadPopAudio();
 
   const rect = renderer.domElement.getBoundingClientRect();
   if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
@@ -980,6 +1080,7 @@ function processPendingPops(dt) {
     const fruit = item.fruit;
     if (fruit && fruit.active && !fruit.sliced) {
       fruit.pop(item.sliceDir, item.speed);
+      playRandomPopAudio();
     }
     state.pendingPops.splice(i, 1);
   }
@@ -1252,8 +1353,8 @@ class BubbleEntity {
     this.burstBubbleFadeInDuration = 0.16;
     this.burstPointsVisible = false;
 
-    this.minBurstBubbleCount = 7;
-    this.maxBurstBubbleCount = 10;
+    this.minBurstBubbleCount = 2;
+    this.maxBurstBubbleCount = 5;
     this.activeBurstBubbleCount = 8;
     this.burstBubbleVelocities = [];
     this.burstBubbleLife = new Array(burstBubbleCount).fill(0);

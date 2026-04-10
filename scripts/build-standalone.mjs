@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +8,8 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const bundlePath = path.join(distDir, "main.bundle.js");
+const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
+const popAudioDistDir = path.join(distDir, "assets", "audio", "pop");
 const standalonePath = path.join(rootDir, "standalone.html");
 
 await mkdir(distDir, { recursive: true });
@@ -26,6 +28,8 @@ const [css, js] = await Promise.all([
   readFile(path.join(rootDir, "src", "styles.css"), "utf8"),
   readFile(bundlePath, "utf8"),
 ]);
+
+await cp(popAudioSrcDir, popAudioDistDir, { recursive: true, force: true });
 
 const html = `<!doctype html>
 <html lang="zh-CN">

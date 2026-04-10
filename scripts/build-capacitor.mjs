@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const webDir = path.join(rootDir, "www");
+const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
+const popAudioWebDir = path.join(webDir, "assets", "audio", "pop");
 
 await mkdir(webDir, { recursive: true });
 
@@ -22,6 +24,7 @@ await build({
 
 const css = await readFile(path.join(rootDir, "src", "styles.css"), "utf8");
 await writeFile(path.join(webDir, "styles.css"), css, "utf8");
+await cp(popAudioSrcDir, popAudioWebDir, { recursive: true, force: true });
 
 const html = `<!doctype html>
 <html lang="zh-CN">
