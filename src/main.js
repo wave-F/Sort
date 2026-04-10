@@ -747,9 +747,8 @@ function playCoinFlyAnimation(count) {
   const dy = endY - startY;
   const revealDuration = 70;
   const revealHold = 35;
+  const perCoinFlyDelay = 55;
   const revealDelays = Array.from({ length: count }, () => Math.floor(Math.random() * 280));
-  const maxRevealDelay = revealDelays.reduce((m, v) => Math.max(m, v), 0);
-  const flyStartDelay = maxRevealDelay + revealDuration + revealHold;
 
   for (let i = 0; i < count; i += 1) {
     const icon = document.createElement("img");
@@ -794,7 +793,7 @@ function playCoinFlyAnimation(count) {
       ],
       {
         duration: 640,
-        delay: flyStartDelay,
+        delay: revealDelays[i] + revealDuration + revealHold + perCoinFlyDelay,
         easing: "cubic-bezier(0.2, 0.72, 0.28, 1)",
         fill: "forwards",
       }
