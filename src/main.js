@@ -174,6 +174,7 @@ let currentControlValues = null;
 let controlPanelBaseline = null;
 let winCoinCountUp = null;
 let pendingCoinFlyCount = 0;
+let pendingCoinRewardTotal = 0;
 let coinFlyTriggered = false;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
@@ -708,11 +709,6 @@ function updateCoinStatus() {
   coinStatusTextEl.textContent = String(Math.max(0, Math.floor(state.coins || 0)));
 }
 
-function getConfiguredWinCoinGain() {
-  const values = currentControlValues || collectControlValues();
-  return Math.max(0, Math.floor(values.winCoinGain || 0));
-}
-
 function addCoins(amount) {
   const value = Math.max(0, Math.floor(amount || 0));
   if (value <= 0) return;
@@ -723,14 +719,25 @@ function addCoins(amount) {
 
 function maybeStartCoinFlyAnimation() {
   if (coinFlyTriggered) return;
-  const count = Math.max(0, Math.min(20, Math.floor(pendingCoinFlyCount || 0)));
-  if (count <= 0) return;
+  const total = Math.max(0, Math.floor(pendingCoinRewardTotal || 0));
+  const count = Math.max(0, Math.min(20, Math.floor(pendingCoinFlyCount || total || 0)));
+  if (count <= 0 || total <= 0) return;
   coinFlyTriggered = true;
-  playCoinFlyAnimation(count);
+  playCoinFlyAnimation(count, total);
 }
 
-function playCoinFlyAnimation(count) {
-  if (!coinFlyLayerEl || !phoneFrameEl || !coinStatusIconEl || !resultCoinIconEl) return;
+function playCoinFlyAnimation(count, totalReward) {
+  const total = Math.max(0, Math.floor(totalReward || 0));
+  if (total <= 0 || count <= 0) return;
+
+  if (!coinFlyLayerEl || !phoneFrameEl || !coinStatusIconEl || !resultCoinIconEl) {
+    addCoins(total);
+    pendingCoinRewardTotal = 0;
+    return;
+  }
+
+  const baseReward = Math.floor(total / count);
+  const remainderReward = total - baseReward * count;
 
   const frameRect = phoneFrameEl.getBoundingClientRect();
   const fromRect = resultCoinIconEl.getBoundingClientRect();
@@ -804,9 +811,13 @@ function playCoinFlyAnimation(count) {
     };
 
     flyAnim.onfinish = () => {
+      const reward = baseReward + (i === count - 1 ? remainderReward : 0);
+      addCoins(reward);
       icon.remove();
     };
   }
+
+  pendingCoinRewardTotal = 0;
 }
 
 function applyResultLayoutForOutcome(outcome, values) {
@@ -883,7 +894,8 @@ function showResultPage() {
   const isWin = state.resultOutcome === "win";
   const controlValues = currentControlValues || collectControlValues();
   applyResultLayoutForOutcome(state.resultOutcome, controlValues);
-  pendingCoinFlyCount = isWin ? Math.max(0, Math.floor(controlValues.winCoinGain || 0)) : 0;
+  pendingCoinRewardTotal = isWin ? Math.max(0, Math.floor(controlValues.winCoinGain || 0)) : 0;
+  pendingCoinFlyCount = pendingCoinRewardTotal;
   coinFlyTriggered = false;
 
   if (winCoinCountUp) {
@@ -964,7 +976,6 @@ function showWinResultPreview() {
 
 function passCurrentLevelAndShowWinResult() {
   markLevelPassed(state.currentLevelIndex + 1);
-  addCoins(getConfiguredWinCoinGain());
   state.resultOutcome = "win";
   hideControlPanel();
   showResultPage();
@@ -1953,7 +1964,6 @@ function endGame(reason) {
 
   if (reason.startsWith("全部")) {
     state.resultOutcome = "win";
-    addCoins(getConfiguredWinCoinGain());
     if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `恭喜通关！总分 ${state.score}`;
     else gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
   } else {
