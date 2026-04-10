@@ -48,6 +48,7 @@ const popSoundFiles = [
   "oga-pop10.ogg",
 ];
 const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
+const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
 
 const colors = [
   { id: "red", name: "红泡", base: 0xff1f4b },
@@ -108,6 +109,9 @@ const audioState = {
   unlocked: false,
   loadingPromise: null,
   popBuffers: [],
+  selectStep: 0,
+  selectLastAt: 0,
+  selectNoiseBuffer: null,
 };
 
 const scene = new THREE.Scene();
@@ -254,6 +258,7 @@ function showWebGpuUnsupported() {
 function startGame() {
   ensureAudioUnlocked();
   void preloadPopAudio();
+  resetSelectToneProgression();
 
   state.started = true;
   state.gameOver = false;
@@ -297,6 +302,7 @@ function loadLevel(index) {
   state.sliceColorId = null;
   state.sliceBroken = false;
   state.sliceCommitted = false;
+  resetSelectToneProgression();
   clearQueuedSelections();
   state.pendingPops.length = 0;
   state.lastPoint = null;
@@ -820,11 +826,106 @@ function playRandomPopAudio() {
   source.start();
 }
 
+function resetSelectToneProgression() {
+  audioState.selectStep = 0;
+  audioState.selectLastAt = 0;
+}
+
+function getSelectNoiseBuffer(ctx) {
+  if (audioState.selectNoiseBuffer) return audioState.selectNoiseBuffer;
+  const length = Math.floor(ctx.sampleRate * 0.03);
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i += 1) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / length);
+  }
+  audioState.selectNoiseBuffer = buffer;
+  return buffer;
+}
+
+function playSelectTone() {
+  if (!ensureAudioUnlocked()) return;
+  const ctx = audioState.context;
+  if (!ctx) return;
+
+  const nowMs = performance.now();
+  if (nowMs - audioState.selectLastAt < 22) return;
+  audioState.selectLastAt = nowMs;
+
+  const noteIndex = Math.min(audioState.selectStep, selectScaleFrequencies.length - 1);
+  const freq = selectScaleFrequencies[noteIndex];
+  audioState.selectStep = Math.min(audioState.selectStep + 1, selectScaleFrequencies.length - 1);
+
+  const now = ctx.currentTime;
+  const attack = 0.003;
+  const release = 0.165;
+  const endAt = now + attack + release;
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.exponentialRampToValueAtTime(0.108, now + attack);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+  const body = ctx.createOscillator();
+  body.type = "sine";
+  body.frequency.setValueAtTime(freq * 1.11, now);
+  body.frequency.exponentialRampToValueAtTime(freq, now + 0.055);
+
+  const sparkle = ctx.createOscillator();
+  sparkle.type = "sine";
+  sparkle.frequency.setValueAtTime(freq * 1.76, now);
+  sparkle.frequency.exponentialRampToValueAtTime(freq * 1.42, now + 0.06);
+
+  const bodyGain = ctx.createGain();
+  bodyGain.gain.value = 0.8;
+  const sparkleGain = ctx.createGain();
+  sparkleGain.gain.value = 0.055;
+
+  const toneColor = ctx.createBiquadFilter();
+  toneColor.type = "lowpass";
+  toneColor.frequency.value = 1750;
+  toneColor.Q.value = 0.22;
+
+  const noiseSource = ctx.createBufferSource();
+  noiseSource.buffer = getSelectNoiseBuffer(ctx);
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type = "bandpass";
+  noiseFilter.frequency.value = 920;
+  noiseFilter.Q.value = 0.45;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.008, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+
+  const safety = ctx.createBiquadFilter();
+  safety.type = "highpass";
+  safety.frequency.value = 120;
+
+  body.connect(bodyGain);
+  sparkle.connect(sparkleGain);
+  bodyGain.connect(masterGain);
+  sparkleGain.connect(masterGain);
+  masterGain.connect(toneColor);
+  toneColor.connect(safety);
+  safety.connect(ctx.destination);
+
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(safety);
+
+  body.start(now);
+  sparkle.start(now);
+  noiseSource.start(now);
+  body.stop(endAt + 0.012);
+  sparkle.stop(endAt);
+  noiseSource.stop(now + 0.042);
+}
+
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
 
   ensureAudioUnlocked();
   void preloadPopAudio();
+  resetSelectToneProgression();
 
   const rect = renderer.domElement.getBoundingClientRect();
   if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
@@ -864,6 +965,7 @@ function onPointerUp() {
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
+  resetSelectToneProgression();
 
   settleQueuedSlices();
   if (state.keepFullTrailDuringDrag) trail.reset();
@@ -979,6 +1081,7 @@ function processSliceSegment(dt) {
       state.pointerDown = false;
       state.lastPoint = null;
       state.nowPoint = null;
+      resetSelectToneProgression();
       setSliceStatus(`状态: 断刀（碰到${colors[fruit.colorId].name}，已结算）`);
       showCommentary(`碰到${colors[fruit.colorId].name}，已结算已选泡泡。`, 1500);
       return;
@@ -991,6 +1094,7 @@ function processSliceSegment(dt) {
       speed,
     });
     fruit.setSelected(true);
+    playSelectTone();
     setSliceStatus(`状态: 已选${state.sliceHitIds.size}个${colors[state.sliceColorId].name}`);
     return;
   }
