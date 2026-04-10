@@ -46,8 +46,6 @@ const ctlResultYEl = document.getElementById("ctl-result-y");
 const ctlResultWidthValueEl = document.getElementById("ctl-result-width-value");
 const ctlResultHeightValueEl = document.getElementById("ctl-result-height-value");
 const ctlResultYValueEl = document.getElementById("ctl-result-y-value");
-const ctlResultTitleTextYEl = document.getElementById("ctl-result-title-text-y");
-const ctlResultTitleTextYValueEl = document.getElementById("ctl-result-title-text-y-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -214,10 +212,6 @@ function bindControlPanel() {
     ctlResultYEl.value = String(saved.resultY);
     ctlResultYEl.addEventListener("input", onResultLayoutInput);
   }
-  if (ctlResultTitleTextYEl) {
-    ctlResultTitleTextYEl.value = String(saved.resultTitleTextY);
-    ctlResultTitleTextYEl.addEventListener("input", onResultLayoutInput);
-  }
 
   applyControlValues(saved);
   syncControlPanelLabels();
@@ -274,7 +268,6 @@ function syncControlPanelLabels() {
   if (ctlResultWidthValueEl) ctlResultWidthValueEl.textContent = String(Math.floor(Number(ctlResultWidthEl?.value ?? 320)));
   if (ctlResultHeightValueEl) ctlResultHeightValueEl.textContent = String(Math.floor(Number(ctlResultHeightEl?.value ?? 260)));
   if (ctlResultYValueEl) ctlResultYValueEl.textContent = String(Math.floor(Number(ctlResultYEl?.value ?? 0)));
-  if (ctlResultTitleTextYValueEl) ctlResultTitleTextYValueEl.textContent = String(Math.floor(Number(ctlResultTitleTextYEl?.value ?? 0)));
 }
 
 function readControlSave() {
@@ -290,7 +283,6 @@ function readControlSave() {
     resultWidth: 320,
     resultHeight: 260,
     resultY: 0,
-    resultTitleTextY: 0,
   };
 
   try {
@@ -309,7 +301,6 @@ function readControlSave() {
       resultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultWidth) || defaults.resultWidth), 220, 420),
       resultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultHeight) || defaults.resultHeight), 160, 560),
       resultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultY) || defaults.resultY), -220, 220),
-      resultTitleTextY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultTitleTextY) || defaults.resultTitleTextY), -120, 120),
     };
   } catch (_err) {
     return defaults;
@@ -329,7 +320,6 @@ function collectControlValues() {
     resultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlResultWidthEl?.value ?? 320)), 220, 420),
     resultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlResultHeightEl?.value ?? 260)), 160, 560),
     resultY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultYEl?.value ?? 0)), -220, 220),
-    resultTitleTextY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultTitleTextYEl?.value ?? 0)), -120, 120),
   };
 }
 
@@ -345,7 +335,6 @@ function setControlInputs(values) {
   if (ctlResultWidthEl) ctlResultWidthEl.value = String(values.resultWidth);
   if (ctlResultHeightEl) ctlResultHeightEl.value = String(values.resultHeight);
   if (ctlResultYEl) ctlResultYEl.value = String(values.resultY);
-  if (ctlResultTitleTextYEl) ctlResultTitleTextYEl.value = String(values.resultTitleTextY);
 }
 
 function applyControlValues(values) {
@@ -363,7 +352,6 @@ function applyControlValues(values) {
   rootStyle.setProperty("--result-card-width", `${values.resultWidth}px`);
   rootStyle.setProperty("--result-card-height", `${values.resultHeight}px`);
   rootStyle.setProperty("--result-card-y", `${values.resultY}px`);
-  rootStyle.setProperty("--result-title-text-y", `${values.resultTitleTextY}px`);
 }
 
 function saveAndApplyControls() {
@@ -376,6 +364,7 @@ function saveAndApplyControls() {
   } catch (_err) {
     // ignore save errors
   }
+  hideControlPanel();
 }
 
 function toggleControlPanel() {

@@ -9,7 +9,6 @@
   --result-card-width: 320px;
   --result-card-height: 260px;
   --result-card-y: 0px;
-  --result-title-text-y: 0px;
   --control-panel-x: 0px;
   --text: #fff6fb;
   --accent: #ffdf73;
@@ -494,7 +493,7 @@ body {
 }
 
 .panel-title-ribbon span {
-  transform: translateY(var(--result-title-text-y));
+  transform: translateY(-5px);
 }
 
 .result-title.is-win {
