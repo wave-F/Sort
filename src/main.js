@@ -51,10 +51,12 @@ const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
 const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
 const ctlScoreFruitEl = document.getElementById("ctl-score-fruit");
+const ctlLadderFontSizeEl = document.getElementById("ctl-ladder-font-size");
 const ctlControlPanelXValueEl = document.getElementById("ctl-control-panel-x-value");
 const ctlTrailWidthValueEl = document.getElementById("ctl-trail-width-value");
 const ctlParticleSizeValueEl = document.getElementById("ctl-particle-size-value");
 const ctlScoreFruitValueEl = document.getElementById("ctl-score-fruit-value");
+const ctlLadderFontSizeValueEl = document.getElementById("ctl-ladder-font-size-value");
 const ctlCoinBarXEl = document.getElementById("ctl-coin-bar-x");
 const ctlCoinBarYEl = document.getElementById("ctl-coin-bar-y");
 const ctlCoinBarScaleEl = document.getElementById("ctl-coin-bar-scale");
@@ -249,6 +251,10 @@ function bindControlPanel() {
     ctlScoreFruitEl.value = String(saved.scorePerFruit);
     ctlScoreFruitEl.addEventListener("input", onScorePerFruitInput);
   }
+  if (ctlLadderFontSizeEl) {
+    ctlLadderFontSizeEl.value = String(saved.ladderFontSize);
+    ctlLadderFontSizeEl.addEventListener("input", onResultLayoutInput);
+  }
   if (ctlCoinBarXEl) {
     ctlCoinBarXEl.value = String(saved.coinBarX);
     ctlCoinBarXEl.addEventListener("input", onResultLayoutInput);
@@ -442,6 +448,7 @@ function syncControlPanelLabels() {
   if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
   if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
   if (ctlScoreFruitValueEl) ctlScoreFruitValueEl.textContent = String(scoring.perFruit);
+  if (ctlLadderFontSizeValueEl) ctlLadderFontSizeValueEl.textContent = String(Math.floor(Number(ctlLadderFontSizeEl?.value ?? 46)));
   if (ctlCoinBarXValueEl) ctlCoinBarXValueEl.textContent = String(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)));
   if (ctlCoinBarYValueEl) ctlCoinBarYValueEl.textContent = String(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)));
   if (ctlCoinBarScaleValueEl) ctlCoinBarScaleValueEl.textContent = Number(ctlCoinBarScaleEl?.value ?? 1).toFixed(2);
@@ -480,6 +487,7 @@ function readControlSave() {
     controlPanelX: 0,
     particleSize: 0.09,
     scorePerFruit: 5,
+    ladderFontSize: 46,
     coinBarX: 0,
     coinBarY: 0,
     coinBarScale: 1,
@@ -526,6 +534,7 @@ function readControlSave() {
       controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.controlPanelX) || defaults.controlPanelX), -220, 420),
       particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
       scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
+      ladderFontSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.ladderFontSize) || defaults.ladderFontSize), 20, 72),
       coinBarX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarX) || defaults.coinBarX), -260, 260),
       coinBarY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarY) || defaults.coinBarY), -260, 260),
       coinBarScale: THREE.MathUtils.clamp(Number(parsed?.coinBarScale) || defaults.coinBarScale, 0.2, 2),
@@ -573,6 +582,7 @@ function collectControlValues() {
     controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)), -220, 420),
     particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
     scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
+    ladderFontSize: THREE.MathUtils.clamp(Math.floor(Number(ctlLadderFontSizeEl?.value ?? 46)), 20, 72),
     coinBarX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)), -260, 260),
     coinBarY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)), -260, 260),
     coinBarScale: THREE.MathUtils.clamp(Number(ctlCoinBarScaleEl?.value ?? 1), 0.2, 2),
@@ -616,6 +626,7 @@ function setControlInputs(values) {
   if (ctlControlPanelXEl) ctlControlPanelXEl.value = String(values.controlPanelX);
   if (ctlParticleSizeEl) ctlParticleSizeEl.value = String(values.particleSize);
   if (ctlScoreFruitEl) ctlScoreFruitEl.value = String(values.scorePerFruit);
+  if (ctlLadderFontSizeEl) ctlLadderFontSizeEl.value = String(values.ladderFontSize);
   if (ctlCoinBarXEl) ctlCoinBarXEl.value = String(values.coinBarX);
   if (ctlCoinBarYEl) ctlCoinBarYEl.value = String(values.coinBarY);
   if (ctlCoinBarScaleEl) ctlCoinBarScaleEl.value = String(values.coinBarScale);
@@ -670,6 +681,7 @@ function applyControlValues(values) {
   rootStyle.setProperty("--coin-text-x", `${values.coinTextX}px`);
   rootStyle.setProperty("--coin-text-y", `${values.coinTextY}px`);
   rootStyle.setProperty("--coin-text-size", `${values.coinTextSize}px`);
+  rootStyle.setProperty("--ladder-level-font-size", `${values.ladderFontSize}px`);
   rootStyle.setProperty("--panel-slice-top", String(values.sliceTop));
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
