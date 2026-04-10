@@ -43,6 +43,7 @@ const ctlWinCoinScaleEl = document.getElementById("ctl-win-coin-scale");
 const ctlWinGainXEl = document.getElementById("ctl-win-gain-x");
 const ctlWinGainYEl = document.getElementById("ctl-win-gain-y");
 const ctlWinGainSizeEl = document.getElementById("ctl-win-gain-size");
+const ctlWinGainColorEl = document.getElementById("ctl-win-gain-color");
 const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
 const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
@@ -370,6 +371,10 @@ function bindControlPanel() {
     ctlWinGainSizeEl.value = String(saved.winGainSize);
     ctlWinGainSizeEl.addEventListener("input", onResultLayoutInput);
   }
+  if (ctlWinGainColorEl) {
+    ctlWinGainColorEl.value = saved.winGainColor;
+    ctlWinGainColorEl.addEventListener("input", onResultLayoutInput);
+  }
   if (ctlResultMaskOpacityEl) {
     ctlResultMaskOpacityEl.value = String(saved.resultMaskOpacity);
     ctlResultMaskOpacityEl.addEventListener("input", onResultLayoutInput);
@@ -507,6 +512,7 @@ function readControlSave() {
     winGainX: 0,
     winGainY: 0,
     winGainSize: 44,
+    winGainColor: "#ffd95f",
     resultMaskOpacity: 0.38,
     failTitle: "失败",
     failBody: "当前分数 {score} · 当前关卡 {level}",
@@ -552,6 +558,7 @@ function readControlSave() {
       winGainX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winGainX) || parsed?.winTextX || defaults.winGainX), -220, 220),
       winGainY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winGainY) || parsed?.winTextY || defaults.winGainY), -220, 220),
       winGainSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winGainSize) || defaults.winGainSize), 18, 96),
+      winGainColor: /^#[0-9a-fA-F]{6}$/.test(String(parsed?.winGainColor || "")) ? String(parsed.winGainColor) : defaults.winGainColor,
       resultMaskOpacity: THREE.MathUtils.clamp(Number(parsed?.resultMaskOpacity) || defaults.resultMaskOpacity, 0, 0.9),
       failTitle: String(parsed?.failTitle ?? defaults.failTitle).slice(0, 18),
       failBody: String(parsed?.failBody ?? defaults.failBody).slice(0, 80),
@@ -598,6 +605,7 @@ function collectControlValues() {
     winGainX: THREE.MathUtils.clamp(Math.floor(Number(ctlWinGainXEl?.value ?? 0)), -220, 220),
     winGainY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinGainYEl?.value ?? 0)), -220, 220),
     winGainSize: THREE.MathUtils.clamp(Math.floor(Number(ctlWinGainSizeEl?.value ?? 44)), 18, 96),
+    winGainColor: /^#[0-9a-fA-F]{6}$/.test(String(ctlWinGainColorEl?.value || "")) ? String(ctlWinGainColorEl.value) : "#ffd95f",
     resultMaskOpacity: THREE.MathUtils.clamp(Number(ctlResultMaskOpacityEl?.value ?? 0.38), 0, 0.9),
     failTitle: (String(ctlFailTitleEl?.value ?? "失败").trim() || "失败").slice(0, 18),
     failBody: (String(ctlFailBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
@@ -640,6 +648,7 @@ function setControlInputs(values) {
   if (ctlWinGainXEl) ctlWinGainXEl.value = String(values.winGainX);
   if (ctlWinGainYEl) ctlWinGainYEl.value = String(values.winGainY);
   if (ctlWinGainSizeEl) ctlWinGainSizeEl.value = String(values.winGainSize);
+  if (ctlWinGainColorEl) ctlWinGainColorEl.value = String(values.winGainColor);
   if (ctlResultMaskOpacityEl) ctlResultMaskOpacityEl.value = String(values.resultMaskOpacity);
   if (ctlFailTitleEl) ctlFailTitleEl.value = values.failTitle;
   if (ctlFailBodyEl) ctlFailBodyEl.value = values.failBody;
@@ -673,6 +682,7 @@ function applyControlValues(values) {
   rootStyle.setProperty("--result-gain-x", `${values.winGainX}px`);
   rootStyle.setProperty("--result-gain-y", `${values.winGainY}px`);
   rootStyle.setProperty("--result-gain-size", `${values.winGainSize}px`);
+  rootStyle.setProperty("--result-gain-color", String(values.winGainColor));
   rootStyle.setProperty("--result-mask-opacity", String(values.resultMaskOpacity));
   applyResultLayoutForOutcome(state.resultOutcome, values);
 

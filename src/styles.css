@@ -17,6 +17,7 @@
   --result-gain-x: 0px;
   --result-gain-y: 0px;
   --result-gain-size: 44px;
+  --result-gain-color: #ffd95f;
   --result-mask-opacity: 0.38;
   --coin-bar-x: 0px;
   --coin-bar-y: 0px;
@@ -628,7 +629,7 @@ body {
   left: calc(50% + 44px);
   top: 52%;
   transform: translate(calc(var(--result-gain-x)), calc(-50% + var(--result-gain-y)));
-  color: #ffd95f;
+  color: var(--result-gain-color);
   font-size: var(--result-gain-size);
   font-weight: 900;
   text-shadow: 0 3px 10px rgba(56, 34, 10, 0.55);
