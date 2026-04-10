@@ -20,6 +20,8 @@ const controlCloseBtn = document.getElementById("control-close-btn");
 const controlSaveBtn = document.getElementById("control-save-btn");
 const showFailResultBtn = document.getElementById("show-fail-result-btn");
 const showWinResultBtn = document.getElementById("show-win-result-btn");
+const passWinResultBtn = document.getElementById("pass-win-result-btn");
+const resultMaskEl = document.getElementById("result-mask");
 const resultPageEl = document.getElementById("result-page");
 const resultRetryBtn = document.getElementById("result-retry-btn");
 const resultExitBtn = document.getElementById("result-exit-btn");
@@ -67,6 +69,8 @@ const ctlWinResultHeightValueEl = document.getElementById("ctl-win-result-height
 const ctlWinResultYValueEl = document.getElementById("ctl-win-result-y-value");
 const ctlWinActionsYValueEl = document.getElementById("ctl-win-actions-y-value");
 const ctlWinActionsScaleValueEl = document.getElementById("ctl-win-actions-scale-value");
+const ctlResultMaskOpacityEl = document.getElementById("ctl-result-mask-opacity");
+const ctlResultMaskOpacityValueEl = document.getElementById("ctl-result-mask-opacity-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -172,6 +176,7 @@ function init() {
   if (controlSaveBtn) controlSaveBtn.addEventListener("click", saveAndApplyControls);
   if (showFailResultBtn) showFailResultBtn.addEventListener("click", showFailResultPreview);
   if (showWinResultBtn) showWinResultBtn.addEventListener("click", showWinResultPreview);
+  if (passWinResultBtn) passWinResultBtn.addEventListener("click", passCurrentLevelAndShowWinResult);
   if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
   if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
   if (resultNextBtn) resultNextBtn.addEventListener("click", goToNextLevelFromResultPage);
@@ -264,6 +269,10 @@ function bindControlPanel() {
     ctlWinActionsScaleEl.value = String(saved.winActionsScale);
     ctlWinActionsScaleEl.addEventListener("input", onResultLayoutInput);
   }
+  if (ctlResultMaskOpacityEl) {
+    ctlResultMaskOpacityEl.value = String(saved.resultMaskOpacity);
+    ctlResultMaskOpacityEl.addEventListener("input", onResultLayoutInput);
+  }
   if (ctlFailTitleEl) {
     ctlFailTitleEl.value = saved.failTitle;
     ctlFailTitleEl.addEventListener("input", onFailCopyInput);
@@ -347,6 +356,7 @@ function syncControlPanelLabels() {
   if (ctlWinResultYValueEl) ctlWinResultYValueEl.textContent = String(Math.floor(Number(ctlWinResultYEl?.value ?? 0)));
   if (ctlWinActionsYValueEl) ctlWinActionsYValueEl.textContent = String(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)));
   if (ctlWinActionsScaleValueEl) ctlWinActionsScaleValueEl.textContent = Number(ctlWinActionsScaleEl?.value ?? 1).toFixed(2);
+  if (ctlResultMaskOpacityValueEl) ctlResultMaskOpacityValueEl.textContent = Number(ctlResultMaskOpacityEl?.value ?? 0.38).toFixed(2);
 }
 
 function readControlSave() {
@@ -369,6 +379,7 @@ function readControlSave() {
     winResultY: 0,
     winActionsY: 0,
     winActionsScale: 1,
+    resultMaskOpacity: 0.38,
     failTitle: "失败",
     failBody: "当前分数 {score} · 当前关卡 {level}",
     winTitle: "胜利",
@@ -398,6 +409,7 @@ function readControlSave() {
       winResultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultY) || defaults.winResultY), -220, 220),
       winActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winActionsY) || defaults.winActionsY), -180, 180),
       winActionsScale: THREE.MathUtils.clamp(Number(parsed?.winActionsScale) || defaults.winActionsScale, 0.1, 1.6),
+      resultMaskOpacity: THREE.MathUtils.clamp(Number(parsed?.resultMaskOpacity) || defaults.resultMaskOpacity, 0, 0.9),
       failTitle: String(parsed?.failTitle ?? defaults.failTitle).slice(0, 18),
       failBody: String(parsed?.failBody ?? defaults.failBody).slice(0, 80),
       winTitle: String(parsed?.winTitle ?? defaults.winTitle).slice(0, 18),
@@ -428,6 +440,7 @@ function collectControlValues() {
     winResultY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultYEl?.value ?? 0)), -220, 220),
     winActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)), -180, 180),
     winActionsScale: THREE.MathUtils.clamp(Number(ctlWinActionsScaleEl?.value ?? 1), 0.1, 1.6),
+    resultMaskOpacity: THREE.MathUtils.clamp(Number(ctlResultMaskOpacityEl?.value ?? 0.38), 0, 0.9),
     failTitle: (String(ctlFailTitleEl?.value ?? "失败").trim() || "失败").slice(0, 18),
     failBody: (String(ctlFailBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
     winTitle: (String(ctlWinTitleEl?.value ?? "胜利").trim() || "胜利").slice(0, 18),
@@ -454,6 +467,7 @@ function setControlInputs(values) {
   if (ctlWinResultYEl) ctlWinResultYEl.value = String(values.winResultY);
   if (ctlWinActionsYEl) ctlWinActionsYEl.value = String(values.winActionsY);
   if (ctlWinActionsScaleEl) ctlWinActionsScaleEl.value = String(values.winActionsScale);
+  if (ctlResultMaskOpacityEl) ctlResultMaskOpacityEl.value = String(values.resultMaskOpacity);
   if (ctlFailTitleEl) ctlFailTitleEl.value = values.failTitle;
   if (ctlFailBodyEl) ctlFailBodyEl.value = values.failBody;
   if (ctlWinTitleEl) ctlWinTitleEl.value = values.winTitle;
@@ -472,6 +486,7 @@ function applyControlValues(values) {
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
   rootStyle.setProperty("--panel-slice-left", String(values.sliceLeft));
+  rootStyle.setProperty("--result-mask-opacity", String(values.resultMaskOpacity));
   applyResultLayoutForOutcome(state.resultOutcome, values);
 
   if (resultPageEl && !resultPageEl.classList.contains("hidden")) {
@@ -576,6 +591,7 @@ function showResultPage() {
   if (resultExitBtn) resultExitBtn.classList.remove("hidden");
   if (resultNextBtn) resultNextBtn.classList.toggle("hidden", !isWin || !hasNext);
 
+  if (resultMaskEl) resultMaskEl.classList.remove("hidden");
   resultPageEl.classList.remove("hidden");
 }
 
@@ -589,9 +605,17 @@ function showWinResultPreview() {
   showResultPage();
 }
 
+function passCurrentLevelAndShowWinResult() {
+  markLevelPassed(state.currentLevelIndex + 1);
+  state.resultOutcome = "win";
+  hideControlPanel();
+  showResultPage();
+}
+
 function hideResultPage() {
   if (!resultPageEl) return;
   resultPageEl.classList.add("hidden");
+  if (resultMaskEl) resultMaskEl.classList.add("hidden");
 }
 
 function retryFromResultPage() {

@@ -11,6 +11,7 @@
   --result-card-y: 0px;
   --result-actions-y: 0px;
   --result-actions-scale: 1;
+  --result-mask-opacity: 0.38;
   --control-panel-x: 0px;
   --text: #fff6fb;
   --accent: #ffdf73;
@@ -513,6 +514,13 @@ body {
 
 #result-page {
   z-index: 19;
+}
+
+#result-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  background: rgba(34, 34, 44, var(--result-mask-opacity));
 }
 
 .result-card {
