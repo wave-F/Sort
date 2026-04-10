@@ -9,6 +9,7 @@ const commentaryEl = document.getElementById("commentary");
 const startScreenEl = document.getElementById("start-screen");
 const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
+const gameOverTitleTextEl = document.getElementById("game-over-title-text");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
 const trailCompareToggleEl = document.getElementById("trail-compare-toggle");
@@ -20,10 +21,14 @@ const controlSaveBtn = document.getElementById("control-save-btn");
 const showResultBtn = document.getElementById("show-result-btn");
 const resultPageEl = document.getElementById("result-page");
 const resultBackBtn = document.getElementById("result-back-btn");
+const resultPageTitleEl = document.getElementById("result-page-title");
+const resultPageTitleTextEl = document.getElementById("result-page-title-text");
 const resultPageTextEl = document.getElementById("result-page-text");
 const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
+const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
 const ctlScoreFruitEl = document.getElementById("ctl-score-fruit");
+const ctlControlPanelXValueEl = document.getElementById("ctl-control-panel-x-value");
 const ctlTrailWidthValueEl = document.getElementById("ctl-trail-width-value");
 const ctlParticleSizeValueEl = document.getElementById("ctl-particle-size-value");
 const ctlScoreFruitValueEl = document.getElementById("ctl-score-fruit-value");
@@ -41,6 +46,8 @@ const ctlResultYEl = document.getElementById("ctl-result-y");
 const ctlResultWidthValueEl = document.getElementById("ctl-result-width-value");
 const ctlResultHeightValueEl = document.getElementById("ctl-result-height-value");
 const ctlResultYValueEl = document.getElementById("ctl-result-y-value");
+const ctlResultTitleTextYEl = document.getElementById("ctl-result-title-text-y");
+const ctlResultTitleTextYValueEl = document.getElementById("ctl-result-title-text-y-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -83,6 +90,7 @@ const state = {
   nowPoint: null,
   lastMoveAt: 0,
   maxPassedLevel: 1,
+  resultOutcome: "lose",
 };
 
 const levelEditor = {
@@ -166,6 +174,10 @@ function bindControlPanel() {
     ctlTrailWidthEl.value = String(saved.trailWidth);
     ctlTrailWidthEl.addEventListener("input", onTrailWidthInput);
   }
+  if (ctlControlPanelXEl) {
+    ctlControlPanelXEl.value = String(saved.controlPanelX);
+    ctlControlPanelXEl.addEventListener("input", onControlPanelPositionInput);
+  }
   if (ctlParticleSizeEl) {
     ctlParticleSizeEl.value = String(saved.particleSize);
     ctlParticleSizeEl.addEventListener("input", onParticleSizeInput);
@@ -202,6 +214,10 @@ function bindControlPanel() {
     ctlResultYEl.value = String(saved.resultY);
     ctlResultYEl.addEventListener("input", onResultLayoutInput);
   }
+  if (ctlResultTitleTextYEl) {
+    ctlResultTitleTextYEl.value = String(saved.resultTitleTextY);
+    ctlResultTitleTextYEl.addEventListener("input", onResultLayoutInput);
+  }
 
   applyControlValues(saved);
   syncControlPanelLabels();
@@ -217,6 +233,11 @@ function onUiHotkey(ev) {
 }
 
 function onTrailWidthInput(ev) {
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
+}
+
+function onControlPanelPositionInput() {
   applyControlValues(collectControlValues());
   syncControlPanelLabels();
 }
@@ -242,6 +263,7 @@ function onResultLayoutInput() {
 }
 
 function syncControlPanelLabels() {
+  if (ctlControlPanelXValueEl) ctlControlPanelXValueEl.textContent = String(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)));
   if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
   if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
   if (ctlScoreFruitValueEl) ctlScoreFruitValueEl.textContent = String(scoring.perFruit);
@@ -252,11 +274,13 @@ function syncControlPanelLabels() {
   if (ctlResultWidthValueEl) ctlResultWidthValueEl.textContent = String(Math.floor(Number(ctlResultWidthEl?.value ?? 320)));
   if (ctlResultHeightValueEl) ctlResultHeightValueEl.textContent = String(Math.floor(Number(ctlResultHeightEl?.value ?? 260)));
   if (ctlResultYValueEl) ctlResultYValueEl.textContent = String(Math.floor(Number(ctlResultYEl?.value ?? 0)));
+  if (ctlResultTitleTextYValueEl) ctlResultTitleTextYValueEl.textContent = String(Math.floor(Number(ctlResultTitleTextYEl?.value ?? 0)));
 }
 
 function readControlSave() {
   const defaults = {
     trailWidth: 0.12,
+    controlPanelX: 0,
     particleSize: 0.09,
     scorePerFruit: 5,
     sliceTop: 28,
@@ -266,6 +290,7 @@ function readControlSave() {
     resultWidth: 320,
     resultHeight: 260,
     resultY: 0,
+    resultTitleTextY: 0,
   };
 
   try {
@@ -274,6 +299,7 @@ function readControlSave() {
     const parsed = JSON.parse(raw);
     return {
       trailWidth: THREE.MathUtils.clamp(Number(parsed?.trailWidth) || defaults.trailWidth, 0.06, 0.22),
+      controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.controlPanelX) || defaults.controlPanelX), -220, 420),
       particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
       scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
       sliceTop: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceTop) || defaults.sliceTop), 8, 200),
@@ -283,6 +309,7 @@ function readControlSave() {
       resultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultWidth) || defaults.resultWidth), 220, 420),
       resultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultHeight) || defaults.resultHeight), 160, 560),
       resultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultY) || defaults.resultY), -220, 220),
+      resultTitleTextY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultTitleTextY) || defaults.resultTitleTextY), -120, 120),
     };
   } catch (_err) {
     return defaults;
@@ -292,6 +319,7 @@ function readControlSave() {
 function collectControlValues() {
   return {
     trailWidth: THREE.MathUtils.clamp(Number(ctlTrailWidthEl?.value ?? 0.12), 0.06, 0.22),
+    controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)), -220, 420),
     particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
     scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
     sliceTop: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)), 8, 200),
@@ -301,11 +329,13 @@ function collectControlValues() {
     resultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlResultWidthEl?.value ?? 320)), 220, 420),
     resultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlResultHeightEl?.value ?? 260)), 160, 560),
     resultY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultYEl?.value ?? 0)), -220, 220),
+    resultTitleTextY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultTitleTextYEl?.value ?? 0)), -120, 120),
   };
 }
 
 function setControlInputs(values) {
   if (ctlTrailWidthEl) ctlTrailWidthEl.value = String(values.trailWidth);
+  if (ctlControlPanelXEl) ctlControlPanelXEl.value = String(values.controlPanelX);
   if (ctlParticleSizeEl) ctlParticleSizeEl.value = String(values.particleSize);
   if (ctlScoreFruitEl) ctlScoreFruitEl.value = String(values.scorePerFruit);
   if (ctlPanelMarginTopEl) ctlPanelMarginTopEl.value = String(values.sliceTop);
@@ -315,6 +345,7 @@ function setControlInputs(values) {
   if (ctlResultWidthEl) ctlResultWidthEl.value = String(values.resultWidth);
   if (ctlResultHeightEl) ctlResultHeightEl.value = String(values.resultHeight);
   if (ctlResultYEl) ctlResultYEl.value = String(values.resultY);
+  if (ctlResultTitleTextYEl) ctlResultTitleTextYEl.value = String(values.resultTitleTextY);
 }
 
 function applyControlValues(values) {
@@ -324,6 +355,7 @@ function applyControlValues(values) {
   scoring.perFruit = values.scorePerFruit;
 
   const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--control-panel-x", `${values.controlPanelX}px`);
   rootStyle.setProperty("--panel-slice-top", String(values.sliceTop));
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
@@ -331,6 +363,7 @@ function applyControlValues(values) {
   rootStyle.setProperty("--result-card-width", `${values.resultWidth}px`);
   rootStyle.setProperty("--result-card-height", `${values.resultHeight}px`);
   rootStyle.setProperty("--result-card-y", `${values.resultY}px`);
+  rootStyle.setProperty("--result-title-text-y", `${values.resultTitleTextY}px`);
 }
 
 function saveAndApplyControls() {
@@ -377,6 +410,15 @@ function discardAndHideControlPanel() {
 
 function showResultPage() {
   if (!resultPageEl) return;
+  if (resultPageTitleEl) {
+    const isWin = state.resultOutcome === "win";
+    resultPageTitleEl.classList.toggle("is-win", isWin);
+    resultPageTitleEl.classList.toggle("is-lose", !isWin);
+  }
+  if (resultPageTitleTextEl) {
+    const isWin = state.resultOutcome === "win";
+    resultPageTitleTextEl.textContent = isWin ? "胜利" : "失败";
+  }
   if (resultPageTextEl) {
     resultPageTextEl.textContent = `当前分数 ${state.score} · 当前关卡 ${state.currentLevelIndex + 1}`;
   }
@@ -441,6 +483,7 @@ function startGame() {
   state.levelTransitioning = false;
   state.currentLevelIndex = Math.min(Math.max(state.maxPassedLevel - 1, 0), Math.max(LEVELS.length - 1, 0));
   state.activeLevel = null;
+  state.resultOutcome = "lose";
   state.score = 0;
   state.pointerDown = false;
   state.sliceColorId = null;
@@ -1264,9 +1307,13 @@ function endGame(reason) {
   trail.reset();
 
   if (reason.startsWith("全部")) {
-    gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
+    state.resultOutcome = "win";
+    if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `恭喜通关！总分 ${state.score}`;
+    else gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
   } else {
-    gameOverTitleEl.textContent = `本局结束！本局分数 ${state.score}`;
+    state.resultOutcome = "lose";
+    if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `本局结束！本局分数 ${state.score}`;
+    else gameOverTitleEl.textContent = `本局结束！本局分数 ${state.score}`;
   }
   gameOverEl.classList.remove("hidden");
   setSliceStatus(`状态: ${reason}`);

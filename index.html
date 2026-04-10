@@ -34,7 +34,12 @@
       <div id="control-blocker" class="hidden" aria-hidden="true"></div>
 
       <div id="control-panel" class="panel-light hidden" role="dialog" aria-label="控制面板">
-        <h3>控制面板</h3>
+
+        <label class="control-row">
+          <span>面板X</span>
+          <input id="ctl-control-panel-x" type="range" min="-220" max="420" step="1" value="0" />
+          <em id="ctl-control-panel-x-value">0</em>
+        </label>
 
         <label class="control-row">
           <span>刀光宽度</span>
@@ -103,6 +108,12 @@
             <em id="ctl-result-y-value">0</em>
           </label>
 
+          <label class="control-row">
+            <span>标题文字Y</span>
+            <input id="ctl-result-title-text-y" type="range" min="-120" max="120" step="1" value="0" />
+            <em id="ctl-result-title-text-y-value">0</em>
+          </label>
+
           <div class="control-group-actions">
             <button id="show-result-btn" type="button">结果页</button>
           </div>
@@ -142,14 +153,14 @@
 
       <div id="game-over" class="layer hidden">
         <div class="game-over-card panel-light">
-          <h2 id="game-over-title">本局结束</h2>
+          <h2 id="game-over-title" class="panel-title-ribbon is-red"><span id="game-over-title-text">本局结束</span></h2>
           <button id="restart-btn">再来一局</button>
         </div>
       </div>
 
       <div id="result-page" class="layer hidden">
         <div class="result-card panel-light">
-          <h2>结果页</h2>
+          <h2 id="result-page-title" class="result-title panel-title-ribbon is-lose"><span id="result-page-title-text">结果页</span></h2>
           <p id="result-page-text">当前暂无统计。</p>
           <button id="result-back-btn" type="button">返回游戏</button>
         </div>
@@ -158,6 +169,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=36"></script>
+    <script type="module" src="./src/main.js?v=38"></script>
   </body>
 </html>
