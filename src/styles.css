@@ -11,6 +11,11 @@
   --result-card-y: 0px;
   --result-actions-y: 0px;
   --result-actions-scale: 1;
+  --result-coin-x: 0px;
+  --result-coin-y: 0px;
+  --result-coin-scale: 1;
+  --result-win-text-x: 0px;
+  --result-win-text-y: 0px;
   --result-mask-opacity: 0.38;
   --control-panel-x: 0px;
   --text: #fff6fb;
@@ -554,6 +559,26 @@ body {
 .result-card p {
   margin: 10px 0 0;
   font-weight: 700;
+}
+
+#result-page.is-win #result-page-text {
+  transform: translate(var(--result-win-text-x), var(--result-win-text-y));
+}
+
+#result-page:not(.is-win) #result-page-text {
+  transform: translate(0, 0);
+}
+
+.result-coin {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  transform: translate(calc(-50% + var(--result-coin-x)), calc(-50% + var(--result-coin-y))) scale(var(--result-coin-scale));
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.22));
+  pointer-events: none;
 }
 
 .result-actions {

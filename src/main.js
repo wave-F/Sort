@@ -29,10 +29,17 @@ const resultNextBtn = document.getElementById("result-next-btn");
 const resultPageTitleEl = document.getElementById("result-page-title");
 const resultPageTitleTextEl = document.getElementById("result-page-title-text");
 const resultPageTextEl = document.getElementById("result-page-text");
+const resultCoinIconEl = document.getElementById("result-coin-icon");
 const ctlFailTitleEl = document.getElementById("ctl-fail-title");
 const ctlFailBodyEl = document.getElementById("ctl-fail-body");
 const ctlWinTitleEl = document.getElementById("ctl-win-title");
 const ctlWinBodyEl = document.getElementById("ctl-win-body");
+const ctlWinCoinGainEl = document.getElementById("ctl-win-coin-gain");
+const ctlWinCoinXEl = document.getElementById("ctl-win-coin-x");
+const ctlWinCoinYEl = document.getElementById("ctl-win-coin-y");
+const ctlWinCoinScaleEl = document.getElementById("ctl-win-coin-scale");
+const ctlWinTextXEl = document.getElementById("ctl-win-text-x");
+const ctlWinTextYEl = document.getElementById("ctl-win-text-y");
 const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
 const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
@@ -69,6 +76,11 @@ const ctlWinResultHeightValueEl = document.getElementById("ctl-win-result-height
 const ctlWinResultYValueEl = document.getElementById("ctl-win-result-y-value");
 const ctlWinActionsYValueEl = document.getElementById("ctl-win-actions-y-value");
 const ctlWinActionsScaleValueEl = document.getElementById("ctl-win-actions-scale-value");
+const ctlWinCoinXValueEl = document.getElementById("ctl-win-coin-x-value");
+const ctlWinCoinYValueEl = document.getElementById("ctl-win-coin-y-value");
+const ctlWinCoinScaleValueEl = document.getElementById("ctl-win-coin-scale-value");
+const ctlWinTextXValueEl = document.getElementById("ctl-win-text-x-value");
+const ctlWinTextYValueEl = document.getElementById("ctl-win-text-y-value");
 const ctlResultMaskOpacityEl = document.getElementById("ctl-result-mask-opacity");
 const ctlResultMaskOpacityValueEl = document.getElementById("ctl-result-mask-opacity-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
@@ -269,6 +281,30 @@ function bindControlPanel() {
     ctlWinActionsScaleEl.value = String(saved.winActionsScale);
     ctlWinActionsScaleEl.addEventListener("input", onResultLayoutInput);
   }
+  if (ctlWinCoinGainEl) {
+    ctlWinCoinGainEl.value = String(saved.winCoinGain);
+    ctlWinCoinGainEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinCoinXEl) {
+    ctlWinCoinXEl.value = String(saved.winCoinX);
+    ctlWinCoinXEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinCoinYEl) {
+    ctlWinCoinYEl.value = String(saved.winCoinY);
+    ctlWinCoinYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinCoinScaleEl) {
+    ctlWinCoinScaleEl.value = String(saved.winCoinScale);
+    ctlWinCoinScaleEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinTextXEl) {
+    ctlWinTextXEl.value = String(saved.winTextX);
+    ctlWinTextXEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinTextYEl) {
+    ctlWinTextYEl.value = String(saved.winTextY);
+    ctlWinTextYEl.addEventListener("input", onResultLayoutInput);
+  }
   if (ctlResultMaskOpacityEl) {
     ctlResultMaskOpacityEl.value = String(saved.resultMaskOpacity);
     ctlResultMaskOpacityEl.addEventListener("input", onResultLayoutInput);
@@ -356,6 +392,11 @@ function syncControlPanelLabels() {
   if (ctlWinResultYValueEl) ctlWinResultYValueEl.textContent = String(Math.floor(Number(ctlWinResultYEl?.value ?? 0)));
   if (ctlWinActionsYValueEl) ctlWinActionsYValueEl.textContent = String(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)));
   if (ctlWinActionsScaleValueEl) ctlWinActionsScaleValueEl.textContent = Number(ctlWinActionsScaleEl?.value ?? 1).toFixed(2);
+  if (ctlWinCoinXValueEl) ctlWinCoinXValueEl.textContent = String(Math.floor(Number(ctlWinCoinXEl?.value ?? 0)));
+  if (ctlWinCoinYValueEl) ctlWinCoinYValueEl.textContent = String(Math.floor(Number(ctlWinCoinYEl?.value ?? 0)));
+  if (ctlWinCoinScaleValueEl) ctlWinCoinScaleValueEl.textContent = Number(ctlWinCoinScaleEl?.value ?? 1).toFixed(2);
+  if (ctlWinTextXValueEl) ctlWinTextXValueEl.textContent = String(Math.floor(Number(ctlWinTextXEl?.value ?? 0)));
+  if (ctlWinTextYValueEl) ctlWinTextYValueEl.textContent = String(Math.floor(Number(ctlWinTextYEl?.value ?? 0)));
   if (ctlResultMaskOpacityValueEl) ctlResultMaskOpacityValueEl.textContent = Number(ctlResultMaskOpacityEl?.value ?? 0.38).toFixed(2);
 }
 
@@ -379,11 +420,17 @@ function readControlSave() {
     winResultY: 0,
     winActionsY: 0,
     winActionsScale: 1,
+    winCoinGain: 20,
+    winCoinX: 0,
+    winCoinY: 0,
+    winCoinScale: 1,
+    winTextX: 0,
+    winTextY: 0,
     resultMaskOpacity: 0.38,
     failTitle: "失败",
     failBody: "当前分数 {score} · 当前关卡 {level}",
     winTitle: "胜利",
-    winBody: "当前分数 {score} · 当前关卡 {level}",
+    winBody: "当前分数 {score} · 当前关卡 {level} · 金币 +{coin}",
   };
 
   try {
@@ -409,6 +456,12 @@ function readControlSave() {
       winResultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultY) || defaults.winResultY), -220, 220),
       winActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winActionsY) || defaults.winActionsY), -180, 180),
       winActionsScale: THREE.MathUtils.clamp(Number(parsed?.winActionsScale) || defaults.winActionsScale, 0.1, 1.6),
+      winCoinGain: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winCoinGain) || defaults.winCoinGain), 0, 99999),
+      winCoinX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winCoinX) || defaults.winCoinX), -220, 220),
+      winCoinY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winCoinY) || defaults.winCoinY), -220, 220),
+      winCoinScale: THREE.MathUtils.clamp(Number(parsed?.winCoinScale) || defaults.winCoinScale, 0.1, 3),
+      winTextX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winTextX) || defaults.winTextX), -220, 220),
+      winTextY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winTextY) || defaults.winTextY), -220, 220),
       resultMaskOpacity: THREE.MathUtils.clamp(Number(parsed?.resultMaskOpacity) || defaults.resultMaskOpacity, 0, 0.9),
       failTitle: String(parsed?.failTitle ?? defaults.failTitle).slice(0, 18),
       failBody: String(parsed?.failBody ?? defaults.failBody).slice(0, 80),
@@ -440,6 +493,12 @@ function collectControlValues() {
     winResultY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultYEl?.value ?? 0)), -220, 220),
     winActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)), -180, 180),
     winActionsScale: THREE.MathUtils.clamp(Number(ctlWinActionsScaleEl?.value ?? 1), 0.1, 1.6),
+    winCoinGain: THREE.MathUtils.clamp(Math.floor(Number(ctlWinCoinGainEl?.value ?? 20)), 0, 99999),
+    winCoinX: THREE.MathUtils.clamp(Math.floor(Number(ctlWinCoinXEl?.value ?? 0)), -220, 220),
+    winCoinY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinCoinYEl?.value ?? 0)), -220, 220),
+    winCoinScale: THREE.MathUtils.clamp(Number(ctlWinCoinScaleEl?.value ?? 1), 0.1, 3),
+    winTextX: THREE.MathUtils.clamp(Math.floor(Number(ctlWinTextXEl?.value ?? 0)), -220, 220),
+    winTextY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinTextYEl?.value ?? 0)), -220, 220),
     resultMaskOpacity: THREE.MathUtils.clamp(Number(ctlResultMaskOpacityEl?.value ?? 0.38), 0, 0.9),
     failTitle: (String(ctlFailTitleEl?.value ?? "失败").trim() || "失败").slice(0, 18),
     failBody: (String(ctlFailBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
@@ -467,6 +526,12 @@ function setControlInputs(values) {
   if (ctlWinResultYEl) ctlWinResultYEl.value = String(values.winResultY);
   if (ctlWinActionsYEl) ctlWinActionsYEl.value = String(values.winActionsY);
   if (ctlWinActionsScaleEl) ctlWinActionsScaleEl.value = String(values.winActionsScale);
+  if (ctlWinCoinGainEl) ctlWinCoinGainEl.value = String(values.winCoinGain);
+  if (ctlWinCoinXEl) ctlWinCoinXEl.value = String(values.winCoinX);
+  if (ctlWinCoinYEl) ctlWinCoinYEl.value = String(values.winCoinY);
+  if (ctlWinCoinScaleEl) ctlWinCoinScaleEl.value = String(values.winCoinScale);
+  if (ctlWinTextXEl) ctlWinTextXEl.value = String(values.winTextX);
+  if (ctlWinTextYEl) ctlWinTextYEl.value = String(values.winTextY);
   if (ctlResultMaskOpacityEl) ctlResultMaskOpacityEl.value = String(values.resultMaskOpacity);
   if (ctlFailTitleEl) ctlFailTitleEl.value = values.failTitle;
   if (ctlFailBodyEl) ctlFailBodyEl.value = values.failBody;
@@ -486,6 +551,11 @@ function applyControlValues(values) {
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
   rootStyle.setProperty("--panel-slice-left", String(values.sliceLeft));
+  rootStyle.setProperty("--result-coin-x", `${values.winCoinX}px`);
+  rootStyle.setProperty("--result-coin-y", `${values.winCoinY}px`);
+  rootStyle.setProperty("--result-coin-scale", String(values.winCoinScale));
+  rootStyle.setProperty("--result-win-text-x", `${values.winTextX}px`);
+  rootStyle.setProperty("--result-win-text-y", `${values.winTextY}px`);
   rootStyle.setProperty("--result-mask-opacity", String(values.resultMaskOpacity));
   applyResultLayoutForOutcome(state.resultOutcome, values);
 
@@ -495,7 +565,7 @@ function applyControlValues(values) {
       if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.failBody);
     } else {
       if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.winTitle;
-      if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.winBody);
+      if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.winBody, values.winCoinGain);
     }
   }
 }
@@ -518,10 +588,12 @@ function applyResultLayoutForOutcome(outcome, values) {
   rootStyle.setProperty("--result-actions-scale", String(values.failActionsScale));
 }
 
-function formatResultBody(template) {
+function formatResultBody(template, coinGain = 0) {
   return template
     .replaceAll("{score}", String(state.score))
-    .replaceAll("{level}", String(state.currentLevelIndex + 1));
+    .replaceAll("{level}", String(state.currentLevelIndex + 1))
+    .replaceAll("{coin}", String(coinGain))
+    .replaceAll("{}", String(coinGain));
 }
 
 function saveAndApplyControls() {
@@ -577,14 +649,17 @@ function showResultPage() {
     resultPageTitleEl.classList.toggle("is-win", isWin);
     resultPageTitleEl.classList.toggle("is-lose", !isWin);
   }
+  resultPageEl.classList.toggle("is-win", isWin);
   if (resultPageTitleTextEl) {
     resultPageTitleTextEl.textContent = isWin ? controlValues.winTitle : controlValues.failTitle;
   }
   if (resultPageTextEl) {
     resultPageTextEl.textContent = isWin
-      ? formatResultBody(controlValues.winBody)
+      ? formatResultBody(controlValues.winBody, controlValues.winCoinGain)
       : formatResultBody(controlValues.failBody);
   }
+
+  if (resultCoinIconEl) resultCoinIconEl.classList.toggle("hidden", !isWin);
 
   const hasNext = state.currentLevelIndex + 1 < LEVELS.length;
   if (resultRetryBtn) resultRetryBtn.classList.toggle("hidden", isWin);
