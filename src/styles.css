@@ -186,6 +186,25 @@ body {
   z-index: 19;
 }
 
+#coin-fly-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 27;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.coin-fly-item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
 #coin-status-icon {
   position: absolute;
   left: 6px;

@@ -20,6 +20,9 @@ const controlPanelEl = document.getElementById("control-panel");
 const controlCloseBtn = document.getElementById("control-close-btn");
 const controlSaveBtn = document.getElementById("control-save-btn");
 const coinStatusTextEl = document.getElementById("coin-status-text");
+const coinStatusIconEl = document.getElementById("coin-status-icon");
+const coinFlyLayerEl = document.getElementById("coin-fly-layer");
+const phoneFrameEl = document.getElementById("phone-frame");
 const showFailResultBtn = document.getElementById("show-fail-result-btn");
 const showWinResultBtn = document.getElementById("show-win-result-btn");
 const passWinResultBtn = document.getElementById("pass-win-result-btn");
@@ -170,6 +173,8 @@ let particles;
 let currentControlValues = null;
 let controlPanelBaseline = null;
 let winCoinCountUp = null;
+let pendingCoinFlyCount = 0;
+let coinFlyTriggered = false;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -716,6 +721,95 @@ function addCoins(amount) {
   writeGameSave();
 }
 
+function maybeStartCoinFlyAnimation() {
+  if (coinFlyTriggered) return;
+  const count = Math.max(0, Math.min(20, Math.floor(pendingCoinFlyCount || 0)));
+  if (count <= 0) return;
+  coinFlyTriggered = true;
+  playCoinFlyAnimation(count);
+}
+
+function playCoinFlyAnimation(count) {
+  if (!coinFlyLayerEl || !phoneFrameEl || !coinStatusIconEl || !resultCoinIconEl) return;
+
+  const frameRect = phoneFrameEl.getBoundingClientRect();
+  const fromRect = resultCoinIconEl.getBoundingClientRect();
+  const toRect = coinStatusIconEl.getBoundingClientRect();
+
+  const startX = fromRect.left + fromRect.width * 0.5 - frameRect.left;
+  const startY = fromRect.top + fromRect.height * 0.5 - frameRect.top;
+  const endX = toRect.left + toRect.width * 0.5 - frameRect.left;
+  const endY = toRect.top + toRect.height * 0.5 - frameRect.top;
+  const size = Math.max(1, fromRect.width || 72);
+  const half = size * 0.5;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const revealDuration = 70;
+  const revealHold = 35;
+  const revealDelays = Array.from({ length: count }, () => Math.floor(Math.random() * 280));
+  const maxRevealDelay = revealDelays.reduce((m, v) => Math.max(m, v), 0);
+  const flyStartDelay = maxRevealDelay + revealDuration + revealHold;
+
+  for (let i = 0; i < count; i += 1) {
+    const icon = document.createElement("img");
+    icon.className = "coin-fly-item";
+    icon.src = "./assets/images/currency128_Coin.png";
+    icon.style.width = `${size}px`;
+    icon.style.height = `${size}px`;
+    icon.style.opacity = "0";
+
+    const jitterX = THREE.MathUtils.randFloatSpread(148);
+    const jitterY = THREE.MathUtils.randFloatSpread(92);
+    const arcX = dx * THREE.MathUtils.randFloat(0.4, 0.62) + THREE.MathUtils.randFloatSpread(42);
+    const arcY = dy * 0.48 - THREE.MathUtils.randFloat(40, 120);
+
+    const sx = startX + jitterX - half;
+    const sy = startY + jitterY - half;
+    const mx = startX + arcX - half;
+    const my = startY + arcY - half;
+    const ex = endX - half;
+    const ey = endY - half;
+
+    icon.style.transform = `translate(${sx}px, ${sy}px) scale(0.72)`;
+    coinFlyLayerEl.appendChild(icon);
+    const revealAnim = icon.animate(
+      [
+        { transform: `translate(${sx}px, ${sy}px) scale(0.72)`, opacity: 0 },
+        { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1 },
+      ],
+      {
+        duration: revealDuration,
+        delay: revealDelays[i],
+        easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
+        fill: "forwards",
+      }
+    );
+
+    const flyAnim = icon.animate(
+      [
+        { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1, offset: 0 },
+        { transform: `translate(${mx}px, ${my}px) scale(0.9)`, opacity: 1, offset: 0.62 },
+        { transform: `translate(${ex}px, ${ey}px) scale(0.36)`, opacity: 0.15, offset: 1 },
+      ],
+      {
+        duration: 640,
+        delay: flyStartDelay,
+        easing: "cubic-bezier(0.2, 0.72, 0.28, 1)",
+        fill: "forwards",
+      }
+    );
+
+    revealAnim.onfinish = () => {
+      icon.style.opacity = "1";
+    };
+
+    flyAnim.onfinish = () => {
+      icon.remove();
+    };
+  }
+}
+
 function applyResultLayoutForOutcome(outcome, values) {
   const rootStyle = document.documentElement.style;
   if (outcome === "win") {
@@ -790,6 +884,8 @@ function showResultPage() {
   const isWin = state.resultOutcome === "win";
   const controlValues = currentControlValues || collectControlValues();
   applyResultLayoutForOutcome(state.resultOutcome, controlValues);
+  pendingCoinFlyCount = isWin ? Math.max(0, Math.floor(controlValues.winCoinGain || 0)) : 0;
+  coinFlyTriggered = false;
 
   if (winCoinCountUp) {
     try {
@@ -825,9 +921,13 @@ function showResultPage() {
         decimalPlaces: 0,
         useGrouping: false,
         formattingFn: (value) => `+${Math.floor(value)}`,
+        onCompleteCallback: () => {
+          maybeStartCoinFlyAnimation();
+        },
       });
       if (winCoinCountUp.error) {
         if (resultCoinGainEl) resultCoinGainEl.textContent = `+${targetCoin}`;
+        maybeStartCoinFlyAnimation();
       }
     } else {
       resultPageTextEl.classList.remove("hidden");
@@ -873,6 +973,7 @@ function passCurrentLevelAndShowWinResult() {
 
 function hideResultPage() {
   if (!resultPageEl) return;
+  if (state.resultOutcome === "win") maybeStartCoinFlyAnimation();
   if (winCoinCountUp) {
     try {
       winCoinCountUp.reset();
