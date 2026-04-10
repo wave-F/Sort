@@ -12,9 +12,29 @@ const gameOverTitleEl = document.getElementById("game-over-title");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
 const trailCompareToggleEl = document.getElementById("trail-compare-toggle");
-const gmBtn = document.getElementById("gm-btn");
-const gmPanelEl = document.getElementById("gm-panel");
-const gmCloseBtn = document.getElementById("gm-close-btn");
+const controlBtn = document.getElementById("control-btn");
+const controlBlockerEl = document.getElementById("control-blocker");
+const controlPanelEl = document.getElementById("control-panel");
+const controlCloseBtn = document.getElementById("control-close-btn");
+const controlSaveBtn = document.getElementById("control-save-btn");
+const showResultBtn = document.getElementById("show-result-btn");
+const resultPageEl = document.getElementById("result-page");
+const resultBackBtn = document.getElementById("result-back-btn");
+const resultPageTextEl = document.getElementById("result-page-text");
+const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
+const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
+const ctlScoreFruitEl = document.getElementById("ctl-score-fruit");
+const ctlTrailWidthValueEl = document.getElementById("ctl-trail-width-value");
+const ctlParticleSizeValueEl = document.getElementById("ctl-particle-size-value");
+const ctlScoreFruitValueEl = document.getElementById("ctl-score-fruit-value");
+const ctlPanelMarginTopEl = document.getElementById("ctl-panel-margin-top");
+const ctlPanelMarginRightEl = document.getElementById("ctl-panel-margin-right");
+const ctlPanelMarginBottomEl = document.getElementById("ctl-panel-margin-bottom");
+const ctlPanelMarginLeftEl = document.getElementById("ctl-panel-margin-left");
+const ctlPanelMarginTopValueEl = document.getElementById("ctl-panel-margin-top-value");
+const ctlPanelMarginRightValueEl = document.getElementById("ctl-panel-margin-right-value");
+const ctlPanelMarginBottomValueEl = document.getElementById("ctl-panel-margin-bottom-value");
+const ctlPanelMarginLeftValueEl = document.getElementById("ctl-panel-margin-left-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -37,6 +57,7 @@ const colors = [
 const selectedRingColor = 0xffdf73;
 const SAVE_KEY = "fruit-save-v1";
 const SAVE_TOTAL_LEVELS = 10;
+const CONTROL_SAVE_KEY = "fruit-control-v1";
 
 const state = {
   started: false,
@@ -73,6 +94,8 @@ camera.lookAt(0, 0, 0);
 let renderer;
 let trail;
 let particles;
+let currentControlValues = null;
+let controlPanelBaseline = null;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -110,11 +133,18 @@ function init() {
 
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
-  if (gmBtn) gmBtn.addEventListener("click", toggleGmPanel);
-  if (gmCloseBtn) gmCloseBtn.addEventListener("click", hideGmPanel);
+
+  if (controlBtn) controlBtn.addEventListener("click", toggleControlPanel);
+  if (controlCloseBtn) controlCloseBtn.addEventListener("click", discardAndHideControlPanel);
+  if (controlSaveBtn) controlSaveBtn.addEventListener("click", saveAndApplyControls);
+  if (showResultBtn) showResultBtn.addEventListener("click", showResultPage);
+  if (resultBackBtn) resultBackBtn.addEventListener("click", hideResultPage);
+
+  bindControlPanel();
 
   window.addEventListener("resize", resize);
   window.addEventListener("keydown", onEditorHotkey);
+  window.addEventListener("keydown", onUiHotkey);
   window.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
@@ -123,14 +153,198 @@ function init() {
   setupRenderer();
 }
 
-function toggleGmPanel() {
-  if (!gmPanelEl) return;
-  gmPanelEl.classList.toggle("hidden");
+function bindControlPanel() {
+  const saved = readControlSave();
+
+  if (ctlTrailWidthEl) {
+    ctlTrailWidthEl.value = String(saved.trailWidth);
+    ctlTrailWidthEl.addEventListener("input", onTrailWidthInput);
+  }
+  if (ctlParticleSizeEl) {
+    ctlParticleSizeEl.value = String(saved.particleSize);
+    ctlParticleSizeEl.addEventListener("input", onParticleSizeInput);
+  }
+  if (ctlScoreFruitEl) {
+    ctlScoreFruitEl.value = String(saved.scorePerFruit);
+    ctlScoreFruitEl.addEventListener("input", onScorePerFruitInput);
+  }
+  if (ctlPanelMarginTopEl) {
+    ctlPanelMarginTopEl.value = String(saved.sliceTop);
+    ctlPanelMarginTopEl.addEventListener("input", onPanelSliceInput);
+  }
+  if (ctlPanelMarginRightEl) {
+    ctlPanelMarginRightEl.value = String(saved.sliceRight);
+    ctlPanelMarginRightEl.addEventListener("input", onPanelSliceInput);
+  }
+  if (ctlPanelMarginBottomEl) {
+    ctlPanelMarginBottomEl.value = String(saved.sliceBottom);
+    ctlPanelMarginBottomEl.addEventListener("input", onPanelSliceInput);
+  }
+  if (ctlPanelMarginLeftEl) {
+    ctlPanelMarginLeftEl.value = String(saved.sliceLeft);
+    ctlPanelMarginLeftEl.addEventListener("input", onPanelSliceInput);
+  }
+
+  applyControlValues(saved);
+  syncControlPanelLabels();
 }
 
-function hideGmPanel() {
-  if (!gmPanelEl) return;
-  gmPanelEl.classList.add("hidden");
+function onUiHotkey(ev) {
+  if (ev.repeat) return;
+  if (ev.key.toLowerCase() !== "g") return;
+  const tag = String(ev.target?.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  ev.preventDefault();
+  toggleControlPanel();
+}
+
+function onTrailWidthInput(ev) {
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
+}
+
+function onParticleSizeInput(ev) {
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
+}
+
+function onScorePerFruitInput(ev) {
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
+}
+
+function onPanelSliceInput() {
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
+}
+
+function syncControlPanelLabels() {
+  if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
+  if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
+  if (ctlScoreFruitValueEl) ctlScoreFruitValueEl.textContent = String(scoring.perFruit);
+  if (ctlPanelMarginTopValueEl) ctlPanelMarginTopValueEl.textContent = String(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)));
+  if (ctlPanelMarginRightValueEl) ctlPanelMarginRightValueEl.textContent = String(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)));
+  if (ctlPanelMarginBottomValueEl) ctlPanelMarginBottomValueEl.textContent = String(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)));
+  if (ctlPanelMarginLeftValueEl) ctlPanelMarginLeftValueEl.textContent = String(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)));
+}
+
+function readControlSave() {
+  const defaults = {
+    trailWidth: 0.12,
+    particleSize: 0.09,
+    scorePerFruit: 5,
+    sliceTop: 28,
+    sliceRight: 28,
+    sliceBottom: 28,
+    sliceLeft: 28,
+  };
+
+  try {
+    const raw = localStorage.getItem(CONTROL_SAVE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    return {
+      trailWidth: THREE.MathUtils.clamp(Number(parsed?.trailWidth) || defaults.trailWidth, 0.06, 0.22),
+      particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
+      scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
+      sliceTop: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceTop) || defaults.sliceTop), 8, 64),
+      sliceRight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceRight) || defaults.sliceRight), 8, 64),
+      sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceBottom) || defaults.sliceBottom), 8, 64),
+      sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceLeft) || defaults.sliceLeft), 8, 64),
+    };
+  } catch (_err) {
+    return defaults;
+  }
+}
+
+function collectControlValues() {
+  return {
+    trailWidth: THREE.MathUtils.clamp(Number(ctlTrailWidthEl?.value ?? 0.12), 0.06, 0.22),
+    particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
+    scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
+    sliceTop: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)), 8, 64),
+    sliceRight: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)), 8, 64),
+    sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)), 8, 64),
+    sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)), 8, 64),
+  };
+}
+
+function setControlInputs(values) {
+  if (ctlTrailWidthEl) ctlTrailWidthEl.value = String(values.trailWidth);
+  if (ctlParticleSizeEl) ctlParticleSizeEl.value = String(values.particleSize);
+  if (ctlScoreFruitEl) ctlScoreFruitEl.value = String(values.scorePerFruit);
+  if (ctlPanelMarginTopEl) ctlPanelMarginTopEl.value = String(values.sliceTop);
+  if (ctlPanelMarginRightEl) ctlPanelMarginRightEl.value = String(values.sliceRight);
+  if (ctlPanelMarginBottomEl) ctlPanelMarginBottomEl.value = String(values.sliceBottom);
+  if (ctlPanelMarginLeftEl) ctlPanelMarginLeftEl.value = String(values.sliceLeft);
+}
+
+function applyControlValues(values) {
+  currentControlValues = { ...values };
+  if (trail) trail.width = values.trailWidth;
+  if (particles?.material) particles.material.size = values.particleSize;
+  scoring.perFruit = values.scorePerFruit;
+
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--panel-slice-top", String(values.sliceTop));
+  rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
+  rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
+  rootStyle.setProperty("--panel-slice-left", String(values.sliceLeft));
+}
+
+function saveAndApplyControls() {
+  const values = collectControlValues();
+  applyControlValues(values);
+  controlPanelBaseline = { ...values };
+  syncControlPanelLabels();
+  try {
+    localStorage.setItem(CONTROL_SAVE_KEY, JSON.stringify(values));
+  } catch (_err) {
+    // ignore save errors
+  }
+}
+
+function toggleControlPanel() {
+  if (!controlPanelEl) return;
+  const willOpen = controlPanelEl.classList.contains("hidden");
+  if (willOpen) {
+    controlPanelBaseline = currentControlValues ? { ...currentControlValues } : collectControlValues();
+    setControlInputs(controlPanelBaseline);
+    syncControlPanelLabels();
+    if (controlBlockerEl) controlBlockerEl.classList.remove("hidden");
+    controlPanelEl.classList.remove("hidden");
+    return;
+  }
+  if (controlBlockerEl) controlBlockerEl.classList.add("hidden");
+  controlPanelEl.classList.add("hidden");
+}
+
+function hideControlPanel() {
+  if (!controlPanelEl) return;
+  if (controlBlockerEl) controlBlockerEl.classList.add("hidden");
+  controlPanelEl.classList.add("hidden");
+}
+
+function discardAndHideControlPanel() {
+  if (controlPanelBaseline) {
+    applyControlValues(controlPanelBaseline);
+    setControlInputs(controlPanelBaseline);
+    syncControlPanelLabels();
+  }
+  hideControlPanel();
+}
+
+function showResultPage() {
+  if (!resultPageEl) return;
+  if (resultPageTextEl) {
+    resultPageTextEl.textContent = `当前分数 ${state.score} · 当前关卡 ${state.currentLevelIndex + 1}`;
+  }
+  resultPageEl.classList.remove("hidden");
+}
+
+function hideResultPage() {
+  if (!resultPageEl) return;
+  resultPageEl.classList.add("hidden");
 }
 
 async function setupRenderer() {
@@ -145,6 +359,9 @@ async function setupRenderer() {
   particles = new JuiceParticles(680);
   scene.add(trail.mesh);
   scene.add(particles.points);
+
+  applyControlValues(collectControlValues());
+  syncControlPanelLabels();
 
   renderer.setAnimationLoop(tick);
 }
@@ -175,6 +392,8 @@ function showWebGpuUnsupported() {
 
 function startGame() {
   readGameSave();
+  hideResultPage();
+  hideControlPanel();
 
   state.started = true;
   state.gameOver = false;

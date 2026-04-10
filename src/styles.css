@@ -2,6 +2,10 @@
   --bg-1: #f4d7de;
   --bg-2: #d8adc2;
   --panel: rgba(102, 75, 110, 0.42);
+  --panel-slice-top: 28;
+  --panel-slice-right: 28;
+  --panel-slice-bottom: 28;
+  --panel-slice-left: 28;
   --text: #fff6fb;
   --accent: #ffdf73;
   --button-1: #ff66be;
@@ -117,7 +121,7 @@ body {
 .panel-light {
   border: 18px solid transparent;
   border-image-source: url("../assets/images/panel_Light1.png");
-  border-image-slice: 28 fill;
+  border-image-slice: var(--panel-slice-top) var(--panel-slice-right) var(--panel-slice-bottom) var(--panel-slice-left) fill;
   border-image-width: 18px;
   border-image-repeat: stretch;
 }
@@ -129,6 +133,85 @@ body {
   z-index: 6;
   padding: 4px 8px;
   min-width: 164px;
+}
+
+#control-btn {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 20;
+  margin: 0;
+  padding: 10px 18px;
+  font-size: 15px;
+}
+
+#control-blocker {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(32, 20, 40, 0.24);
+}
+
+#control-panel {
+  position: absolute;
+  right: 12px;
+  top: 70px;
+  width: min(84vw, 320px);
+  z-index: 21;
+  padding: 6px 12px 12px;
+  color: #6f527e;
+}
+
+#control-panel h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.control-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.control-row input {
+  width: 100%;
+}
+
+.control-row em {
+  font-style: normal;
+  text-align: right;
+}
+
+.control-group {
+  margin: 8px 0 2px;
+  padding: 8px 10px 6px;
+  border: 1px solid rgba(118, 85, 124, 0.34);
+  border-radius: 10px;
+  background: rgba(255, 245, 251, 0.28);
+}
+
+.control-group legend {
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f527e;
+}
+
+.control-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.control-actions button {
+  margin-top: 0;
+  padding: 8px 14px;
+  font-size: 14px;
 }
 
 #title {
@@ -186,60 +269,9 @@ body {
 #commentary {
   border: 16px solid transparent;
   border-image-source: url("../assets/images/panel_Light1.png");
-  border-image-slice: 28 fill;
+  border-image-slice: var(--panel-slice-top) var(--panel-slice-right) var(--panel-slice-bottom) var(--panel-slice-left) fill;
   border-image-width: 16px;
   border-image-repeat: stretch;
-}
-
-.gm-icon-btn {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  width: 56px;
-  height: 56px;
-  z-index: 20;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: url("../assets/images/button_Close1.png") center / contain no-repeat;
-  box-shadow: none;
-  pointer-events: auto;
-}
-
-.gm-icon-btn:active {
-  transform: scale(0.95);
-}
-
-#gm-panel {
-  position: absolute;
-  left: 3%;
-  top: 6%;
-  right: 3%;
-  bottom: 6%;
-  z-index: 21;
-  color: #6f527e;
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.gm-panel-title {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.gm-panel-desc {
-  font-size: 13px;
-  opacity: 0.88;
-}
-
-.gm-close-btn {
-  margin-top: 2px;
-  align-self: flex-end;
-  padding: 8px 16px;
-  font-size: 14px;
 }
 
 #commentary.show {
@@ -371,6 +403,27 @@ body {
   max-width: 84%;
   color: #6f527e;
   padding: 8px 18px 14px;
+}
+
+#result-page {
+  z-index: 22;
+}
+
+.result-card {
+  min-width: 260px;
+  max-width: 84%;
+  color: #6f527e;
+  padding: 10px 20px 16px;
+  text-align: center;
+}
+
+.result-card p {
+  margin: 10px 0 0;
+  font-weight: 700;
+}
+
+#result-back-btn {
+  margin-top: 14px;
 }
 
 #start-screen h1,
