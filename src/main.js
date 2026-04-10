@@ -21,9 +21,9 @@ const controlSaveBtn = document.getElementById("control-save-btn");
 const showFailResultBtn = document.getElementById("show-fail-result-btn");
 const showWinResultBtn = document.getElementById("show-win-result-btn");
 const resultPageEl = document.getElementById("result-page");
-const resultBackBtn = document.getElementById("result-back-btn");
 const resultRetryBtn = document.getElementById("result-retry-btn");
 const resultExitBtn = document.getElementById("result-exit-btn");
+const resultNextBtn = document.getElementById("result-next-btn");
 const resultPageTitleEl = document.getElementById("result-page-title");
 const resultPageTitleTextEl = document.getElementById("result-page-title-text");
 const resultPageTextEl = document.getElementById("result-page-text");
@@ -172,9 +172,9 @@ function init() {
   if (controlSaveBtn) controlSaveBtn.addEventListener("click", saveAndApplyControls);
   if (showFailResultBtn) showFailResultBtn.addEventListener("click", showFailResultPreview);
   if (showWinResultBtn) showWinResultBtn.addEventListener("click", showWinResultPreview);
-  if (resultBackBtn) resultBackBtn.addEventListener("click", hideResultPage);
   if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
   if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
+  if (resultNextBtn) resultNextBtn.addEventListener("click", goToNextLevelFromResultPage);
 
   bindControlPanel();
 
@@ -571,9 +571,10 @@ function showResultPage() {
       : formatResultBody(controlValues.failBody);
   }
 
+  const hasNext = state.currentLevelIndex + 1 < LEVELS.length;
   if (resultRetryBtn) resultRetryBtn.classList.toggle("hidden", isWin);
-  if (resultExitBtn) resultExitBtn.classList.toggle("hidden", isWin);
-  if (resultBackBtn) resultBackBtn.classList.toggle("hidden", !isWin);
+  if (resultExitBtn) resultExitBtn.classList.remove("hidden");
+  if (resultNextBtn) resultNextBtn.classList.toggle("hidden", !isWin || !hasNext);
 
   resultPageEl.classList.remove("hidden");
 }
@@ -642,6 +643,36 @@ function exitToStartFromResultPage() {
 
   gameOverEl.classList.add("hidden");
   startScreenEl.classList.remove("hidden");
+}
+
+function goToNextLevelFromResultPage() {
+  const next = state.currentLevelIndex + 1;
+  if (next >= LEVELS.length) {
+    exitToStartFromResultPage();
+    return;
+  }
+
+  hideResultPage();
+
+  state.started = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.sliceColorId = null;
+  state.sliceBroken = false;
+  state.sliceCommitted = false;
+  clearQueuedSelections();
+  state.sliceHitIds.clear();
+  state.sliceQueue.length = 0;
+  state.lastPoint = null;
+  state.nowPoint = null;
+
+  trail.reset();
+  particles.reset();
+  gameOverEl.classList.add("hidden");
+  startScreenEl.classList.add("hidden");
+
+  loadLevel(next);
 }
 
 async function setupRenderer() {
