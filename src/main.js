@@ -18,8 +18,12 @@ const commentaryEl = document.getElementById("commentary");
 const startScreenEl = document.getElementById("start-screen");
 const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
+const levelWinEl = document.getElementById("level-win");
+const levelWinTitleEl = document.getElementById("level-win-title");
+const levelWinDescEl = document.getElementById("level-win-desc");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
+const levelWinNextBtn = document.getElementById("level-win-next-btn");
 const levelTestToggleBtn = document.getElementById("level-test-toggle");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
@@ -107,6 +111,24 @@ const state = {
   lastMoveAt: 0,
   stepLimit: 0,
   stepsUsed: 0,
+  levelClearReadyAt: 0,
+  victoryFxActive: false,
+  victoryFxElapsed: 0,
+  victoryUiShown: false,
+  pendingNextLevelIndex: -1,
+};
+
+const victoryRain = {
+  active: false,
+  elapsed: 0,
+  emitDuration: 0.78,
+  spawnRate: 74,
+  maxBubbles: 56,
+  spawnCarry: 0,
+  bubbles: [],
+  pool: [],
+  materials: [],
+  initialized: false,
 };
 
 const audioState = {
@@ -157,8 +179,15 @@ scene.add(fill);
 
 const bubbleBaseRadius = 1.2;
 const bubbleGeometry = new THREE.SphereGeometry(bubbleBaseRadius, 120, 120);
-const burstBubbleCount = 10;
 const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
+const victoryBubbleGeometry = new THREE.SphereGeometry(1, 14, 14);
+const globalBurstPoolSize = 180;
+
+const globalBurstPool = {
+  initialized: false,
+  entries: [],
+  materialsByColor: {},
+};
 
 const BubbleBurstState = {
   IDLE: "IDLE",
@@ -211,6 +240,9 @@ function clampNumber(value, min, max, fallback) {
 function init() {
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
+  if (levelWinNextBtn) {
+    levelWinNextBtn.addEventListener("click", continueFromLevelWin);
+  }
   setupLevelTestControls();
 
   window.addEventListener("resize", resize);
@@ -327,11 +359,19 @@ function startGame() {
   state.nowPoint = null;
   state.stepLimit = 0;
   state.stepsUsed = 0;
+  state.levelClearReadyAt = 0;
+  state.victoryFxActive = false;
+  state.victoryFxElapsed = 0;
+  state.victoryUiShown = false;
+  state.pendingNextLevelIndex = -1;
+  clearGlobalBurstParticles();
+  clearVictoryBubbleRain();
 
   trail.reset();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
+  if (levelWinEl) levelWinEl.classList.add("hidden");
 
   if (hasBubbleTuningOverride) {
     showCommentary("已应用调试页同步参数。", 1300);
@@ -359,6 +399,14 @@ function loadLevel(index) {
   state.nowPoint = null;
   state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
   state.stepsUsed = 0;
+  state.levelClearReadyAt = 0;
+  state.victoryFxActive = false;
+  state.victoryFxElapsed = 0;
+  state.victoryUiShown = false;
+  state.pendingNextLevelIndex = -1;
+  clearGlobalBurstParticles();
+  clearVictoryBubbleRain();
+  if (levelWinEl) levelWinEl.classList.add("hidden");
   setLevelTestSelection(index);
   updateStepsHud();
 
@@ -374,6 +422,7 @@ function loadLevel(index) {
 }
 
 function resetFruits(level) {
+  clearGlobalBurstParticles();
   state.pendingPops.length = 0;
   for (const fruit of fruits) scene.remove(fruit.group);
   fruits.length = 0;
@@ -935,18 +984,26 @@ function tick() {
   processPendingPops(dt);
 
   resolveFruitCollisions();
+  updateGlobalBurstParticles(dt);
+  updateVictorySequence(dt);
 
-  let alive = 0;
+  let remaining = 0;
   for (const fruit of fruits) {
     fruit.update(dt, bounds);
-    if (fruit.active) alive += 1;
+    if (fruit.active && !fruit.sliced) remaining += 1;
   }
 
   renderer.render(scene, camera);
 
-  if (state.started && !state.gameOver && alive === 0) {
-    handleLevelCleared();
-    return;
+  if (state.started && !state.gameOver && !state.levelTransitioning && remaining === 0) {
+    if (state.levelClearReadyAt <= 0) {
+      state.levelClearReadyAt = now + 500;
+    } else if (now >= state.levelClearReadyAt) {
+      handleLevelCleared();
+      return;
+    }
+  } else {
+    state.levelClearReadyAt = 0;
   }
 
   if (
@@ -954,7 +1011,7 @@ function tick() {
     && !state.gameOver
     && state.stepLimit > 0
     && state.stepsUsed >= state.stepLimit
-    && alive > 0
+    && remaining > 0
     && !state.pointerDown
     && state.pendingPops.length === 0
   ) {
@@ -975,15 +1032,197 @@ function handleLevelCleared() {
   }
 
   state.levelTransitioning = true;
+  state.levelClearReadyAt = 0;
   state.pointerDown = false;
   clearQueuedSelections();
   trail.reset();
 
-  showCommentary(`第${justCleared + 1}关完成，准备进入第${next + 1}关`, 1200);
-  window.setTimeout(() => {
-    if (!state.started || state.gameOver) return;
-    loadLevel(next);
-  }, 860);
+  beginLevelWinSequence(justCleared, next);
+}
+
+function beginLevelWinSequence(justCleared, nextLevelIndex) {
+  state.victoryFxActive = true;
+  state.victoryFxElapsed = 0;
+  state.victoryUiShown = false;
+  state.pendingNextLevelIndex = nextLevelIndex;
+
+  beginVictoryBubbleRain();
+  showCommentary(`第${justCleared + 1}关胜利！泡泡雨喷发中...`, 1300);
+}
+
+function updateVictorySequence(dt) {
+  if (!state.victoryFxActive || state.gameOver) return;
+
+  state.victoryFxElapsed += dt;
+  updateVictoryBubbleRain(dt);
+
+  if (!state.victoryUiShown && state.victoryFxElapsed >= 1.12) {
+    state.victoryUiShown = true;
+    showLevelWinOverlay();
+  }
+}
+
+function showLevelWinOverlay() {
+  if (!levelWinEl || !levelWinTitleEl || !levelWinDescEl || !levelWinNextBtn) {
+    continueFromLevelWin();
+    return;
+  }
+  const current = state.currentLevelIndex + 1;
+  const next = state.pendingNextLevelIndex + 1;
+  levelWinTitleEl.textContent = `第${current}关胜利！`;
+  levelWinDescEl.textContent = `彩色泡泡雨已送达，准备进入第${next}关。`;
+  levelWinEl.classList.remove("hidden");
+}
+
+function continueFromLevelWin() {
+  if (!state.started || state.gameOver) return;
+  const next = state.pendingNextLevelIndex;
+  if (!Number.isInteger(next) || next < 0 || next >= LEVELS.length) return;
+
+  if (levelWinEl) levelWinEl.classList.add("hidden");
+  state.victoryFxActive = false;
+  state.victoryFxElapsed = 0;
+  state.victoryUiShown = false;
+  clearVictoryBubbleRain();
+  loadLevel(next);
+}
+
+function beginVictoryBubbleRain() {
+  ensureVictoryRainResources();
+  clearVictoryBubbleRain();
+  victoryRain.active = true;
+  victoryRain.elapsed = 0;
+  victoryRain.spawnCarry = 0;
+}
+
+function updateVictoryBubbleRain(dt) {
+  if (victoryRain.active) {
+    victoryRain.elapsed += dt;
+    if (victoryRain.elapsed <= victoryRain.emitDuration) {
+      victoryRain.spawnCarry += victoryRain.spawnRate * dt;
+      while (victoryRain.spawnCarry >= 1) {
+        victoryRain.spawnCarry -= 1;
+        spawnVictoryBubble();
+      }
+    } else {
+      victoryRain.active = false;
+    }
+  }
+
+  for (let i = victoryRain.bubbles.length - 1; i >= 0; i -= 1) {
+    const bubble = victoryRain.bubbles[i];
+    bubble.life -= dt;
+
+    bubble.vel.y -= 1.45 * dt;
+    bubble.vel.multiplyScalar(Math.pow(0.988, dt * 60));
+    bubble.mesh.position.addScaledVector(bubble.vel, dt);
+
+    bubble.mesh.rotation.x += bubble.spin.x * dt;
+    bubble.mesh.rotation.y += bubble.spin.y * dt;
+    bubble.mesh.rotation.z += bubble.spin.z * dt;
+    const age = bubble.lifeMax - bubble.life;
+    const appear = Math.min(age / 0.09, 1);
+    const lifeRatio = Math.max(0, bubble.life / bubble.lifeMax);
+    const scaleFade = (0.66 + 0.34 * lifeRatio) * appear;
+    bubble.mesh.scale.setScalar(bubble.baseScale * scaleFade);
+
+    if (bubble.life <= 0 || bubble.mesh.position.y > bounds.top + 3.6) {
+      bubble.active = false;
+      bubble.mesh.visible = false;
+      victoryRain.bubbles.splice(i, 1);
+    }
+  }
+}
+
+function spawnVictoryBubble() {
+  if (victoryRain.bubbles.length >= victoryRain.maxBubbles) return;
+
+  const pooled = victoryRain.pool.find((entry) => !entry.active);
+  if (!pooled) return;
+
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const mesh = pooled.mesh;
+  mesh.material = victoryRain.materials[color.id];
+
+  const radius = (0.08 + Math.random() * 0.22) * bubbleRadiusScale;
+  const baseScale = radius / bubbleBaseRadius;
+  mesh.scale.setScalar(baseScale * 0.2);
+  mesh.position.set(
+    THREE.MathUtils.lerp(bounds.left + radius, bounds.right - radius, Math.random()),
+    bounds.bottom - radius - Math.random() * 0.8,
+    -0.45 + Math.random() * 1.1
+  );
+  mesh.visible = true;
+
+  const lifeMax = 1.08 + Math.random() * 0.52;
+  pooled.baseScale = baseScale;
+  pooled.life = lifeMax;
+  pooled.lifeMax = lifeMax;
+  pooled.active = true;
+  pooled.vel.set(
+    (Math.random() * 2 - 1) * 0.58,
+    6.4 + Math.random() * 3.4,
+    (Math.random() * 2 - 1) * 0.18
+  );
+  pooled.spin.set(
+    (Math.random() * 2 - 1) * 2,
+    (Math.random() * 2 - 1) * 1.8,
+    (Math.random() * 2 - 1) * 1.6
+  );
+
+  victoryRain.bubbles.push(pooled);
+}
+
+function clearVictoryBubbleRain() {
+  victoryRain.active = false;
+  victoryRain.elapsed = 0;
+  victoryRain.spawnCarry = 0;
+
+  for (let i = 0; i < victoryRain.bubbles.length; i += 1) {
+    const bubble = victoryRain.bubbles[i];
+    bubble.active = false;
+    bubble.mesh.visible = false;
+  }
+  victoryRain.bubbles.length = 0;
+}
+
+function ensureVictoryRainResources() {
+  if (victoryRain.initialized) return;
+
+  for (let i = 0; i < colors.length; i += 1) {
+    const color = colors[i];
+    victoryRain.materials[color.id] = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(color.base),
+      transmission: 0.88,
+      thickness: 1.1,
+      roughness: 0.15,
+      metalness: 0,
+      clearcoat: 0.36,
+      clearcoatRoughness: 0.24,
+      ior: 1.2,
+      envMapIntensity: 0.68,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+    });
+  }
+
+  for (let i = 0; i < victoryRain.maxBubbles; i += 1) {
+    const mesh = new THREE.Mesh(victoryBubbleGeometry, victoryRain.materials[colors[0].id]);
+    mesh.visible = false;
+    scene.add(mesh);
+    victoryRain.pool.push({
+      mesh,
+      active: false,
+      baseScale: 1,
+      life: 0,
+      lifeMax: 1,
+      vel: new THREE.Vector3(),
+      spin: new THREE.Vector3(),
+    });
+  }
+
+  victoryRain.initialized = true;
 }
 
 function updateTrail(now) {
@@ -1288,9 +1527,17 @@ function endGame(reason) {
   state.gameOver = true;
   state.levelTransitioning = false;
   state.pointerDown = false;
+  state.levelClearReadyAt = 0;
+  state.victoryFxActive = false;
+  state.victoryFxElapsed = 0;
+  state.victoryUiShown = false;
+  state.pendingNextLevelIndex = -1;
+  clearGlobalBurstParticles();
   clearQueuedSelections();
   state.pendingPops.length = 0;
+  clearVictoryBubbleRain();
   trail.reset();
+  if (levelWinEl) levelWinEl.classList.add("hidden");
 
   if (reason.startsWith("全部")) {
     gameOverTitleEl.textContent = "恭喜通关！";
@@ -1372,6 +1619,155 @@ function createBubbleMaterial(baseColor) {
   return { material, springUniform, crackGlowUniform, contactDirUniform, contactStrengthUniform };
 }
 
+function ensureGlobalBurstPool() {
+  if (globalBurstPool.initialized) return;
+
+  for (let i = 0; i < colors.length; i += 1) {
+    const color = colors[i];
+    const nodeData = createBubbleMaterial(new THREE.Color(color.base));
+    const material = nodeData.material;
+    material.transparent = true;
+    material.opacity = 0;
+    material.depthWrite = false;
+    material.side = THREE.DoubleSide;
+    material.transmission = bubbleTuning.transmission;
+    material.roughness = Math.min(0.26, bubbleTuning.roughness + 0.02);
+    material.thickness = Math.min(0.7, 1.35 * 0.5);
+    material.ior = 1.2;
+    material.clearcoat = bubbleTuning.clearcoat;
+    material.clearcoatRoughness = 0.16;
+    material.envMapIntensity = 0.72;
+    globalBurstPool.materialsByColor[color.id] = material;
+  }
+
+  for (let i = 0; i < globalBurstPoolSize; i += 1) {
+    const mesh = new THREE.Mesh(burstBubbleGeometry, globalBurstPool.materialsByColor[colors[0].id]);
+    mesh.visible = false;
+    scene.add(mesh);
+    globalBurstPool.entries.push({
+      mesh,
+      vel: new THREE.Vector3(),
+      life: 0,
+      lifeMax: 1,
+      baseScale: 0.08,
+      baseOpacity: 0.9,
+      active: false,
+      owner: null,
+    });
+  }
+
+  globalBurstPool.initialized = true;
+}
+
+function spawnBurstParticlesForBubble(entity) {
+  ensureGlobalBurstPool();
+
+  const targetCount = entity.minBurstBubbleCount
+    + Math.floor(Math.random() * (entity.maxBurstBubbleCount - entity.minBurstBubbleCount + 1));
+  entity.activeBurstBubbleCount = 0;
+
+  for (let i = 0; i < targetCount; i += 1) {
+    let entry = null;
+    for (let j = 0; j < globalBurstPool.entries.length; j += 1) {
+      if (!globalBurstPool.entries[j].active) {
+        entry = globalBurstPool.entries[j];
+        break;
+      }
+    }
+    if (!entry) break;
+
+    const randomDir = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+
+    const spawnDir = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+
+    const velocityDir = spawnDir.clone().lerp(randomDir, 0.22).normalize();
+    const speed = 0.34 + Math.random() * 0.5;
+    entry.vel.copy(velocityDir).multiplyScalar(speed);
+
+    const innerRadius = bubbleBaseRadius * entity.preBurstScaleMax * 0.9;
+    const spawnRadius = innerRadius * Math.cbrt(Math.random());
+
+    entry.mesh.material = globalBurstPool.materialsByColor[colors[entity.colorId].id] ?? globalBurstPool.materialsByColor[colors[0].id];
+    entry.mesh.position.copy(entity.group.position)
+      .add(entity.bubble.position)
+      .addScaledVector(spawnDir, spawnRadius * entity.baseScale);
+
+    const startScale = (0.055 + Math.random() * 0.11) * entity.baseScale;
+    entry.baseScale = startScale;
+    entry.mesh.scale.setScalar(startScale);
+    entry.mesh.material.opacity = 0;
+    entry.mesh.visible = true;
+
+    entry.life = 1.05 + Math.random() * 0.75;
+    entry.lifeMax = entry.life;
+    entry.baseOpacity = entity.baseOpacity;
+    entry.active = true;
+    entry.owner = entity;
+    entity.activeBurstBubbleCount += 1;
+  }
+
+  entity.burstPointsVisible = entity.activeBurstBubbleCount > 0;
+}
+
+function updateGlobalBurstParticles(delta) {
+  if (!globalBurstPool.initialized) return;
+
+  for (let i = 0; i < globalBurstPool.entries.length; i += 1) {
+    const entry = globalBurstPool.entries[i];
+    if (!entry.active) continue;
+
+    entry.life -= delta;
+    entry.vel.multiplyScalar(Math.pow(0.94, delta * 60));
+    entry.mesh.position.addScaledVector(entry.vel, delta);
+
+    const lifeRatio = Math.max(entry.life, 0) / Math.max(entry.lifeMax, 0.0001);
+    const age = Math.max(entry.lifeMax - entry.life, 0);
+    const appear = Math.min(age / 0.16, 1);
+    const fade = Math.pow(lifeRatio, 0.62);
+    const scaleNow = entry.baseScale * (0.68 + 0.32 * fade);
+
+    entry.mesh.scale.setScalar(scaleNow);
+    entry.mesh.material.opacity = entry.baseOpacity * fade * appear;
+
+    if (entry.life <= 0) {
+      entry.mesh.visible = false;
+      entry.mesh.material.opacity = 0;
+      entry.active = false;
+
+      if (entry.owner) {
+        entry.owner.activeBurstBubbleCount = Math.max(0, entry.owner.activeBurstBubbleCount - 1);
+        entry.owner.burstPointsVisible = entry.owner.activeBurstBubbleCount > 0;
+      }
+      entry.owner = null;
+    }
+  }
+}
+
+function clearGlobalBurstParticles() {
+  if (!globalBurstPool.initialized) return;
+
+  for (let i = 0; i < globalBurstPool.entries.length; i += 1) {
+    const entry = globalBurstPool.entries[i];
+    if (entry.owner) {
+      entry.owner.activeBurstBubbleCount = 0;
+      entry.owner.burstPointsVisible = false;
+    }
+    entry.owner = null;
+    entry.active = false;
+    entry.life = 0;
+    entry.mesh.visible = false;
+    entry.mesh.material.opacity = 0;
+  }
+}
+
 class BubbleEntity {
   constructor({ id, colorId, radius, vx = 0, vy = 0, baseColor }) {
     this.id = id;
@@ -1419,32 +1815,13 @@ class BubbleEntity {
     this.dissipateDuration = 1.6;
     this.resetDelay = 0.2;
     this.preBurstScaleMax = 1.08;
-    this.burstBubbleFadeInDuration = 0.16;
     this.burstPointsVisible = false;
 
     this.minBurstBubbleCount = 2;
     this.maxBurstBubbleCount = 5;
-    this.activeBurstBubbleCount = 8;
-    this.burstBubbleVelocities = [];
-    this.burstBubbleLife = new Array(burstBubbleCount).fill(0);
-    this.burstBubbleLifeMax = new Array(burstBubbleCount).fill(1);
-    this.burstBubbleBaseScale = new Array(burstBubbleCount).fill(0.08);
-    this.burstBubbleMeshes = [];
+    this.activeBurstBubbleCount = 0;
 
-    for (let i = 0; i < burstBubbleCount; i += 1) {
-      const burstBubbleMaterial = this.bubbleMaterial.clone();
-      burstBubbleMaterial.transparent = true;
-      burstBubbleMaterial.opacity = 0;
-      burstBubbleMaterial.depthWrite = false;
-      burstBubbleMaterial.side = THREE.DoubleSide;
-
-      const burstBubbleMesh = new THREE.Mesh(burstBubbleGeometry, burstBubbleMaterial);
-      burstBubbleMesh.visible = false;
-      this.burstBubbleMeshes.push(burstBubbleMesh);
-      this.burstBubbleVelocities.push(new THREE.Vector3());
-    }
-
-    this.group.add(this.bubble, this.selectRing, ...this.burstBubbleMeshes);
+    this.group.add(this.bubble, this.selectRing);
     this.resetBurstArtifacts();
   }
 
@@ -1584,7 +1961,6 @@ class BubbleEntity {
       this.crackGlowUniform.value = (1 - t) * 0.12;
       this.bubbleMaterial.opacity = Math.max(0, this.baseOpacity * (1 - t * 1.85));
       this.bubble.scale.setScalar(this.baseScale * (this.preBurstScaleMax + t * 0.03));
-      this.updateBurstParticles(dt);
 
       if (t > 0.5) this.bubble.visible = false;
 
@@ -1598,7 +1974,6 @@ class BubbleEntity {
     if (this.burstState === BubbleBurstState.DISSIPATE) {
       this.crackGlowUniform.value = 0;
       this.bubble.visible = false;
-      this.updateBurstParticles(dt);
 
       if (this.stateElapsed >= this.dissipateDuration && !this.burstPointsVisible) {
         this.setBurstState(BubbleBurstState.RESET);
@@ -1672,108 +2047,12 @@ class BubbleEntity {
   }
 
   resetBurstArtifacts() {
-    for (let i = 0; i < burstBubbleCount; i += 1) {
-      this.burstBubbleLife[i] = 0;
-      this.burstBubbleLifeMax[i] = 1;
-      const burstBubbleMesh = this.burstBubbleMeshes[i];
-      burstBubbleMesh.visible = false;
-      burstBubbleMesh.position.set(9999, 9999, 9999);
-      burstBubbleMesh.scale.setScalar(0.0001);
-      burstBubbleMesh.material.opacity = 0;
-    }
+    this.activeBurstBubbleCount = 0;
     this.burstPointsVisible = false;
   }
 
   initBurstParticles() {
-    this.activeBurstBubbleCount = this.minBurstBubbleCount + Math.floor(Math.random() * (this.maxBurstBubbleCount - this.minBurstBubbleCount + 1));
-
-    for (let i = 0; i < burstBubbleCount; i += 1) {
-      const burstBubbleMesh = this.burstBubbleMeshes[i];
-      const burstBubbleMaterial = burstBubbleMesh.material;
-      if (i >= this.activeBurstBubbleCount) {
-        this.burstBubbleLife[i] = 0;
-        this.burstBubbleLifeMax[i] = 1;
-        burstBubbleMesh.visible = false;
-        burstBubbleMaterial.opacity = 0;
-        continue;
-      }
-
-      burstBubbleMaterial.positionNode = this.bubbleMaterial.positionNode;
-      burstBubbleMaterial.colorNode = this.bubbleMaterial.colorNode;
-      burstBubbleMaterial.emissiveNode = this.bubbleMaterial.emissiveNode;
-      burstBubbleMaterial.iridescenceNode = this.bubbleMaterial.iridescenceNode;
-      burstBubbleMaterial.iridescenceIORNode = this.bubbleMaterial.iridescenceIORNode;
-      burstBubbleMaterial.iridescenceThicknessNode = this.bubbleMaterial.iridescenceThicknessNode;
-      burstBubbleMaterial.transmission = this.bubbleMaterial.transmission;
-      burstBubbleMaterial.roughness = Math.min(0.26, this.bubbleMaterial.roughness + 0.02);
-      burstBubbleMaterial.thickness = Math.min(0.7, this.bubbleMaterial.thickness * 0.5);
-      burstBubbleMaterial.ior = this.bubbleMaterial.ior;
-      burstBubbleMaterial.clearcoat = this.bubbleMaterial.clearcoat;
-      burstBubbleMaterial.clearcoatRoughness = this.bubbleMaterial.clearcoatRoughness;
-      burstBubbleMaterial.envMapIntensity = this.bubbleMaterial.envMapIntensity;
-
-      const randomDir = new THREE.Vector3(
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1
-      ).normalize();
-
-      const spawnDir = new THREE.Vector3(
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1,
-        Math.random() * 2 - 1
-      ).normalize();
-
-      const velocityDir = spawnDir.clone().lerp(randomDir, 0.22).normalize();
-      const speed = 0.34 + Math.random() * 0.5;
-      this.burstBubbleVelocities[i].copy(velocityDir).multiplyScalar(speed);
-
-      const innerRadius = bubbleBaseRadius * this.preBurstScaleMax * 0.9;
-      const spawnRadius = innerRadius * Math.cbrt(Math.random());
-      burstBubbleMesh.position.copy(this.bubble.position).addScaledVector(spawnDir, spawnRadius * this.baseScale);
-
-      const startScale = (0.055 + Math.random() * 0.11) * this.baseScale;
-      this.burstBubbleBaseScale[i] = startScale;
-      burstBubbleMesh.scale.setScalar(startScale);
-      burstBubbleMaterial.opacity = 0;
-      burstBubbleMesh.visible = true;
-
-      this.burstBubbleLife[i] = 1.05 + Math.random() * 0.75;
-      this.burstBubbleLifeMax[i] = this.burstBubbleLife[i];
-    }
-
-    this.burstPointsVisible = true;
-  }
-
-  updateBurstParticles(delta) {
-    let aliveCount = 0;
-
-    for (let i = 0; i < burstBubbleCount; i += 1) {
-      if (this.burstBubbleLife[i] <= 0) continue;
-
-      aliveCount += 1;
-      const burstBubbleMesh = this.burstBubbleMeshes[i];
-      this.burstBubbleLife[i] -= delta;
-
-      this.burstBubbleVelocities[i].multiplyScalar(Math.pow(0.94, delta * 60));
-      burstBubbleMesh.position.addScaledVector(this.burstBubbleVelocities[i], delta);
-
-      const lifeRatio = Math.max(this.burstBubbleLife[i], 0) / Math.max(this.burstBubbleLifeMax[i], 0.0001);
-      const age = Math.max(this.burstBubbleLifeMax[i] - this.burstBubbleLife[i], 0);
-      const appear = Math.min(age / this.burstBubbleFadeInDuration, 1);
-      const fade = Math.pow(lifeRatio, 0.62);
-      const scaleNow = this.burstBubbleBaseScale[i] * (0.68 + 0.32 * fade);
-
-      burstBubbleMesh.scale.setScalar(scaleNow);
-      burstBubbleMesh.material.opacity = this.baseOpacity * fade * appear;
-
-      if (this.burstBubbleLife[i] <= 0) {
-        burstBubbleMesh.visible = false;
-        burstBubbleMesh.material.opacity = 0;
-      }
-    }
-
-    if (aliveCount === 0) this.burstPointsVisible = false;
+    spawnBurstParticlesForBubble(this);
   }
 }
 

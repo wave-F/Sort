@@ -179,6 +179,30 @@ body {
   color: #356088;
 }
 
+#level-win {
+  z-index: 14;
+  background: rgba(232, 244, 255, 0.9);
+  color: #2c5f8f;
+}
+
+#level-win h2 {
+  margin: 0;
+  font-size: clamp(34px, 8.8vw, 52px);
+  letter-spacing: 0.06em;
+  text-shadow: 0 6px 16px rgba(92, 178, 255, 0.35);
+}
+
+#level-win p {
+  margin: 16px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+#level-win-next-btn {
+  margin-top: 22px;
+}
+
 #pause-overlay {
   z-index: 11;
   background: rgba(18, 30, 45, 0.44);

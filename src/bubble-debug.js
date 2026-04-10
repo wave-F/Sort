@@ -40,6 +40,7 @@ const defaults = {
   toggleEdge: true,
   toggleIri: true,
   toggleRandom: true,
+  toggleBomb: false,
 };
 
 const scene = new THREE.Scene();
@@ -82,6 +83,7 @@ let springVel = 0;
 let tension = defaults.springTension;
 let damping = defaults.springDamping;
 let randomClickColorEnabled = defaults.toggleRandom;
+let bombModeEnabled = defaults.toggleBomb;
 let activeColorIndex = 0;
 const clock = new THREE.Clock();
 
@@ -146,6 +148,65 @@ material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iride
 
 const bubble = new THREE.Mesh(bubbleGeometry, material);
 scene.add(bubble);
+
+const bombGroup = new THREE.Group();
+const bombCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.72, 44, 44),
+  new THREE.MeshStandardMaterial({
+    color: 0x252a33,
+    roughness: 0.38,
+    metalness: 0.14,
+  })
+);
+const bombCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.16, 0.18, 0.2, 22),
+  new THREE.MeshStandardMaterial({
+    color: 0x303844,
+    roughness: 0.32,
+    metalness: 0.2,
+  })
+);
+bombCap.position.set(0, 0.67, 0);
+
+const bombFuse = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.04, 0.05, 0.38, 14),
+  new THREE.MeshStandardMaterial({
+    color: 0xe7b96e,
+    roughness: 0.9,
+    metalness: 0.02,
+  })
+);
+bombFuse.position.set(0.04, 0.89, 0);
+bombFuse.rotation.z = -0.35;
+
+const bombSpark = new THREE.Mesh(
+  new THREE.SphereGeometry(0.09, 16, 16),
+  new THREE.MeshBasicMaterial({
+    color: 0xff7b39,
+    transparent: true,
+    opacity: 0.9,
+  })
+);
+bombSpark.position.set(-0.08, 1.07, 0);
+
+const bombRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.95, 0.05, 18, 72),
+  new THREE.MeshBasicMaterial({
+    color: 0xff6a3a,
+    transparent: true,
+    opacity: 0.35,
+    depthWrite: false,
+  })
+);
+bombRing.rotation.x = Math.PI * 0.5;
+
+bombGroup.add(bombCore);
+bombGroup.add(bombCap);
+bombGroup.add(bombFuse);
+bombGroup.add(bombSpark);
+bombGroup.add(bombRing);
+bombGroup.visible = false;
+bubble.add(bombGroup);
 
 const BubbleState = {
   IDLE: "IDLE",
@@ -363,6 +424,10 @@ bindToggle("t-iri", (checked) => {
 bindToggle("t-random", (checked) => {
   randomClickColorEnabled = checked;
 });
+bindToggle("t-bomb", (checked) => {
+  bombModeEnabled = checked;
+  updateBombVisualState(clock.elapsedTime);
+});
 
 document.getElementById("reset-btn").addEventListener("click", () => {
   setControlValue("p-transmission", defaults.transmission);
@@ -381,6 +446,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   setToggleValue("t-edge", defaults.toggleEdge);
   setToggleValue("t-iri", defaults.toggleIri);
   setToggleValue("t-random", defaults.toggleRandom);
+  setToggleValue("t-bomb", defaults.toggleBomb);
 
   material.transmission = defaults.transmission;
   material.roughness = defaults.roughness;
@@ -399,6 +465,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   edgeEnabledUniform.value = defaults.toggleEdge ? 1 : 0;
   iridescenceEnabledUniform.value = defaults.toggleIri ? 1 : 0;
   randomClickColorEnabled = defaults.toggleRandom;
+  bombModeEnabled = defaults.toggleBomb;
   previewModeEnabled = false;
   bubbleState = BubbleState.IDLE;
   stateElapsed = 0;
@@ -408,6 +475,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   bubble.scale.setScalar(1);
   material.opacity = 0.95;
   setPopProgressUI(0);
+  updateBombVisualState(clock.elapsedTime);
 });
 
 window.addEventListener("pointerdown", (event) => {
@@ -438,6 +506,27 @@ function triggerBubblePop() {
   material.opacity = 0.95;
   bubble.scale.setScalar(1);
   springVel -= 1.1;
+}
+
+function updateBombVisualState(elapsedTime) {
+  const bubbleAlive = bubble.visible && bubbleState !== BubbleState.DISSIPATE;
+  bombGroup.visible = bombModeEnabled && bubbleAlive;
+  if (!bombGroup.visible) return;
+
+  const dangerBoost = bubbleState === BubbleState.PRE_BURST || bubbleState === BubbleState.BURST ? 1.0 : 0.0;
+  const pulse = 0.5 + 0.5 * Math.sin(elapsedTime * (4.8 + dangerBoost * 5.2));
+  const ringPulse = 0.5 + 0.5 * Math.sin(elapsedTime * (3.2 + dangerBoost * 6.4));
+
+  bombCore.scale.setScalar(0.98 + pulse * (0.04 + dangerBoost * 0.06));
+  bombRing.material.opacity = 0.2 + ringPulse * (0.25 + dangerBoost * 0.35);
+  bombRing.scale.setScalar(0.9 + ringPulse * (0.12 + dangerBoost * 0.2));
+
+  const sparkMat = bombSpark.material;
+  sparkMat.opacity = 0.35 + Math.random() * (0.35 + dangerBoost * 0.25);
+  bombSpark.scale.setScalar(0.9 + Math.random() * (0.35 + dangerBoost * 0.35));
+
+  const jitter = dangerBoost * 0.018;
+  bombGroup.position.set((Math.random() * 2 - 1) * jitter, (Math.random() * 2 - 1) * jitter, 0);
 }
 
 function updatePopState(dt) {
@@ -701,6 +790,7 @@ async function bootstrap() {
 
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 1 / 30);
+    const elapsed = clock.elapsedTime;
 
     springVel += (0 - springVal) * tension;
     springVel *= damping;
@@ -708,6 +798,7 @@ async function bootstrap() {
     springUniform.value = springVal;
 
     updatePopState(dt);
+    updateBombVisualState(elapsed);
 
     controls.update();
     renderer.render(scene, camera);
