@@ -9,6 +9,8 @@
   --result-card-width: 320px;
   --result-card-height: 260px;
   --result-card-y: 0px;
+  --result-actions-y: 0px;
+  --result-actions-scale: 1;
   --control-panel-x: 0px;
   --text: #fff6fb;
   --accent: #ffdf73;
@@ -238,6 +240,26 @@ body {
 .control-row em {
   font-style: normal;
   text-align: right;
+}
+
+.control-text-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.control-text-row input {
+  width: 100%;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 85, 124, 0.3);
+  background: rgba(255, 255, 255, 0.52);
+  color: #5f4b69;
+  padding: 0 8px;
 }
 
 .control-group {
@@ -480,7 +502,8 @@ body {
 .result-card {
   position: relative;
   width: min(90%, var(--result-card-width));
-  min-height: var(--result-card-height);
+  height: var(--result-card-height);
+  box-sizing: border-box;
   color: #6f527e;
   padding: 44px 20px 16px;
   text-align: center;
@@ -511,6 +534,70 @@ body {
 
 #result-back-btn {
   margin-top: 14px;
+}
+
+.result-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  transform: translateY(var(--result-actions-y)) scale(var(--result-actions-scale));
+  transform-origin: center top;
+}
+
+.result-actions button {
+  margin-top: 0;
+  min-width: 110px;
+}
+
+#result-retry-btn,
+#result-exit-btn,
+#result-back-btn {
+  border-radius: 0;
+  min-width: 132px;
+  min-height: 62px;
+  padding: 10px 18px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  box-shadow: none;
+}
+
+#result-retry-btn {
+  background-image:
+    url("../assets/images/iconShade_Restart.png"),
+    url("../assets/images/button_5_Orange.png");
+  width: 256px;
+  height: 256px;
+  min-width: 256px;
+  min-height: 256px;
+  padding: 0;
+  background-size: 128px 128px, 256px 256px;
+  background-position: center, center;
+  color: transparent;
+  font-size: 0;
+}
+
+#result-exit-btn {
+  background-image:
+    url("../assets/images/iconShade_Home.png"),
+    url("../assets/images/button_5_Red.png");
+  width: 256px;
+  height: 256px;
+  min-width: 256px;
+  min-height: 256px;
+  padding: 0;
+  background-size: 128px 128px, 256px 256px;
+  background-position: center, center;
+  color: transparent;
+  font-size: 0;
+}
+
+#result-back-btn {
+  color: #6f5f76;
+  background-image: url("../assets/images/button_4_White.png");
+  font-size: 24px;
+  font-weight: 900;
 }
 
 #start-screen h1,

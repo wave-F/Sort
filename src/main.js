@@ -21,9 +21,13 @@ const controlSaveBtn = document.getElementById("control-save-btn");
 const showResultBtn = document.getElementById("show-result-btn");
 const resultPageEl = document.getElementById("result-page");
 const resultBackBtn = document.getElementById("result-back-btn");
+const resultRetryBtn = document.getElementById("result-retry-btn");
+const resultExitBtn = document.getElementById("result-exit-btn");
 const resultPageTitleEl = document.getElementById("result-page-title");
 const resultPageTitleTextEl = document.getElementById("result-page-title-text");
 const resultPageTextEl = document.getElementById("result-page-text");
+const ctlFailTitleEl = document.getElementById("ctl-fail-title");
+const ctlFailBodyEl = document.getElementById("ctl-fail-body");
 const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
 const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
@@ -43,9 +47,13 @@ const ctlPanelMarginLeftValueEl = document.getElementById("ctl-panel-margin-left
 const ctlResultWidthEl = document.getElementById("ctl-result-width");
 const ctlResultHeightEl = document.getElementById("ctl-result-height");
 const ctlResultYEl = document.getElementById("ctl-result-y");
+const ctlResultActionsYEl = document.getElementById("ctl-result-actions-y");
+const ctlResultActionsScaleEl = document.getElementById("ctl-result-actions-scale");
 const ctlResultWidthValueEl = document.getElementById("ctl-result-width-value");
 const ctlResultHeightValueEl = document.getElementById("ctl-result-height-value");
 const ctlResultYValueEl = document.getElementById("ctl-result-y-value");
+const ctlResultActionsYValueEl = document.getElementById("ctl-result-actions-y-value");
+const ctlResultActionsScaleValueEl = document.getElementById("ctl-result-actions-scale-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -151,6 +159,8 @@ function init() {
   if (controlSaveBtn) controlSaveBtn.addEventListener("click", saveAndApplyControls);
   if (showResultBtn) showResultBtn.addEventListener("click", showResultPage);
   if (resultBackBtn) resultBackBtn.addEventListener("click", hideResultPage);
+  if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
+  if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
 
   bindControlPanel();
 
@@ -212,6 +222,22 @@ function bindControlPanel() {
     ctlResultYEl.value = String(saved.resultY);
     ctlResultYEl.addEventListener("input", onResultLayoutInput);
   }
+  if (ctlResultActionsYEl) {
+    ctlResultActionsYEl.value = String(saved.resultActionsY);
+    ctlResultActionsYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlResultActionsScaleEl) {
+    ctlResultActionsScaleEl.value = String(saved.resultActionsScale);
+    ctlResultActionsScaleEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlFailTitleEl) {
+    ctlFailTitleEl.value = saved.failTitle;
+    ctlFailTitleEl.addEventListener("input", onFailCopyInput);
+  }
+  if (ctlFailBodyEl) {
+    ctlFailBodyEl.value = saved.failBody;
+    ctlFailBodyEl.addEventListener("input", onFailCopyInput);
+  }
 
   applyControlValues(saved);
   syncControlPanelLabels();
@@ -256,6 +282,10 @@ function onResultLayoutInput() {
   syncControlPanelLabels();
 }
 
+function onFailCopyInput() {
+  applyControlValues(collectControlValues());
+}
+
 function syncControlPanelLabels() {
   if (ctlControlPanelXValueEl) ctlControlPanelXValueEl.textContent = String(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)));
   if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
@@ -268,6 +298,8 @@ function syncControlPanelLabels() {
   if (ctlResultWidthValueEl) ctlResultWidthValueEl.textContent = String(Math.floor(Number(ctlResultWidthEl?.value ?? 320)));
   if (ctlResultHeightValueEl) ctlResultHeightValueEl.textContent = String(Math.floor(Number(ctlResultHeightEl?.value ?? 260)));
   if (ctlResultYValueEl) ctlResultYValueEl.textContent = String(Math.floor(Number(ctlResultYEl?.value ?? 0)));
+  if (ctlResultActionsYValueEl) ctlResultActionsYValueEl.textContent = String(Math.floor(Number(ctlResultActionsYEl?.value ?? 0)));
+  if (ctlResultActionsScaleValueEl) ctlResultActionsScaleValueEl.textContent = Number(ctlResultActionsScaleEl?.value ?? 1).toFixed(2);
 }
 
 function readControlSave() {
@@ -283,6 +315,10 @@ function readControlSave() {
     resultWidth: 320,
     resultHeight: 260,
     resultY: 0,
+    resultActionsY: 0,
+    resultActionsScale: 1,
+    failTitle: "失败",
+    failBody: "当前分数 {score} · 当前关卡 {level}",
   };
 
   try {
@@ -301,6 +337,10 @@ function readControlSave() {
       resultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultWidth) || defaults.resultWidth), 220, 420),
       resultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultHeight) || defaults.resultHeight), 160, 560),
       resultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultY) || defaults.resultY), -220, 220),
+      resultActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultActionsY) || defaults.resultActionsY), -180, 180),
+      resultActionsScale: THREE.MathUtils.clamp(Number(parsed?.resultActionsScale) || defaults.resultActionsScale, 0.1, 1.6),
+      failTitle: String(parsed?.failTitle ?? defaults.failTitle).slice(0, 18),
+      failBody: String(parsed?.failBody ?? defaults.failBody).slice(0, 80),
     };
   } catch (_err) {
     return defaults;
@@ -320,6 +360,10 @@ function collectControlValues() {
     resultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlResultWidthEl?.value ?? 320)), 220, 420),
     resultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlResultHeightEl?.value ?? 260)), 160, 560),
     resultY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultYEl?.value ?? 0)), -220, 220),
+    resultActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultActionsYEl?.value ?? 0)), -180, 180),
+    resultActionsScale: THREE.MathUtils.clamp(Number(ctlResultActionsScaleEl?.value ?? 1), 0.1, 1.6),
+    failTitle: (String(ctlFailTitleEl?.value ?? "失败").trim() || "失败").slice(0, 18),
+    failBody: (String(ctlFailBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
   };
 }
 
@@ -335,6 +379,10 @@ function setControlInputs(values) {
   if (ctlResultWidthEl) ctlResultWidthEl.value = String(values.resultWidth);
   if (ctlResultHeightEl) ctlResultHeightEl.value = String(values.resultHeight);
   if (ctlResultYEl) ctlResultYEl.value = String(values.resultY);
+  if (ctlResultActionsYEl) ctlResultActionsYEl.value = String(values.resultActionsY);
+  if (ctlResultActionsScaleEl) ctlResultActionsScaleEl.value = String(values.resultActionsScale);
+  if (ctlFailTitleEl) ctlFailTitleEl.value = values.failTitle;
+  if (ctlFailBodyEl) ctlFailBodyEl.value = values.failBody;
 }
 
 function applyControlValues(values) {
@@ -352,6 +400,19 @@ function applyControlValues(values) {
   rootStyle.setProperty("--result-card-width", `${values.resultWidth}px`);
   rootStyle.setProperty("--result-card-height", `${values.resultHeight}px`);
   rootStyle.setProperty("--result-card-y", `${values.resultY}px`);
+  rootStyle.setProperty("--result-actions-y", `${values.resultActionsY}px`);
+  rootStyle.setProperty("--result-actions-scale", String(values.resultActionsScale));
+
+  if (state.resultOutcome === "lose" && resultPageEl && !resultPageEl.classList.contains("hidden")) {
+    if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.failTitle;
+    if (resultPageTextEl) resultPageTextEl.textContent = formatResultFailBody(values.failBody);
+  }
+}
+
+function formatResultFailBody(template) {
+  return template
+    .replaceAll("{score}", String(state.score))
+    .replaceAll("{level}", String(state.currentLevelIndex + 1));
 }
 
 function saveAndApplyControls() {
@@ -399,24 +460,83 @@ function discardAndHideControlPanel() {
 
 function showResultPage() {
   if (!resultPageEl) return;
+  const isWin = state.resultOutcome === "win";
+  const controlValues = currentControlValues || collectControlValues();
+
   if (resultPageTitleEl) {
-    const isWin = state.resultOutcome === "win";
     resultPageTitleEl.classList.toggle("is-win", isWin);
     resultPageTitleEl.classList.toggle("is-lose", !isWin);
   }
   if (resultPageTitleTextEl) {
-    const isWin = state.resultOutcome === "win";
-    resultPageTitleTextEl.textContent = isWin ? "胜利" : "失败";
+    resultPageTitleTextEl.textContent = isWin ? "胜利" : controlValues.failTitle;
   }
   if (resultPageTextEl) {
-    resultPageTextEl.textContent = `当前分数 ${state.score} · 当前关卡 ${state.currentLevelIndex + 1}`;
+    resultPageTextEl.textContent = isWin
+      ? `当前分数 ${state.score} · 当前关卡 ${state.currentLevelIndex + 1}`
+      : formatResultFailBody(controlValues.failBody);
   }
+
+  if (resultRetryBtn) resultRetryBtn.classList.toggle("hidden", isWin);
+  if (resultExitBtn) resultExitBtn.classList.toggle("hidden", isWin);
+  if (resultBackBtn) resultBackBtn.classList.toggle("hidden", !isWin);
+
   resultPageEl.classList.remove("hidden");
 }
 
 function hideResultPage() {
   if (!resultPageEl) return;
   resultPageEl.classList.add("hidden");
+}
+
+function retryFromResultPage() {
+  hideResultPage();
+
+  state.started = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.sliceColorId = null;
+  state.sliceBroken = false;
+  state.sliceCommitted = false;
+  clearQueuedSelections();
+  state.sliceHitIds.clear();
+  state.sliceQueue.length = 0;
+  state.lastPoint = null;
+  state.nowPoint = null;
+
+  trail.reset();
+  particles.reset();
+  gameOverEl.classList.add("hidden");
+  startScreenEl.classList.add("hidden");
+
+  loadLevel(state.currentLevelIndex);
+}
+
+function exitToStartFromResultPage() {
+  hideResultPage();
+
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.sliceColorId = null;
+  state.sliceBroken = false;
+  state.sliceCommitted = false;
+  clearQueuedSelections();
+  state.sliceHitIds.clear();
+  state.sliceQueue.length = 0;
+  state.lastPoint = null;
+  state.nowPoint = null;
+
+  trail.reset();
+  particles.reset();
+  for (const fruit of fruits) {
+    scene.remove(fruit.group);
+  }
+  fruits.length = 0;
+
+  gameOverEl.classList.add("hidden");
+  startScreenEl.classList.remove("hidden");
 }
 
 async function setupRenderer() {
@@ -1304,7 +1424,8 @@ function endGame(reason) {
     if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `本局结束！本局分数 ${state.score}`;
     else gameOverTitleEl.textContent = `本局结束！本局分数 ${state.score}`;
   }
-  gameOverEl.classList.remove("hidden");
+  gameOverEl.classList.add("hidden");
+  showResultPage();
   setSliceStatus(`状态: ${reason}`);
 }
 

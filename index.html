@@ -107,9 +107,35 @@
             <em id="ctl-result-y-value">0</em>
           </label>
 
+          <label class="control-row">
+            <span>按钮Y</span>
+            <input id="ctl-result-actions-y" type="range" min="-180" max="180" step="1" value="0" />
+            <em id="ctl-result-actions-y-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>按钮缩放</span>
+            <input id="ctl-result-actions-scale" type="range" min="0.1" max="1.6" step="0.01" value="1" />
+            <em id="ctl-result-actions-scale-value">1.00</em>
+          </label>
+
           <div class="control-group-actions">
             <button id="show-result-btn" type="button">结果页</button>
           </div>
+        </fieldset>
+
+        <fieldset class="control-group">
+          <legend>失败文案</legend>
+
+          <label class="control-text-row">
+            <span>标题</span>
+            <input id="ctl-fail-title" type="text" value="失败" />
+          </label>
+
+          <label class="control-text-row">
+            <span>内容</span>
+            <input id="ctl-fail-body" type="text" value="当前分数 {score} · 当前关卡 {level}" />
+          </label>
         </fieldset>
 
         <div class="control-actions">
@@ -155,13 +181,17 @@
         <div class="result-card panel-light">
           <h2 id="result-page-title" class="result-title panel-title-ribbon is-lose"><span id="result-page-title-text">结果页</span></h2>
           <p id="result-page-text">当前暂无统计。</p>
-          <button id="result-back-btn" type="button">返回游戏</button>
+          <div class="result-actions">
+            <button id="result-retry-btn" type="button" class="hidden" aria-label="重试"></button>
+            <button id="result-exit-btn" type="button" class="hidden" aria-label="返回"></button>
+            <button id="result-back-btn" type="button">返回游戏</button>
+          </div>
         </div>
       </div>
 
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=39"></script>
+    <script type="module" src="./src/main.js?v=44"></script>
   </body>
 </html>
