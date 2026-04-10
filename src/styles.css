@@ -50,7 +50,7 @@ body {
 }
 
 body {
-  background: radial-gradient(circle at 30% 8%, #f6dce3 0%, var(--bg-1) 42%, var(--bg-2) 92%);
+  background: transparent;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -66,7 +66,7 @@ body {
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow: 0 18px 42px rgba(73, 39, 74, 0.36);
-  background: linear-gradient(180deg, #ebc3d2 0%, #f2d0d6 50%, #f0d2c8 100%);
+  background: transparent;
 }
 
 #bg-art {
@@ -75,14 +75,14 @@ body {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+  background: url("../assets/images/09_aurora_gradient.png") center / 100% 100% no-repeat;
 }
 
 .bg-sky,
 .bg-lane,
 .bg-hills,
 .bg-forest {
-  position: absolute;
-  inset: 0;
+  display: none;
 }
 
 .bg-sky {

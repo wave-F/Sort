@@ -161,7 +161,6 @@ const levelEditor = {
 };
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xe2b8c7, 8, 18);
 
 const camera = new THREE.OrthographicCamera();
 camera.position.set(0, 0, 9);
@@ -193,13 +192,6 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.84));
 const key = new THREE.DirectionalLight(0xffffff, 1.1);
 key.position.set(2, 5, 6);
 scene.add(key);
-
-const bgPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(30, 30),
-  new THREE.MeshBasicMaterial({ color: 0xfff3f6, transparent: true, opacity: 0.06 })
-);
-bgPlane.position.z = -1.5;
-scene.add(bgPlane);
 
 init();
 
@@ -1869,6 +1861,7 @@ function resize() {
   bounds.right = camera.right - 0.5;
   bounds.top = camera.top - 0.5;
   bounds.bottom = camera.bottom + 0.5;
+
 }
 
 function updateHud() {
