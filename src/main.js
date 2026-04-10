@@ -56,14 +56,14 @@ const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
 const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
 
 const colors = [
-  { id: "red", name: "红泡", base: 0xff1f4b },
+  { id: "red", name: "红泡", base: 0xff3355 },
   { id: "orange", name: "橙泡", base: 0xff9800 },
-  { id: "green", name: "绿泡", base: 0x12cf5b },
-  { id: "blue", name: "蓝泡", base: 0x1b8fff },
-  { id: "purple", name: "紫泡", base: 0x8a4dff },
-  { id: "cyan", name: "青泡", base: 0x00c8ff },
-  { id: "yellow", name: "黄泡", base: 0xffde59 },
-  { id: "pink", name: "粉泡", base: 0xff6fcf },
+  { id: "green", name: "绿泡", base: 0x20c85a },
+  { id: "blue", name: "蓝泡", base: 0x2f7dff },
+  { id: "purple", name: "紫泡", base: 0x9b5cff },
+  { id: "yellow", name: "黄泡", base: 0xf7d046 },
+  { id: "pink", name: "粉泡", base: 0xff5fb2 },
+  { id: "teal", name: "青泡", base: 0x14b8a6 },
 ];
 
 const defaultBubbleTuning = {
@@ -120,7 +120,7 @@ const audioState = {
 };
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xfffefc);
+scene.background = new THREE.Color(0xfffbf2);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
 camera.position.set(0, 0, 12.1);
