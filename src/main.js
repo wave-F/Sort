@@ -109,6 +109,7 @@ const playPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 const workHit = new THREE.Vector3();
 const workA = new THREE.Vector3();
+const workProject = new THREE.Vector3();
 
 let commentaryTimer = 0;
 
@@ -843,17 +844,23 @@ function processSliceSegment(dt) {
   const sliceDir = workA.multiplyScalar(1 / len);
   const speed = Math.min(len / Math.max(dt, 0.001), 14);
 
-  // Follow 1.html style: top-most scan order and first hit wins.
+  // Use raycast top-hit sampling so selection follows visible overlap.
   const ax = state.lastPoint.x;
   const ay = state.lastPoint.y;
   const bx = state.nowPoint.x;
   const by = state.nowPoint.y;
-  for (let i = fruits.length - 1; i >= 0; i -= 1) {
-    const fruit = fruits[i];
-    if (!fruit.active || fruit.sliced || state.sliceHitIds.has(fruit.id)) continue;
+  const hits = collectSliceHitsSorted(ax, ay, bx, by);
+  for (let i = 0; i < hits.length; i += 1) {
+    const { fruit, hitRadius } = hits[i];
 
-    const dist = distSegmentToPointNumeric(ax, ay, bx, by, fruit.group.position.x, fruit.group.position.y);
-    if (dist > fruit.radius) continue;
+    if (state.sliceHitIds.has(fruit.id)) {
+      const dx = bx - fruit.group.position.x;
+      const dy = by - fruit.group.position.y;
+      if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+        return;
+      }
+      continue;
+    }
 
     if (state.sliceColorId === null) {
       if (!state.sliceCommitted) {
@@ -887,6 +894,49 @@ function processSliceSegment(dt) {
     setSliceStatus(`状态: 已选${state.sliceHitIds.size}个${colors[state.sliceColorId].name}`);
     return;
   }
+}
+
+function collectSliceHitsSorted(ax, ay, bx, by) {
+  const result = [];
+  const seen = new Set();
+  const len = Math.hypot(bx - ax, by - ay);
+  const sampleCount = Math.max(1, Math.ceil(len / 0.08));
+  const bubbleMeshes = collectPickableBubbleMeshes();
+  if (!bubbleMeshes.length) return result;
+
+  for (let i = 1; i <= sampleCount; i += 1) {
+    const t = i / sampleCount;
+    const x = lerp(ax, bx, t);
+    const y = lerp(ay, by, t);
+    const fruit = pickTopFruitAtWorldPoint(x, y, bubbleMeshes);
+    if (!fruit || seen.has(fruit.id)) continue;
+
+    seen.add(fruit.id);
+    const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+    result.push({ fruit, hitRadius });
+  }
+
+  return result;
+}
+
+function collectPickableBubbleMeshes() {
+  const bubbleMeshes = [];
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit.active || fruit.sliced || !fruit.bubble.visible) continue;
+    bubbleMeshes.push(fruit.bubble);
+  }
+  return bubbleMeshes;
+}
+
+function pickTopFruitAtWorldPoint(worldX, worldY, bubbleMeshes) {
+  workProject.set(worldX, worldY, 0).project(camera);
+  raycaster.setFromCamera({ x: workProject.x, y: workProject.y }, camera);
+
+  const intersections = raycaster.intersectObjects(bubbleMeshes, false);
+  if (!intersections.length) return null;
+
+  return intersections[0].object.userData.fruit ?? null;
 }
 
 function settleQueuedSlices() {
@@ -1189,6 +1239,7 @@ class BubbleEntity {
 
     this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
     this.bubble.scale.setScalar(this.baseScale);
+    this.bubble.userData.fruit = this;
     this.selectRing = this.createSelectRing();
 
     this.burstState = BubbleBurstState.IDLE;
