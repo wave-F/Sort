@@ -154,6 +154,15 @@ let trail;
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
 const levelRuntimeCache = new Map();
+const collisionGridCellSize = 1.2;
+const collisionGridMaxNeighborRange = 2;
+const sliceGridCellSize = 1.2;
+
+const workCollisionGrid = new Map();
+const workCollisionActive = [];
+const workSliceGrid = new Map();
+const workSliceCandidates = [];
+const workSliceMeshes = [];
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -759,6 +768,14 @@ function buildColorBag(colorCounts, fruitCount) {
   return bag;
 }
 
+function gridCoord(value, cellSize) {
+  return Math.floor(value / cellSize);
+}
+
+function gridKey(cellX, cellY) {
+  return `${cellX},${cellY}`;
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -1342,14 +1359,21 @@ function collectSliceHitsSorted(ax, ay, bx, by) {
   const seen = new Set();
   const len = Math.hypot(bx - ax, by - ay);
   const sampleCount = Math.max(1, Math.ceil(len / 0.08));
-  const bubbleMeshes = collectPickableBubbleMeshes();
-  if (!bubbleMeshes.length) return result;
+  const spatial = buildSliceSpatialIndex();
+  if (spatial.maxRadius <= 0) return result;
 
   for (let i = 1; i <= sampleCount; i += 1) {
     const t = i / sampleCount;
     const x = lerp(ax, bx, t);
     const y = lerp(ay, by, t);
-    const fruit = pickTopFruitAtWorldPoint(x, y, bubbleMeshes);
+    const candidateCount = collectSliceCandidatesAtPoint(x, y, spatial, workSliceCandidates);
+    if (candidateCount === 0) continue;
+    workSliceMeshes.length = 0;
+    for (let k = 0; k < candidateCount; k += 1) {
+      workSliceMeshes.push(workSliceCandidates[k].bubble);
+    }
+
+    const fruit = pickTopFruitAtWorldPoint(x, y, workSliceMeshes);
     if (!fruit || seen.has(fruit.id)) continue;
 
     seen.add(fruit.id);
@@ -1360,14 +1384,57 @@ function collectSliceHitsSorted(ax, ay, bx, by) {
   return result;
 }
 
-function collectPickableBubbleMeshes() {
-  const bubbleMeshes = [];
+function buildSliceSpatialIndex() {
+  workSliceGrid.clear();
+  let maxRadius = 0;
+
   for (let i = 0; i < fruits.length; i += 1) {
     const fruit = fruits[i];
     if (!fruit.active || fruit.sliced || !fruit.bubble.visible) continue;
-    bubbleMeshes.push(fruit.bubble);
+
+    const px = fruit.group.position.x;
+    const py = fruit.group.position.y;
+    const cellX = gridCoord(px, sliceGridCellSize);
+    const cellY = gridCoord(py, sliceGridCellSize);
+    const key = gridKey(cellX, cellY);
+    const bucket = workSliceGrid.get(key);
+    if (bucket) bucket.push(fruit);
+    else workSliceGrid.set(key, [fruit]);
+
+    const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+    if (hitRadius > maxRadius) maxRadius = hitRadius;
   }
-  return bubbleMeshes;
+
+  return { grid: workSliceGrid, maxRadius };
+}
+
+function collectSliceCandidatesAtPoint(x, y, spatial, out) {
+  out.length = 0;
+  if (!spatial.grid.size || spatial.maxRadius <= 0) return 0;
+
+  const queryPadding = 0.28;
+  const queryRadius = spatial.maxRadius + queryPadding;
+  const rangeCells = Math.max(1, Math.ceil(queryRadius / sliceGridCellSize));
+  const centerCellX = gridCoord(x, sliceGridCellSize);
+  const centerCellY = gridCoord(y, sliceGridCellSize);
+
+  for (let oy = -rangeCells; oy <= rangeCells; oy += 1) {
+    for (let ox = -rangeCells; ox <= rangeCells; ox += 1) {
+      const bucket = spatial.grid.get(gridKey(centerCellX + ox, centerCellY + oy));
+      if (!bucket) continue;
+      for (let i = 0; i < bucket.length; i += 1) {
+        const fruit = bucket[i];
+        const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1) + queryPadding;
+        const dx = x - fruit.group.position.x;
+        const dy = y - fruit.group.position.y;
+        if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+          out.push(fruit);
+        }
+      }
+    }
+  }
+
+  return out.length;
 }
 
 function pickTopFruitAtWorldPoint(worldX, worldY, bubbleMeshes) {
@@ -1443,65 +1510,97 @@ function updateStepsHud() {
 }
 
 function resolveFruitCollisions() {
-  for (let i = 0; i < fruits.length; i += 1) {
-    const d1 = fruits[i];
-    if (!d1.active || d1.sliced) continue;
-    for (let j = i + 1; j < fruits.length; j += 1) {
-      const d2 = fruits[j];
-      if (!d2.active || d2.sliced) continue;
+  const activeCount = buildCollisionSpatialIndex();
+  if (activeCount < 2) return;
 
-      const dx = d2.group.position.x - d1.group.position.x;
-      const dy = d2.group.position.y - d1.group.position.y;
-      let dist = Math.hypot(dx, dy);
-      const hardDist = d1.radius + d2.radius;
-      const softContactDist = hardDist * 0.42;
-      if (dist >= softContactDist) continue;
+  for (let i = 0; i < activeCount; i += 1) {
+    const d1 = workCollisionActive[i];
+    const baseCellX = gridCoord(d1.group.position.x, collisionGridCellSize);
+    const baseCellY = gridCoord(d1.group.position.y, collisionGridCellSize);
 
-      let nx = dx;
-      let ny = dy;
-      if (dist === 0) {
-        nx = 1;
-        ny = 0;
-        dist = 1;
+    for (let oy = -collisionGridMaxNeighborRange; oy <= collisionGridMaxNeighborRange; oy += 1) {
+      for (let ox = -collisionGridMaxNeighborRange; ox <= collisionGridMaxNeighborRange; ox += 1) {
+        const bucket = workCollisionGrid.get(gridKey(baseCellX + ox, baseCellY + oy));
+        if (!bucket) continue;
+
+        for (let j = 0; j < bucket.length; j += 1) {
+          const d2 = bucket[j];
+          if (d2.id <= d1.id || !d2.active || d2.sliced) continue;
+
+          const dx = d2.group.position.x - d1.group.position.x;
+          const dy = d2.group.position.y - d1.group.position.y;
+          let dist = Math.hypot(dx, dy);
+          const hardDist = d1.radius + d2.radius;
+          const softContactDist = hardDist * 0.42;
+          if (dist >= softContactDist) continue;
+
+          let nx = dx;
+          let ny = dy;
+          if (dist === 0) {
+            nx = 1;
+            ny = 0;
+            dist = 1;
+          }
+
+          nx /= dist;
+          ny /= dist;
+          const overlap = softContactDist - dist;
+
+          const m1 = d1.radius * d1.radius;
+          const m2 = d2.radius * d2.radius;
+          const totalM = m1 + m2;
+          const r1 = m2 / totalM;
+          const r2 = m1 / totalM;
+
+          const separation = overlap * 0.12;
+          d1.group.position.x -= nx * separation * r1;
+          d1.group.position.y -= ny * separation * r1;
+          d2.group.position.x += nx * separation * r2;
+          d2.group.position.y += ny * separation * r2;
+
+          d1.applyContact(-nx, -ny, overlap);
+          d2.applyContact(nx, ny, overlap);
+
+          const kx = d1.vel.x - d2.vel.x;
+          const ky = d1.vel.y - d2.vel.y;
+          const p = (2.0 * (nx * kx + ny * ky)) / (m1 + m2);
+          const restitution = 0.12;
+          d1.vel.x -= p * m2 * nx * restitution;
+          d1.vel.y -= p * m2 * ny * restitution;
+          d2.vel.x += p * m1 * nx * restitution;
+          d2.vel.y += p * m1 * ny * restitution;
+
+          const stickiness = 0.22;
+          const avgVX = (d1.vel.x + d2.vel.x) * 0.5;
+          const avgVY = (d1.vel.y + d2.vel.y) * 0.5;
+          d1.vel.x = lerp(d1.vel.x, avgVX, stickiness);
+          d1.vel.y = lerp(d1.vel.y, avgVY, stickiness);
+          d2.vel.x = lerp(d2.vel.x, avgVX, stickiness);
+          d2.vel.y = lerp(d2.vel.y, avgVY, stickiness);
+        }
       }
-
-      nx /= dist;
-      ny /= dist;
-      const overlap = softContactDist - dist;
-
-      const m1 = d1.radius * d1.radius;
-      const m2 = d2.radius * d2.radius;
-      const totalM = m1 + m2;
-      const r1 = m2 / totalM;
-      const r2 = m1 / totalM;
-
-      const separation = overlap * 0.12;
-      d1.group.position.x -= nx * separation * r1;
-      d1.group.position.y -= ny * separation * r1;
-      d2.group.position.x += nx * separation * r2;
-      d2.group.position.y += ny * separation * r2;
-
-      d1.applyContact(-nx, -ny, overlap);
-      d2.applyContact(nx, ny, overlap);
-
-      const kx = d1.vel.x - d2.vel.x;
-      const ky = d1.vel.y - d2.vel.y;
-      const p = (2.0 * (nx * kx + ny * ky)) / (m1 + m2);
-      const restitution = 0.12;
-      d1.vel.x -= p * m2 * nx * restitution;
-      d1.vel.y -= p * m2 * ny * restitution;
-      d2.vel.x += p * m1 * nx * restitution;
-      d2.vel.y += p * m1 * ny * restitution;
-
-      const stickiness = 0.22;
-      const avgVX = (d1.vel.x + d2.vel.x) * 0.5;
-      const avgVY = (d1.vel.y + d2.vel.y) * 0.5;
-      d1.vel.x = lerp(d1.vel.x, avgVX, stickiness);
-      d1.vel.y = lerp(d1.vel.y, avgVY, stickiness);
-      d2.vel.x = lerp(d2.vel.x, avgVX, stickiness);
-      d2.vel.y = lerp(d2.vel.y, avgVY, stickiness);
     }
   }
+}
+
+function buildCollisionSpatialIndex() {
+  workCollisionGrid.clear();
+  workCollisionActive.length = 0;
+
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit.active || fruit.sliced) continue;
+
+    workCollisionActive.push(fruit);
+    const cellX = gridCoord(fruit.group.position.x, collisionGridCellSize);
+    const cellY = gridCoord(fruit.group.position.y, collisionGridCellSize);
+    const key = gridKey(cellX, cellY);
+    const bucket = workCollisionGrid.get(key);
+    if (bucket) bucket.push(fruit);
+    else workCollisionGrid.set(key, [fruit]);
+  }
+
+  return workCollisionActive.length;
 }
 
 function screenToWorld(clientX, clientY) {
