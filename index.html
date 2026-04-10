@@ -87,45 +87,37 @@
         </fieldset>
 
         <fieldset class="control-group">
-          <legend>结果页布局</legend>
+          <legend>失败结果页</legend>
 
           <label class="control-row">
             <span>结果宽度</span>
-            <input id="ctl-result-width" type="range" min="220" max="420" step="1" value="320" />
-            <em id="ctl-result-width-value">320</em>
+            <input id="ctl-fail-result-width" type="range" min="220" max="420" step="1" value="320" />
+            <em id="ctl-fail-result-width-value">320</em>
           </label>
 
           <label class="control-row">
             <span>结果高度</span>
-            <input id="ctl-result-height" type="range" min="160" max="560" step="1" value="260" />
-            <em id="ctl-result-height-value">260</em>
+            <input id="ctl-fail-result-height" type="range" min="160" max="560" step="1" value="260" />
+            <em id="ctl-fail-result-height-value">260</em>
           </label>
 
           <label class="control-row">
             <span>结果Y</span>
-            <input id="ctl-result-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-result-y-value">0</em>
+            <input id="ctl-fail-result-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-fail-result-y-value">0</em>
           </label>
 
           <label class="control-row">
             <span>按钮Y</span>
-            <input id="ctl-result-actions-y" type="range" min="-180" max="180" step="1" value="0" />
-            <em id="ctl-result-actions-y-value">0</em>
+            <input id="ctl-fail-actions-y" type="range" min="-180" max="180" step="1" value="0" />
+            <em id="ctl-fail-actions-y-value">0</em>
           </label>
 
           <label class="control-row">
             <span>按钮缩放</span>
-            <input id="ctl-result-actions-scale" type="range" min="0.1" max="1.6" step="0.01" value="1" />
-            <em id="ctl-result-actions-scale-value">1.00</em>
+            <input id="ctl-fail-actions-scale" type="range" min="0.1" max="1.6" step="0.01" value="1" />
+            <em id="ctl-fail-actions-scale-value">1.00</em>
           </label>
-
-          <div class="control-group-actions">
-            <button id="show-result-btn" type="button">结果页</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="control-group">
-          <legend>失败文案</legend>
 
           <label class="control-text-row">
             <span>标题</span>
@@ -136,6 +128,58 @@
             <span>内容</span>
             <input id="ctl-fail-body" type="text" value="当前分数 {score} · 当前关卡 {level}" />
           </label>
+
+          <div class="control-group-actions">
+            <button id="show-fail-result-btn" type="button">失败结果页</button>
+          </div>
+        </fieldset>
+
+        <fieldset class="control-group">
+          <legend>成功结果页</legend>
+
+          <label class="control-row">
+            <span>结果宽度</span>
+            <input id="ctl-win-result-width" type="range" min="220" max="420" step="1" value="320" />
+            <em id="ctl-win-result-width-value">320</em>
+          </label>
+
+          <label class="control-row">
+            <span>结果高度</span>
+            <input id="ctl-win-result-height" type="range" min="160" max="560" step="1" value="260" />
+            <em id="ctl-win-result-height-value">260</em>
+          </label>
+
+          <label class="control-row">
+            <span>结果Y</span>
+            <input id="ctl-win-result-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-win-result-y-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>按钮Y</span>
+            <input id="ctl-win-actions-y" type="range" min="-180" max="180" step="1" value="0" />
+            <em id="ctl-win-actions-y-value">0</em>
+          </label>
+
+          <label class="control-row">
+            <span>按钮缩放</span>
+            <input id="ctl-win-actions-scale" type="range" min="0.1" max="1.6" step="0.01" value="1" />
+            <em id="ctl-win-actions-scale-value">1.00</em>
+          </label>
+
+          <label class="control-text-row">
+            <span>标题</span>
+            <input id="ctl-win-title" type="text" value="胜利" />
+          </label>
+
+          <label class="control-text-row">
+            <span>内容</span>
+            <input id="ctl-win-body" type="text" value="当前分数 {score} · 当前关卡 {level}" />
+          </label>
+
+          <div class="control-group-actions">
+            <button id="show-win-result-btn" type="button">成功结果页</button>
+          </div>
         </fieldset>
 
         <div class="control-actions">
@@ -192,6 +236,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=44"></script>
+    <script type="module" src="./src/main.js?v=46"></script>
   </body>
 </html>

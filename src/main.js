@@ -18,7 +18,8 @@ const controlBlockerEl = document.getElementById("control-blocker");
 const controlPanelEl = document.getElementById("control-panel");
 const controlCloseBtn = document.getElementById("control-close-btn");
 const controlSaveBtn = document.getElementById("control-save-btn");
-const showResultBtn = document.getElementById("show-result-btn");
+const showFailResultBtn = document.getElementById("show-fail-result-btn");
+const showWinResultBtn = document.getElementById("show-win-result-btn");
 const resultPageEl = document.getElementById("result-page");
 const resultBackBtn = document.getElementById("result-back-btn");
 const resultRetryBtn = document.getElementById("result-retry-btn");
@@ -28,6 +29,8 @@ const resultPageTitleTextEl = document.getElementById("result-page-title-text");
 const resultPageTextEl = document.getElementById("result-page-text");
 const ctlFailTitleEl = document.getElementById("ctl-fail-title");
 const ctlFailBodyEl = document.getElementById("ctl-fail-body");
+const ctlWinTitleEl = document.getElementById("ctl-win-title");
+const ctlWinBodyEl = document.getElementById("ctl-win-body");
 const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
 const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
@@ -44,16 +47,26 @@ const ctlPanelMarginTopValueEl = document.getElementById("ctl-panel-margin-top-v
 const ctlPanelMarginRightValueEl = document.getElementById("ctl-panel-margin-right-value");
 const ctlPanelMarginBottomValueEl = document.getElementById("ctl-panel-margin-bottom-value");
 const ctlPanelMarginLeftValueEl = document.getElementById("ctl-panel-margin-left-value");
-const ctlResultWidthEl = document.getElementById("ctl-result-width");
-const ctlResultHeightEl = document.getElementById("ctl-result-height");
-const ctlResultYEl = document.getElementById("ctl-result-y");
-const ctlResultActionsYEl = document.getElementById("ctl-result-actions-y");
-const ctlResultActionsScaleEl = document.getElementById("ctl-result-actions-scale");
-const ctlResultWidthValueEl = document.getElementById("ctl-result-width-value");
-const ctlResultHeightValueEl = document.getElementById("ctl-result-height-value");
-const ctlResultYValueEl = document.getElementById("ctl-result-y-value");
-const ctlResultActionsYValueEl = document.getElementById("ctl-result-actions-y-value");
-const ctlResultActionsScaleValueEl = document.getElementById("ctl-result-actions-scale-value");
+const ctlFailResultWidthEl = document.getElementById("ctl-fail-result-width");
+const ctlFailResultHeightEl = document.getElementById("ctl-fail-result-height");
+const ctlFailResultYEl = document.getElementById("ctl-fail-result-y");
+const ctlFailActionsYEl = document.getElementById("ctl-fail-actions-y");
+const ctlFailActionsScaleEl = document.getElementById("ctl-fail-actions-scale");
+const ctlFailResultWidthValueEl = document.getElementById("ctl-fail-result-width-value");
+const ctlFailResultHeightValueEl = document.getElementById("ctl-fail-result-height-value");
+const ctlFailResultYValueEl = document.getElementById("ctl-fail-result-y-value");
+const ctlFailActionsYValueEl = document.getElementById("ctl-fail-actions-y-value");
+const ctlFailActionsScaleValueEl = document.getElementById("ctl-fail-actions-scale-value");
+const ctlWinResultWidthEl = document.getElementById("ctl-win-result-width");
+const ctlWinResultHeightEl = document.getElementById("ctl-win-result-height");
+const ctlWinResultYEl = document.getElementById("ctl-win-result-y");
+const ctlWinActionsYEl = document.getElementById("ctl-win-actions-y");
+const ctlWinActionsScaleEl = document.getElementById("ctl-win-actions-scale");
+const ctlWinResultWidthValueEl = document.getElementById("ctl-win-result-width-value");
+const ctlWinResultHeightValueEl = document.getElementById("ctl-win-result-height-value");
+const ctlWinResultYValueEl = document.getElementById("ctl-win-result-y-value");
+const ctlWinActionsYValueEl = document.getElementById("ctl-win-actions-y-value");
+const ctlWinActionsScaleValueEl = document.getElementById("ctl-win-actions-scale-value");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
 
 const rules = {
@@ -157,7 +170,8 @@ function init() {
   if (controlBtn) controlBtn.addEventListener("click", toggleControlPanel);
   if (controlCloseBtn) controlCloseBtn.addEventListener("click", discardAndHideControlPanel);
   if (controlSaveBtn) controlSaveBtn.addEventListener("click", saveAndApplyControls);
-  if (showResultBtn) showResultBtn.addEventListener("click", showResultPage);
+  if (showFailResultBtn) showFailResultBtn.addEventListener("click", showFailResultPreview);
+  if (showWinResultBtn) showWinResultBtn.addEventListener("click", showWinResultPreview);
   if (resultBackBtn) resultBackBtn.addEventListener("click", hideResultPage);
   if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
   if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
@@ -210,25 +224,45 @@ function bindControlPanel() {
     ctlPanelMarginLeftEl.value = String(saved.sliceLeft);
     ctlPanelMarginLeftEl.addEventListener("input", onPanelSliceInput);
   }
-  if (ctlResultWidthEl) {
-    ctlResultWidthEl.value = String(saved.resultWidth);
-    ctlResultWidthEl.addEventListener("input", onResultLayoutInput);
+  if (ctlFailResultWidthEl) {
+    ctlFailResultWidthEl.value = String(saved.failResultWidth);
+    ctlFailResultWidthEl.addEventListener("input", onResultLayoutInput);
   }
-  if (ctlResultHeightEl) {
-    ctlResultHeightEl.value = String(saved.resultHeight);
-    ctlResultHeightEl.addEventListener("input", onResultLayoutInput);
+  if (ctlFailResultHeightEl) {
+    ctlFailResultHeightEl.value = String(saved.failResultHeight);
+    ctlFailResultHeightEl.addEventListener("input", onResultLayoutInput);
   }
-  if (ctlResultYEl) {
-    ctlResultYEl.value = String(saved.resultY);
-    ctlResultYEl.addEventListener("input", onResultLayoutInput);
+  if (ctlFailResultYEl) {
+    ctlFailResultYEl.value = String(saved.failResultY);
+    ctlFailResultYEl.addEventListener("input", onResultLayoutInput);
   }
-  if (ctlResultActionsYEl) {
-    ctlResultActionsYEl.value = String(saved.resultActionsY);
-    ctlResultActionsYEl.addEventListener("input", onResultLayoutInput);
+  if (ctlFailActionsYEl) {
+    ctlFailActionsYEl.value = String(saved.failActionsY);
+    ctlFailActionsYEl.addEventListener("input", onResultLayoutInput);
   }
-  if (ctlResultActionsScaleEl) {
-    ctlResultActionsScaleEl.value = String(saved.resultActionsScale);
-    ctlResultActionsScaleEl.addEventListener("input", onResultLayoutInput);
+  if (ctlFailActionsScaleEl) {
+    ctlFailActionsScaleEl.value = String(saved.failActionsScale);
+    ctlFailActionsScaleEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinResultWidthEl) {
+    ctlWinResultWidthEl.value = String(saved.winResultWidth);
+    ctlWinResultWidthEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinResultHeightEl) {
+    ctlWinResultHeightEl.value = String(saved.winResultHeight);
+    ctlWinResultHeightEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinResultYEl) {
+    ctlWinResultYEl.value = String(saved.winResultY);
+    ctlWinResultYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinActionsYEl) {
+    ctlWinActionsYEl.value = String(saved.winActionsY);
+    ctlWinActionsYEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlWinActionsScaleEl) {
+    ctlWinActionsScaleEl.value = String(saved.winActionsScale);
+    ctlWinActionsScaleEl.addEventListener("input", onResultLayoutInput);
   }
   if (ctlFailTitleEl) {
     ctlFailTitleEl.value = saved.failTitle;
@@ -237,6 +271,14 @@ function bindControlPanel() {
   if (ctlFailBodyEl) {
     ctlFailBodyEl.value = saved.failBody;
     ctlFailBodyEl.addEventListener("input", onFailCopyInput);
+  }
+  if (ctlWinTitleEl) {
+    ctlWinTitleEl.value = saved.winTitle;
+    ctlWinTitleEl.addEventListener("input", onFailCopyInput);
+  }
+  if (ctlWinBodyEl) {
+    ctlWinBodyEl.value = saved.winBody;
+    ctlWinBodyEl.addEventListener("input", onFailCopyInput);
   }
 
   applyControlValues(saved);
@@ -295,11 +337,16 @@ function syncControlPanelLabels() {
   if (ctlPanelMarginRightValueEl) ctlPanelMarginRightValueEl.textContent = String(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)));
   if (ctlPanelMarginBottomValueEl) ctlPanelMarginBottomValueEl.textContent = String(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)));
   if (ctlPanelMarginLeftValueEl) ctlPanelMarginLeftValueEl.textContent = String(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)));
-  if (ctlResultWidthValueEl) ctlResultWidthValueEl.textContent = String(Math.floor(Number(ctlResultWidthEl?.value ?? 320)));
-  if (ctlResultHeightValueEl) ctlResultHeightValueEl.textContent = String(Math.floor(Number(ctlResultHeightEl?.value ?? 260)));
-  if (ctlResultYValueEl) ctlResultYValueEl.textContent = String(Math.floor(Number(ctlResultYEl?.value ?? 0)));
-  if (ctlResultActionsYValueEl) ctlResultActionsYValueEl.textContent = String(Math.floor(Number(ctlResultActionsYEl?.value ?? 0)));
-  if (ctlResultActionsScaleValueEl) ctlResultActionsScaleValueEl.textContent = Number(ctlResultActionsScaleEl?.value ?? 1).toFixed(2);
+  if (ctlFailResultWidthValueEl) ctlFailResultWidthValueEl.textContent = String(Math.floor(Number(ctlFailResultWidthEl?.value ?? 320)));
+  if (ctlFailResultHeightValueEl) ctlFailResultHeightValueEl.textContent = String(Math.floor(Number(ctlFailResultHeightEl?.value ?? 260)));
+  if (ctlFailResultYValueEl) ctlFailResultYValueEl.textContent = String(Math.floor(Number(ctlFailResultYEl?.value ?? 0)));
+  if (ctlFailActionsYValueEl) ctlFailActionsYValueEl.textContent = String(Math.floor(Number(ctlFailActionsYEl?.value ?? 0)));
+  if (ctlFailActionsScaleValueEl) ctlFailActionsScaleValueEl.textContent = Number(ctlFailActionsScaleEl?.value ?? 1).toFixed(2);
+  if (ctlWinResultWidthValueEl) ctlWinResultWidthValueEl.textContent = String(Math.floor(Number(ctlWinResultWidthEl?.value ?? 320)));
+  if (ctlWinResultHeightValueEl) ctlWinResultHeightValueEl.textContent = String(Math.floor(Number(ctlWinResultHeightEl?.value ?? 260)));
+  if (ctlWinResultYValueEl) ctlWinResultYValueEl.textContent = String(Math.floor(Number(ctlWinResultYEl?.value ?? 0)));
+  if (ctlWinActionsYValueEl) ctlWinActionsYValueEl.textContent = String(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)));
+  if (ctlWinActionsScaleValueEl) ctlWinActionsScaleValueEl.textContent = Number(ctlWinActionsScaleEl?.value ?? 1).toFixed(2);
 }
 
 function readControlSave() {
@@ -312,13 +359,20 @@ function readControlSave() {
     sliceRight: 28,
     sliceBottom: 28,
     sliceLeft: 28,
-    resultWidth: 320,
-    resultHeight: 260,
-    resultY: 0,
-    resultActionsY: 0,
-    resultActionsScale: 1,
+    failResultWidth: 320,
+    failResultHeight: 260,
+    failResultY: 0,
+    failActionsY: 0,
+    failActionsScale: 1,
+    winResultWidth: 320,
+    winResultHeight: 260,
+    winResultY: 0,
+    winActionsY: 0,
+    winActionsScale: 1,
     failTitle: "失败",
     failBody: "当前分数 {score} · 当前关卡 {level}",
+    winTitle: "胜利",
+    winBody: "当前分数 {score} · 当前关卡 {level}",
   };
 
   try {
@@ -334,13 +388,20 @@ function readControlSave() {
       sliceRight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceRight) || defaults.sliceRight), 8, 200),
       sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceBottom) || defaults.sliceBottom), 8, 200),
       sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceLeft) || defaults.sliceLeft), 8, 200),
-      resultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultWidth) || defaults.resultWidth), 220, 420),
-      resultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultHeight) || defaults.resultHeight), 160, 560),
-      resultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultY) || defaults.resultY), -220, 220),
-      resultActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.resultActionsY) || defaults.resultActionsY), -180, 180),
-      resultActionsScale: THREE.MathUtils.clamp(Number(parsed?.resultActionsScale) || defaults.resultActionsScale, 0.1, 1.6),
+      failResultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failResultWidth) || defaults.failResultWidth), 220, 420),
+      failResultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failResultHeight) || defaults.failResultHeight), 160, 560),
+      failResultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failResultY) || defaults.failResultY), -220, 220),
+      failActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failActionsY) || defaults.failActionsY), -180, 180),
+      failActionsScale: THREE.MathUtils.clamp(Number(parsed?.failActionsScale) || defaults.failActionsScale, 0.1, 1.6),
+      winResultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultWidth) || defaults.winResultWidth), 220, 420),
+      winResultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultHeight) || defaults.winResultHeight), 160, 560),
+      winResultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultY) || defaults.winResultY), -220, 220),
+      winActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winActionsY) || defaults.winActionsY), -180, 180),
+      winActionsScale: THREE.MathUtils.clamp(Number(parsed?.winActionsScale) || defaults.winActionsScale, 0.1, 1.6),
       failTitle: String(parsed?.failTitle ?? defaults.failTitle).slice(0, 18),
       failBody: String(parsed?.failBody ?? defaults.failBody).slice(0, 80),
+      winTitle: String(parsed?.winTitle ?? defaults.winTitle).slice(0, 18),
+      winBody: String(parsed?.winBody ?? defaults.winBody).slice(0, 80),
     };
   } catch (_err) {
     return defaults;
@@ -357,13 +418,20 @@ function collectControlValues() {
     sliceRight: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)), 8, 200),
     sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)), 8, 200),
     sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)), 8, 200),
-    resultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlResultWidthEl?.value ?? 320)), 220, 420),
-    resultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlResultHeightEl?.value ?? 260)), 160, 560),
-    resultY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultYEl?.value ?? 0)), -220, 220),
-    resultActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlResultActionsYEl?.value ?? 0)), -180, 180),
-    resultActionsScale: THREE.MathUtils.clamp(Number(ctlResultActionsScaleEl?.value ?? 1), 0.1, 1.6),
+    failResultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlFailResultWidthEl?.value ?? 320)), 220, 420),
+    failResultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlFailResultHeightEl?.value ?? 260)), 160, 560),
+    failResultY: THREE.MathUtils.clamp(Math.floor(Number(ctlFailResultYEl?.value ?? 0)), -220, 220),
+    failActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlFailActionsYEl?.value ?? 0)), -180, 180),
+    failActionsScale: THREE.MathUtils.clamp(Number(ctlFailActionsScaleEl?.value ?? 1), 0.1, 1.6),
+    winResultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultWidthEl?.value ?? 320)), 220, 420),
+    winResultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultHeightEl?.value ?? 260)), 160, 560),
+    winResultY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultYEl?.value ?? 0)), -220, 220),
+    winActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)), -180, 180),
+    winActionsScale: THREE.MathUtils.clamp(Number(ctlWinActionsScaleEl?.value ?? 1), 0.1, 1.6),
     failTitle: (String(ctlFailTitleEl?.value ?? "失败").trim() || "失败").slice(0, 18),
     failBody: (String(ctlFailBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
+    winTitle: (String(ctlWinTitleEl?.value ?? "胜利").trim() || "胜利").slice(0, 18),
+    winBody: (String(ctlWinBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
   };
 }
 
@@ -376,13 +444,20 @@ function setControlInputs(values) {
   if (ctlPanelMarginRightEl) ctlPanelMarginRightEl.value = String(values.sliceRight);
   if (ctlPanelMarginBottomEl) ctlPanelMarginBottomEl.value = String(values.sliceBottom);
   if (ctlPanelMarginLeftEl) ctlPanelMarginLeftEl.value = String(values.sliceLeft);
-  if (ctlResultWidthEl) ctlResultWidthEl.value = String(values.resultWidth);
-  if (ctlResultHeightEl) ctlResultHeightEl.value = String(values.resultHeight);
-  if (ctlResultYEl) ctlResultYEl.value = String(values.resultY);
-  if (ctlResultActionsYEl) ctlResultActionsYEl.value = String(values.resultActionsY);
-  if (ctlResultActionsScaleEl) ctlResultActionsScaleEl.value = String(values.resultActionsScale);
+  if (ctlFailResultWidthEl) ctlFailResultWidthEl.value = String(values.failResultWidth);
+  if (ctlFailResultHeightEl) ctlFailResultHeightEl.value = String(values.failResultHeight);
+  if (ctlFailResultYEl) ctlFailResultYEl.value = String(values.failResultY);
+  if (ctlFailActionsYEl) ctlFailActionsYEl.value = String(values.failActionsY);
+  if (ctlFailActionsScaleEl) ctlFailActionsScaleEl.value = String(values.failActionsScale);
+  if (ctlWinResultWidthEl) ctlWinResultWidthEl.value = String(values.winResultWidth);
+  if (ctlWinResultHeightEl) ctlWinResultHeightEl.value = String(values.winResultHeight);
+  if (ctlWinResultYEl) ctlWinResultYEl.value = String(values.winResultY);
+  if (ctlWinActionsYEl) ctlWinActionsYEl.value = String(values.winActionsY);
+  if (ctlWinActionsScaleEl) ctlWinActionsScaleEl.value = String(values.winActionsScale);
   if (ctlFailTitleEl) ctlFailTitleEl.value = values.failTitle;
   if (ctlFailBodyEl) ctlFailBodyEl.value = values.failBody;
+  if (ctlWinTitleEl) ctlWinTitleEl.value = values.winTitle;
+  if (ctlWinBodyEl) ctlWinBodyEl.value = values.winBody;
 }
 
 function applyControlValues(values) {
@@ -397,19 +472,38 @@ function applyControlValues(values) {
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
   rootStyle.setProperty("--panel-slice-left", String(values.sliceLeft));
-  rootStyle.setProperty("--result-card-width", `${values.resultWidth}px`);
-  rootStyle.setProperty("--result-card-height", `${values.resultHeight}px`);
-  rootStyle.setProperty("--result-card-y", `${values.resultY}px`);
-  rootStyle.setProperty("--result-actions-y", `${values.resultActionsY}px`);
-  rootStyle.setProperty("--result-actions-scale", String(values.resultActionsScale));
+  applyResultLayoutForOutcome(state.resultOutcome, values);
 
-  if (state.resultOutcome === "lose" && resultPageEl && !resultPageEl.classList.contains("hidden")) {
-    if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.failTitle;
-    if (resultPageTextEl) resultPageTextEl.textContent = formatResultFailBody(values.failBody);
+  if (resultPageEl && !resultPageEl.classList.contains("hidden")) {
+    if (state.resultOutcome === "lose") {
+      if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.failTitle;
+      if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.failBody);
+    } else {
+      if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.winTitle;
+      if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.winBody);
+    }
   }
 }
 
-function formatResultFailBody(template) {
+function applyResultLayoutForOutcome(outcome, values) {
+  const rootStyle = document.documentElement.style;
+  if (outcome === "win") {
+    rootStyle.setProperty("--result-card-width", `${values.winResultWidth}px`);
+    rootStyle.setProperty("--result-card-height", `${values.winResultHeight}px`);
+    rootStyle.setProperty("--result-card-y", `${values.winResultY}px`);
+    rootStyle.setProperty("--result-actions-y", `${values.winActionsY}px`);
+    rootStyle.setProperty("--result-actions-scale", String(values.winActionsScale));
+    return;
+  }
+
+  rootStyle.setProperty("--result-card-width", `${values.failResultWidth}px`);
+  rootStyle.setProperty("--result-card-height", `${values.failResultHeight}px`);
+  rootStyle.setProperty("--result-card-y", `${values.failResultY}px`);
+  rootStyle.setProperty("--result-actions-y", `${values.failActionsY}px`);
+  rootStyle.setProperty("--result-actions-scale", String(values.failActionsScale));
+}
+
+function formatResultBody(template) {
   return template
     .replaceAll("{score}", String(state.score))
     .replaceAll("{level}", String(state.currentLevelIndex + 1));
@@ -462,18 +556,19 @@ function showResultPage() {
   if (!resultPageEl) return;
   const isWin = state.resultOutcome === "win";
   const controlValues = currentControlValues || collectControlValues();
+  applyResultLayoutForOutcome(state.resultOutcome, controlValues);
 
   if (resultPageTitleEl) {
     resultPageTitleEl.classList.toggle("is-win", isWin);
     resultPageTitleEl.classList.toggle("is-lose", !isWin);
   }
   if (resultPageTitleTextEl) {
-    resultPageTitleTextEl.textContent = isWin ? "胜利" : controlValues.failTitle;
+    resultPageTitleTextEl.textContent = isWin ? controlValues.winTitle : controlValues.failTitle;
   }
   if (resultPageTextEl) {
     resultPageTextEl.textContent = isWin
-      ? `当前分数 ${state.score} · 当前关卡 ${state.currentLevelIndex + 1}`
-      : formatResultFailBody(controlValues.failBody);
+      ? formatResultBody(controlValues.winBody)
+      : formatResultBody(controlValues.failBody);
   }
 
   if (resultRetryBtn) resultRetryBtn.classList.toggle("hidden", isWin);
@@ -481,6 +576,16 @@ function showResultPage() {
   if (resultBackBtn) resultBackBtn.classList.toggle("hidden", !isWin);
 
   resultPageEl.classList.remove("hidden");
+}
+
+function showFailResultPreview() {
+  state.resultOutcome = "lose";
+  showResultPage();
+}
+
+function showWinResultPreview() {
+  state.resultOutcome = "win";
+  showResultPage();
 }
 
 function hideResultPage() {

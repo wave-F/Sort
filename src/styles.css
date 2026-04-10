@@ -164,14 +164,30 @@ body {
   right: 12px;
   top: 70px;
   width: min(84vw, 320px);
+  max-height: calc(100% - 86px);
   z-index: 26;
   padding: 12px 12px 12px;
   color: #6f527e;
   transform: translateX(var(--control-panel-x));
-  overflow: visible;
+  overflow-x: visible;
+  overflow-y: auto;
   background-color: rgba(255, 242, 250, 0.45);
   backdrop-filter: blur(4px);
   opacity: 0.72;
+}
+
+#control-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+#control-panel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+#control-panel::-webkit-scrollbar-thumb {
+  background: rgba(111, 82, 126, 0.55);
+  border-radius: 999px;
 }
 
 #control-panel .control-group {
