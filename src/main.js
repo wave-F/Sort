@@ -189,6 +189,10 @@ let pendingCoinRewardTotal = 0;
 let coinFlyTriggered = false;
 let resultCoinRewardEnabled = false;
 let ladderAdvanceAnimating = false;
+let startScreenHistoryProgressLevel = 1;
+let ladderReturnAnimating = false;
+let ladderReturnDelayTimer = 0;
+let startButtonTransitionLocked = false;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -1100,6 +1104,13 @@ function exitToStartFromResultPage() {
 
   gameOverEl.classList.add("hidden");
   startScreenEl.classList.remove("hidden");
+  startButtonTransitionLocked = true;
+  renderLadderProgress(startScreenHistoryProgressLevel);
+  if (ladderReturnDelayTimer) clearTimeout(ladderReturnDelayTimer);
+  ladderReturnDelayTimer = window.setTimeout(() => {
+    animateLadderFromHistoryToCurrent();
+    ladderReturnDelayTimer = 0;
+  }, 300);
 }
 
 function goToNextLevelFromResultPage() {
@@ -1165,12 +1176,18 @@ function showWebGpuUnsupported() {
 }
 
 function startGame() {
+  if (startButtonTransitionLocked) return;
+  if (ladderReturnDelayTimer) {
+    clearTimeout(ladderReturnDelayTimer);
+    ladderReturnDelayTimer = 0;
+  }
   readGameSave();
   const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
   if (Math.floor(state.maxPassedLevel) > totalLevels) {
     showStartToast("已通关全部关卡", 1200);
     return;
   }
+  startScreenHistoryProgressLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
   hideResultPage();
   hideControlPanel();
 
@@ -1949,6 +1966,7 @@ function readGameSave() {
     state.maxPassedLevel = 1;
     state.coins = 16;
     writeGameSave();
+    startScreenHistoryProgressLevel = 1;
     renderLadderProgress();
     updateCoinStatus();
     return;
@@ -1956,6 +1974,7 @@ function readGameSave() {
   state.maxPassedLevel = THREE.MathUtils.clamp(Math.floor(value), 1, SAVE_TOTAL_LEVELS);
   state.coins = Number.isFinite(coins) ? Math.max(0, Math.floor(coins)) : 16;
   if (Number(parsed?.totalLevels) !== SAVE_TOTAL_LEVELS) writeGameSave();
+  startScreenHistoryProgressLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, getLadderTotalLevels());
   renderLadderProgress();
   updateCoinStatus();
 }
@@ -1996,8 +2015,66 @@ function measureLadderStepDistance() {
   return Math.max(0, Math.round(visible[1].top - visible[0].top));
 }
 
+function animateLadderFromHistoryToCurrent() {
+  const totalLevels = getLadderTotalLevels();
+  const fromProgress = THREE.MathUtils.clamp(Math.floor(startScreenHistoryProgressLevel || 1), 1, totalLevels);
+  const toProgress = Math.max(1, Math.floor(state.maxPassedLevel));
+
+  renderLadderProgress(fromProgress);
+
+  if (!ladderNodesEl || ladderReturnAnimating) {
+    renderLadderProgress();
+    startButtonTransitionLocked = false;
+    updateStartButtonState(totalLevels);
+    return;
+  }
+
+  const fromState = getLadderPresentation(fromProgress, totalLevels);
+  const toState = getLadderPresentation(toProgress, totalLevels);
+  const stepShift = toState.startLevel - fromState.startLevel;
+
+  if (stepShift === 0) {
+    renderLadderProgress();
+    startButtonTransitionLocked = false;
+    updateStartButtonState(totalLevels);
+    return;
+  }
+
+  const stepDistance = measureLadderStepDistance();
+  if (stepDistance <= 0) {
+    renderLadderProgress();
+    startButtonTransitionLocked = false;
+    updateStartButtonState(totalLevels);
+    return;
+  }
+
+  ladderReturnAnimating = true;
+  const deltaY = stepDistance * stepShift;
+  const anim = ladderNodesEl.animate(
+    [{ transform: "translateY(0px)" }, { transform: `translateY(${deltaY}px)` }],
+    {
+      duration: Math.min(420, 170 + Math.abs(stepShift) * 70),
+      easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
+      fill: "none",
+    }
+  );
+
+  anim.onfinish = () => {
+    renderLadderProgress();
+    ladderReturnAnimating = false;
+    startButtonTransitionLocked = false;
+    updateStartButtonState(totalLevels);
+  };
+  anim.oncancel = () => {
+    renderLadderProgress();
+    ladderReturnAnimating = false;
+    startButtonTransitionLocked = false;
+    updateStartButtonState(totalLevels);
+  };
+}
+
 function advanceStartScreenLevelFromControl() {
-  if (ladderAdvanceAnimating) return;
+  if (ladderAdvanceAnimating || ladderReturnAnimating) return;
   const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
   const currentLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
 
@@ -2057,17 +2134,19 @@ function updateStartButtonState(totalLevels) {
   const allCleared = Math.floor(state.maxPassedLevel) > totalLevels;
   startBtn.classList.toggle("is-all-cleared", allCleared);
   startBtn.textContent = allCleared ? "敬请期待" : "开始";
-  startBtn.disabled = false;
-  startBtn.setAttribute("aria-disabled", allCleared ? "true" : "false");
+  startBtn.disabled = startButtonTransitionLocked;
+  startBtn.setAttribute("aria-disabled", allCleared || startButtonTransitionLocked ? "true" : "false");
 }
 
-function renderLadderProgress() {
-  if (!ladderNodes.length) return;
-  const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length, ladderNodes.length));
+function getLadderTotalLevels() {
+  return Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length, ladderNodes.length));
+}
+
+function getLadderPresentation(progressLevel, totalLevels) {
+  const normalizedProgress = Math.max(1, Math.floor(progressLevel || 1));
   const visibleCount = Math.min(5, totalLevels);
-  const progressLevel = Math.floor(state.maxPassedLevel);
-  const hasNextLevel = progressLevel <= totalLevels;
-  const nextLevel = hasNextLevel ? THREE.MathUtils.clamp(progressLevel, 1, totalLevels) : null;
+  const hasNextLevel = normalizedProgress <= totalLevels;
+  const nextLevel = hasNextLevel ? THREE.MathUtils.clamp(normalizedProgress, 1, totalLevels) : null;
   const anchorLevel = hasNextLevel ? nextLevel : totalLevels;
   const maxStartLevel = Math.max(1, totalLevels - visibleCount + 1);
 
@@ -2080,7 +2159,19 @@ function renderLadderProgress() {
     startLevel = anchorLevel - 2;
   }
 
-  startLevel = THREE.MathUtils.clamp(startLevel, 1, maxStartLevel);
+  return {
+    visibleCount,
+    hasNextLevel,
+    nextLevel,
+    startLevel: THREE.MathUtils.clamp(startLevel, 1, maxStartLevel),
+  };
+}
+
+function renderLadderProgress(progressLevelOverride = null) {
+  if (!ladderNodes.length) return;
+  const totalLevels = getLadderTotalLevels();
+  const progressLevel = progressLevelOverride === null ? Math.floor(state.maxPassedLevel) : Math.floor(progressLevelOverride);
+  const { visibleCount, hasNextLevel, nextLevel, startLevel } = getLadderPresentation(progressLevel, totalLevels);
 
   for (let i = 0; i < ladderNodes.length; i += 1) {
     const node = ladderNodes[i];
