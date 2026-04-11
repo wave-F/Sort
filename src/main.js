@@ -145,6 +145,7 @@ const selectedRingColor = 0xffdf73;
 const SAVE_KEY = "fruit-save-v1";
 const SAVE_TOTAL_LEVELS = 10;
 const CONTROL_SAVE_KEY = "fruit-control-v1";
+const LADDER_RETURN_DELAY_MS = 300;
 
 const state = {
   started: false,
@@ -194,6 +195,7 @@ let startScreenHistoryProgressLevel = 1;
 let ladderReturnAnimating = false;
 let ladderReturnDelayTimer = 0;
 let startButtonTransitionLocked = false;
+let coinStatusCountUp = null;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -755,19 +757,63 @@ function applyControlValues(values) {
     }
   }
 
-  updateCoinStatus();
+  updateCoinStatus({ animate: false });
 }
 
-function updateCoinStatus() {
+function updateCoinStatus(options = {}) {
   if (!coinStatusTextEl) return;
-  coinStatusTextEl.textContent = String(Math.max(0, Math.floor(state.coins || 0)));
+  const { animate = true, duration = 0.3 } = options;
+  const target = Math.max(0, Math.floor(state.coins || 0));
+
+  if (!animate) {
+    if (coinStatusCountUp) {
+      try {
+        coinStatusCountUp.reset();
+      } catch (_err) {
+        // ignore reset failures
+      }
+      coinStatusCountUp = null;
+    }
+    coinStatusTextEl.textContent = String(target);
+    return;
+  }
+
+  const currentShown = Math.max(0, Math.floor(Number(coinStatusTextEl.textContent) || 0));
+  if (currentShown === target) return;
+
+  if (coinStatusCountUp) {
+    try {
+      coinStatusCountUp.reset();
+    } catch (_err) {
+      // ignore reset failures
+    }
+  }
+
+  coinStatusCountUp = new CountUp(coinStatusTextEl, target, {
+    startVal: currentShown,
+    duration: Math.max(0.1, Number(duration) || 0.3),
+    decimalPlaces: 0,
+    useGrouping: false,
+    formattingFn: (value) => String(Math.floor(value)),
+  });
+
+  if (coinStatusCountUp.error) {
+    coinStatusTextEl.textContent = String(target);
+    coinStatusCountUp = null;
+    return;
+  }
+
+  coinStatusCountUp.start(() => {
+    coinStatusCountUp = null;
+    coinStatusTextEl.textContent = String(target);
+  });
 }
 
 function addCoins(amount) {
   const value = Math.max(0, Math.floor(amount || 0));
   if (value <= 0) return;
   state.coins = Math.max(0, Math.floor(state.coins || 0)) + value;
-  updateCoinStatus();
+  updateCoinStatus({ animate: true, duration: 0.28 });
   writeGameSave();
 }
 
@@ -1080,6 +1126,22 @@ function prepareGameplayView() {
   if (battleExitBtn) battleExitBtn.classList.remove("hidden");
 }
 
+function clearLadderReturnDelayTimer() {
+  if (!ladderReturnDelayTimer) return;
+  clearTimeout(ladderReturnDelayTimer);
+  ladderReturnDelayTimer = 0;
+}
+
+function scheduleLadderReturnTransition() {
+  startButtonTransitionLocked = true;
+  renderLadderProgress(startScreenHistoryProgressLevel);
+  clearLadderReturnDelayTimer();
+  ladderReturnDelayTimer = window.setTimeout(() => {
+    animateLadderFromHistoryToCurrent();
+    ladderReturnDelayTimer = 0;
+  }, LADDER_RETURN_DELAY_MS);
+}
+
 function retryFromResultPage() {
   hideResultPage();
 
@@ -1113,25 +1175,13 @@ function exitToStartFromBattle() {
   if (!state.started || state.gameOver || state.levelTransitioning) return;
   hideControlPanel();
   exitToStartScreen();
-  startButtonTransitionLocked = true;
-  renderLadderProgress(startScreenHistoryProgressLevel);
-  if (ladderReturnDelayTimer) clearTimeout(ladderReturnDelayTimer);
-  ladderReturnDelayTimer = window.setTimeout(() => {
-    animateLadderFromHistoryToCurrent();
-    ladderReturnDelayTimer = 0;
-  }, 300);
+  scheduleLadderReturnTransition();
 }
 
 function exitToStartFromResultPage() {
   hideResultPage();
   exitToStartScreen();
-  startButtonTransitionLocked = true;
-  renderLadderProgress(startScreenHistoryProgressLevel);
-  if (ladderReturnDelayTimer) clearTimeout(ladderReturnDelayTimer);
-  ladderReturnDelayTimer = window.setTimeout(() => {
-    animateLadderFromHistoryToCurrent();
-    ladderReturnDelayTimer = 0;
-  }, 300);
+  scheduleLadderReturnTransition();
 }
 
 function goToNextLevelFromResultPage() {
@@ -1198,10 +1248,7 @@ function showWebGpuUnsupported() {
 
 function startGame() {
   if (startButtonTransitionLocked) return;
-  if (ladderReturnDelayTimer) {
-    clearTimeout(ladderReturnDelayTimer);
-    ladderReturnDelayTimer = 0;
-  }
+  clearLadderReturnDelayTimer();
   readGameSave();
   const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
   if (Math.floor(state.maxPassedLevel) > totalLevels) {
@@ -1995,7 +2042,7 @@ function readGameSave() {
     writeGameSave();
     startScreenHistoryProgressLevel = 1;
     renderLadderProgress();
-    updateCoinStatus();
+    updateCoinStatus({ animate: false });
     return;
   }
   state.maxPassedLevel = THREE.MathUtils.clamp(Math.floor(value), 1, SAVE_TOTAL_LEVELS);
@@ -2003,7 +2050,7 @@ function readGameSave() {
   if (Number(parsed?.totalLevels) !== SAVE_TOTAL_LEVELS) writeGameSave();
   startScreenHistoryProgressLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, getLadderTotalLevels());
   renderLadderProgress();
-  updateCoinStatus();
+  updateCoinStatus({ animate: false });
 }
 
 function writeGameSave() {
@@ -2047,12 +2094,16 @@ function animateLadderFromHistoryToCurrent() {
   const fromProgress = THREE.MathUtils.clamp(Math.floor(startScreenHistoryProgressLevel || 1), 1, totalLevels);
   const toProgress = Math.max(1, Math.floor(state.maxPassedLevel));
 
+  const finishLadderReturnTransition = () => {
+    startButtonTransitionLocked = false;
+    updateStartButtonState(totalLevels);
+  };
+
   renderLadderProgress(fromProgress);
 
   if (!ladderNodesEl || ladderReturnAnimating) {
     renderLadderProgress();
-    startButtonTransitionLocked = false;
-    updateStartButtonState(totalLevels);
+    finishLadderReturnTransition();
     return;
   }
 
@@ -2062,16 +2113,14 @@ function animateLadderFromHistoryToCurrent() {
 
   if (stepShift === 0) {
     renderLadderProgress();
-    startButtonTransitionLocked = false;
-    updateStartButtonState(totalLevels);
+    finishLadderReturnTransition();
     return;
   }
 
   const stepDistance = measureLadderStepDistance();
   if (stepDistance <= 0) {
     renderLadderProgress();
-    startButtonTransitionLocked = false;
-    updateStartButtonState(totalLevels);
+    finishLadderReturnTransition();
     return;
   }
 
@@ -2089,14 +2138,12 @@ function animateLadderFromHistoryToCurrent() {
   anim.onfinish = () => {
     renderLadderProgress();
     ladderReturnAnimating = false;
-    startButtonTransitionLocked = false;
-    updateStartButtonState(totalLevels);
+    finishLadderReturnTransition();
   };
   anim.oncancel = () => {
     renderLadderProgress();
     ladderReturnAnimating = false;
-    startButtonTransitionLocked = false;
-    updateStartButtonState(totalLevels);
+    finishLadderReturnTransition();
   };
 }
 
