@@ -536,13 +536,14 @@ body {
   position: absolute;
   left: 0;
   right: 0;
+  top: 6%;
   bottom: 8%;
-  height: calc(4 * 88px + 3 * 22px);
   padding: 0 8px;
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
-  gap: 22px;
+  justify-content: space-between;
+  gap: 0;
   overflow: hidden;
 }
 
@@ -562,6 +563,10 @@ body {
   font-size: var(--ladder-level-font-size);
   font-weight: 800;
   text-shadow: var(--text-shadow-common);
+}
+
+.ladder-nodes > .ladder-node:nth-child(n + 6) {
+  display: none;
 }
 
 .ladder-node.is-passed {

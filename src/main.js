@@ -112,7 +112,9 @@ const ctlWinGainYValueEl = document.getElementById("ctl-win-gain-y-value");
 const ctlWinGainSizeValueEl = document.getElementById("ctl-win-gain-size-value");
 const ctlResultMaskOpacityEl = document.getElementById("ctl-result-mask-opacity");
 const ctlResultMaskOpacityValueEl = document.getElementById("ctl-result-mask-opacity-value");
+const advanceStartLevelBtn = document.getElementById("advance-start-level-btn");
 const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
+const ladderNodesEl = document.querySelector(".ladder-nodes");
 
 const rules = {
   worldHeight: 10,
@@ -179,6 +181,7 @@ let pendingCoinFlyCount = 0;
 let pendingCoinRewardTotal = 0;
 let coinFlyTriggered = false;
 let resultCoinRewardEnabled = false;
+let ladderAdvanceAnimating = false;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -217,6 +220,7 @@ function init() {
   if (showFailResultBtn) showFailResultBtn.addEventListener("click", showFailResultPreview);
   if (showWinResultBtn) showWinResultBtn.addEventListener("click", showWinResultPreview);
   if (passWinResultBtn) passWinResultBtn.addEventListener("click", passCurrentLevelAndShowWinResult);
+  if (advanceStartLevelBtn) advanceStartLevelBtn.addEventListener("click", advanceStartScreenLevelFromControl);
   if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
   if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
   if (resultNextBtn) resultNextBtn.addEventListener("click", goToNextLevelFromResultPage);
@@ -1928,17 +1932,105 @@ function markLevelPassed(levelNo) {
   renderLadderProgress();
 }
 
+function measureLadderStepDistance() {
+  if (!ladderNodes.length) return 0;
+  const visible = ladderNodes
+    .filter((node) => !node.classList.contains("hidden"))
+    .map((node) => node.getBoundingClientRect())
+    .sort((a, b) => a.top - b.top);
+
+  if (visible.length < 2) return 0;
+  return Math.max(0, Math.round(visible[1].top - visible[0].top));
+}
+
+function advanceStartScreenLevelFromControl() {
+  if (ladderAdvanceAnimating) return;
+  const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
+  const currentLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
+
+  if (currentLevel >= totalLevels) {
+    showCommentary("已是最后一关", 1200);
+    return;
+  }
+
+  const commitAdvance = () => {
+    markLevelPassed(currentLevel);
+    showCommentary(`已推进到第${Math.min(state.maxPassedLevel, totalLevels)}关`, 1200);
+  };
+
+  if (!startScreenEl || startScreenEl.classList.contains("hidden") || !ladderNodesEl) {
+    commitAdvance();
+    return;
+  }
+
+  if (currentLevel < 3 || currentLevel > totalLevels - 3) {
+    commitAdvance();
+    return;
+  }
+
+  const stepDistance = measureLadderStepDistance();
+  if (stepDistance <= 0) {
+    commitAdvance();
+    return;
+  }
+
+  ladderAdvanceAnimating = true;
+  const anim = ladderNodesEl.animate(
+    [
+      { transform: "translateY(0px)" },
+      { transform: `translateY(${stepDistance}px)` },
+    ],
+    {
+      duration: 220,
+      easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
+      fill: "none",
+    }
+  );
+
+  anim.onfinish = () => {
+    commitAdvance();
+    ladderAdvanceAnimating = false;
+  };
+  anim.oncancel = () => {
+    ladderAdvanceAnimating = false;
+  };
+}
+
 function renderLadderProgress() {
   if (!ladderNodes.length) return;
+  const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length, ladderNodes.length));
+  const visibleCount = Math.min(5, totalLevels);
+  const nextLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
+  const maxStartLevel = Math.max(1, totalLevels - visibleCount + 1);
+
+  let startLevel = 1;
+  if (nextLevel < 3) {
+    startLevel = 1;
+  } else if (nextLevel > totalLevels - 3) {
+    startLevel = maxStartLevel;
+  } else {
+    startLevel = nextLevel - 2;
+  }
+
+  startLevel = THREE.MathUtils.clamp(startLevel, 1, maxStartLevel);
 
   for (let i = 0; i < ladderNodes.length; i += 1) {
     const node = ladderNodes[i];
-    const levelNo = i + 1;
-    node.classList.remove("is-passed", "is-current");
+    const levelNo = startLevel + i;
+    const labelEl = node.querySelector("span");
 
-    if (levelNo < state.maxPassedLevel) {
+    node.classList.remove("is-passed", "is-current", "hidden");
+
+    if (i >= visibleCount || levelNo > totalLevels) {
+      node.classList.add("hidden");
+      continue;
+    }
+
+    if (labelEl) labelEl.textContent = String(levelNo);
+
+    if (levelNo < nextLevel) {
       node.classList.add("is-passed");
-    } else if (levelNo === state.maxPassedLevel) {
+    } else if (levelNo === nextLevel) {
       node.classList.add("is-current");
     }
   }
