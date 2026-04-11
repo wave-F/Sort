@@ -1949,7 +1949,14 @@ function advanceStartScreenLevelFromControl() {
   const currentLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
 
   if (currentLevel >= totalLevels) {
-    showCommentary("已是最后一关", 1200);
+    if (Math.floor(state.maxPassedLevel) <= totalLevels) {
+      state.maxPassedLevel = Math.min(SAVE_TOTAL_LEVELS, totalLevels + 1);
+      writeGameSave();
+      renderLadderProgress();
+      showCommentary("已全部通关", 1200);
+    } else {
+      showCommentary("已全部通关", 1200);
+    }
     return;
   }
 
@@ -2000,16 +2007,19 @@ function renderLadderProgress() {
   if (!ladderNodes.length) return;
   const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length, ladderNodes.length));
   const visibleCount = Math.min(5, totalLevels);
-  const nextLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
+  const progressLevel = Math.floor(state.maxPassedLevel);
+  const hasNextLevel = progressLevel <= totalLevels;
+  const nextLevel = hasNextLevel ? THREE.MathUtils.clamp(progressLevel, 1, totalLevels) : null;
+  const anchorLevel = hasNextLevel ? nextLevel : totalLevels;
   const maxStartLevel = Math.max(1, totalLevels - visibleCount + 1);
 
   let startLevel = 1;
-  if (nextLevel < 3) {
+  if (anchorLevel < 3) {
     startLevel = 1;
-  } else if (nextLevel > totalLevels - 3) {
+  } else if (anchorLevel > totalLevels - 3) {
     startLevel = maxStartLevel;
   } else {
-    startLevel = nextLevel - 2;
+    startLevel = anchorLevel - 2;
   }
 
   startLevel = THREE.MathUtils.clamp(startLevel, 1, maxStartLevel);
@@ -2028,9 +2038,9 @@ function renderLadderProgress() {
 
     if (labelEl) labelEl.textContent = String(levelNo);
 
-    if (levelNo < nextLevel) {
+    if (!hasNextLevel || levelNo < nextLevel) {
       node.classList.add("is-passed");
-    } else if (levelNo === nextLevel) {
+    } else if (hasNextLevel && levelNo === nextLevel) {
       node.classList.add("is-current");
     }
   }
