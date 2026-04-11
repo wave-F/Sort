@@ -14,6 +14,7 @@ const gameOverTitleEl = document.getElementById("game-over-title");
 const gameOverTitleTextEl = document.getElementById("game-over-title-text");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
+const battleExitBtn = document.getElementById("battle-exit-btn");
 const trailCompareToggleEl = document.getElementById("trail-compare-toggle");
 const controlBtn = document.getElementById("control-btn");
 const controlBlockerEl = document.getElementById("control-blocker");
@@ -232,6 +233,7 @@ function init() {
   if (showFailResultBtn) showFailResultBtn.addEventListener("click", showFailResultPreview);
   if (showWinResultBtn) showWinResultBtn.addEventListener("click", showWinResultPreview);
   if (passWinResultBtn) passWinResultBtn.addEventListener("click", passCurrentLevelAndShowWinResult);
+  if (battleExitBtn) battleExitBtn.addEventListener("click", exitToStartFromBattle);
   if (advanceStartLevelBtn) advanceStartLevelBtn.addEventListener("click", advanceStartScreenLevelFromControl);
   if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
   if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
@@ -945,6 +947,7 @@ function discardAndHideControlPanel() {
 
 function showResultPage() {
   if (!resultPageEl) return;
+  if (battleExitBtn) battleExitBtn.classList.add("hidden");
   const isWin = state.resultOutcome === "win";
   const controlValues = currentControlValues || collectControlValues();
   applyResultLayoutForOutcome(state.resultOutcome, controlValues);
@@ -1074,6 +1077,7 @@ function resetRoundVisualState() {
 function prepareGameplayView() {
   gameOverEl.classList.add("hidden");
   startScreenEl.classList.add("hidden");
+  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
 }
 
 function retryFromResultPage() {
@@ -1089,9 +1093,7 @@ function retryFromResultPage() {
   loadLevel(state.currentLevelIndex);
 }
 
-function exitToStartFromResultPage() {
-  hideResultPage();
-
+function exitToStartScreen() {
   state.started = false;
   state.gameOver = false;
   state.levelTransitioning = false;
@@ -1104,6 +1106,25 @@ function exitToStartFromResultPage() {
 
   gameOverEl.classList.add("hidden");
   startScreenEl.classList.remove("hidden");
+  if (battleExitBtn) battleExitBtn.classList.add("hidden");
+}
+
+function exitToStartFromBattle() {
+  if (!state.started || state.gameOver || state.levelTransitioning) return;
+  hideControlPanel();
+  exitToStartScreen();
+  startButtonTransitionLocked = true;
+  renderLadderProgress(startScreenHistoryProgressLevel);
+  if (ladderReturnDelayTimer) clearTimeout(ladderReturnDelayTimer);
+  ladderReturnDelayTimer = window.setTimeout(() => {
+    animateLadderFromHistoryToCurrent();
+    ladderReturnDelayTimer = 0;
+  }, 300);
+}
+
+function exitToStartFromResultPage() {
+  hideResultPage();
+  exitToStartScreen();
   startButtonTransitionLocked = true;
   renderLadderProgress(startScreenHistoryProgressLevel);
   if (ladderReturnDelayTimer) clearTimeout(ladderReturnDelayTimer);
@@ -1203,6 +1224,7 @@ function startGame() {
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
+  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
 
   updateHud();
   loadLevel(state.currentLevelIndex);
@@ -1230,7 +1252,8 @@ function loadLevel(index) {
   setSliceStatus(`状态: 第${index + 1}关`);
   showCommentary(
     `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount}（R随机/S保存/E导出）`,
-    2400
+    2400,
+    true
   );
 
   resetFruits(level);
@@ -1934,11 +1957,15 @@ function setSliceStatus(text) {
   sliceStateEl.textContent = text;
 }
 
-function showCommentary(text, durationMs) {
+function showCommentary(text, durationMs, useGoldenPosition = false) {
+  commentaryEl.classList.toggle("is-golden-position", !!useGoldenPosition);
   commentaryEl.textContent = text;
   commentaryEl.classList.add("show");
   if (commentaryTimer) clearTimeout(commentaryTimer);
-  commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
+  commentaryTimer = window.setTimeout(() => {
+    commentaryEl.classList.remove("show");
+    commentaryEl.classList.remove("is-golden-position");
+  }, durationMs);
 }
 
 function showStartToast(text, durationMs) {
