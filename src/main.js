@@ -17,25 +17,37 @@ import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
+import { readSave, writeSave } from "./state/persist.js";
 
+const phoneFrameEl = document.getElementById("phone-frame");
 const appEl = document.getElementById("app");
 const titleEl = document.getElementById("title");
 const stepsEl = document.getElementById("score");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
 const startScreenEl = document.getElementById("start-screen");
-const gameOverEl = document.getElementById("game-over");
-const gameOverTitleEl = document.getElementById("game-over-title");
-const levelWinEl = document.getElementById("level-win");
-const levelWinTitleEl = document.getElementById("level-win-title");
-const levelWinDescEl = document.getElementById("level-win-desc");
+const startLadderEl = document.getElementById("start-ladder");
 const startBtn = document.getElementById("start-btn");
-const restartBtn = document.getElementById("restart-btn");
-const levelWinNextBtn = document.getElementById("level-win-next-btn");
+const battleExitBtn = document.getElementById("battle-exit-btn");
+const resultMaskEl = document.getElementById("result-mask");
+const resultPageEl = document.getElementById("result-page");
+const resultTitleEl = document.getElementById("result-title");
+const resultTitleTextEl = document.getElementById("result-title-text");
+const resultDescEl = document.getElementById("result-desc");
+const resultRewardEl = document.getElementById("result-reward");
+const resultCoinIconEl = document.getElementById("result-coin-icon");
+const resultRetryBtn = document.getElementById("result-retry-btn");
+const resultNextBtn = document.getElementById("result-next-btn");
+const resultBackBtn = document.getElementById("result-back-btn");
+const coinStatusEl = document.getElementById("coin-status");
+const coinValueEl = document.getElementById("coin-value");
+const coinFlyLayerEl = document.getElementById("coin-fly-layer");
 const levelTestToggleBtn = document.getElementById("level-test-toggle");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
+
+const loadedSave = readSave();
 
 const rules = {
   worldHeight: 10,
@@ -105,6 +117,7 @@ const state = {
   gameOver: false,
   levelTransitioning: false,
   currentLevelIndex: 0,
+  maxPassedLevel: loadedSave.maxPassedLevel,
   activeLevel: null,
   pointerDown: false,
   sliceColorId: null,
@@ -119,6 +132,9 @@ const state = {
   lastMoveAt: 0,
   stepLimit: 0,
   stepsUsed: 0,
+  coins: loadedSave.coins,
+  pendingReward: 0,
+  resultOutcome: "lose",
 };
 
 const scene = new THREE.Scene();
@@ -183,11 +199,55 @@ function createGameRuntime() {
   const gameUI = createGameUI({
     sliceStateEl,
     commentaryEl,
-    gameOverEl,
-    gameOverTitleEl,
-    levelWinEl,
-    levelWinTitleEl,
-    levelWinDescEl,
+    levelCount: LEVELS.length,
+    startScreen: {
+      rootEl: startScreenEl,
+      ladderEl: startLadderEl,
+      startBtn,
+      onStart: (selectedLevelIndex) => {
+        startGame(selectedLevelIndex);
+      },
+    },
+    resultPage: {
+      maskEl: resultMaskEl,
+      cardEl: resultPageEl,
+      titleEl: resultTitleEl,
+      titleTextEl: resultTitleTextEl,
+      descEl: resultDescEl,
+      rewardEl: resultRewardEl,
+      coinIconEl: resultCoinIconEl,
+      retryBtn: resultRetryBtn,
+      nextBtn: resultNextBtn,
+      backBtn: resultBackBtn,
+      onRetry: () => {
+        retryCurrentLevel();
+      },
+      onNext: () => {
+        levelFlow.continueToNextLevel();
+      },
+      onBack: () => {
+        backToStart();
+      },
+    },
+    coinStatus: {
+      rootEl: coinStatusEl,
+      valueEl: coinValueEl,
+    },
+    coinFly: {
+      layerEl: coinFlyLayerEl,
+      frameEl: phoneFrameEl,
+      getTargetRect: () => gameUI.getCoinAnchorRect(),
+    },
+  });
+
+  gameUI.setCoins(state.coins);
+  gameUI.updateStartMeta({
+    maxPassedLevel: state.maxPassedLevel,
+    selectedLevelIndex: Math.max(0, state.maxPassedLevel - 1),
+  });
+  gameUI.showStartScreen({
+    maxPassedLevel: state.maxPassedLevel,
+    selectedLevelIndex: Math.max(0, state.maxPassedLevel - 1),
   });
 
   const burstSystem = createBurstSystem({
@@ -239,7 +299,13 @@ function createGameRuntime() {
     },
     getCurrentLevelIndex: () => state.currentLevelIndex,
     onAllLevelsCleared: (levelCount) => {
-      endGame(`全部${levelCount}关通关`);
+      const reward = computeWinReward();
+      settleWinResult({
+        levelNumber: levelCount,
+        reward,
+        isFinal: true,
+        canNext: false,
+      });
     },
     onPrepareLevelWin: () => {
       state.pointerDown = false;
@@ -253,13 +319,24 @@ function createGameRuntime() {
       victoryRainSystem.update(dt);
     },
     onShowLevelWinOverlay: (current, next) => {
-      if (!levelWinNextBtn) return false;
-      return gameUI.showLevelWin(current, next);
+      const reward = computeWinReward();
+      settleWinResult({
+        levelNumber: current,
+        nextLevel: next,
+        reward,
+        isFinal: false,
+        canNext: true,
+      });
+      return true;
     },
     onHideLevelWinOverlay: () => {
-      gameUI.hideLevelWin();
+      gameUI.closeResult();
     },
     onContinueToLevel: (nextLevelIndex) => {
+      state.gameOver = false;
+      state.pendingReward = 0;
+      gameUI.closeResult();
+      if (battleExitBtn) battleExitBtn.classList.remove("hidden");
       victoryRainSystem.reset();
       loadLevel(nextLevelIndex);
     },
@@ -331,12 +408,13 @@ function clampNumber(value, min, max, fallback) {
 }
 
 function init() {
-  startBtn.addEventListener("click", startGame);
-  restartBtn.addEventListener("click", startGame);
-  if (levelWinNextBtn) {
-    levelWinNextBtn.addEventListener("click", () => levelFlow.continueToNextLevel());
-  }
   setupLevelTestControls();
+  if (battleExitBtn) {
+    battleExitBtn.addEventListener("click", () => {
+      if (!state.started || state.gameOver || state.levelTransitioning) return;
+      backToStart();
+    });
+  }
 
   window.addEventListener("resize", resize);
   window.addEventListener("pointerdown", onPointerDown);
@@ -383,11 +461,13 @@ function jumpToLevelForTest(index) {
   if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) return;
 
   if (!state.started || state.gameOver) {
-    startGame();
+    startGame(index);
+  } else {
+    gameUI.closeResult();
+    state.levelTransitioning = false;
+    state.gameOver = false;
+    loadLevel(index);
   }
-
-  state.levelTransitioning = false;
-  loadLevel(index);
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
   gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
 }
@@ -430,15 +510,21 @@ function showWebGpuUnsupported() {
   appEl.appendChild(layer);
 }
 
-function startGame() {
+function startGame(initialLevelIndex = 0) {
   gameAudio.ensureAudioUnlocked();
   void gameAudio.preloadPopAudio();
   gameAudio.resetSelectToneProgression();
 
+  const safeLevelIndex = THREE.MathUtils.clamp(
+    Number.isInteger(initialLevelIndex) ? initialLevelIndex : 0,
+    0,
+    LEVELS.length - 1
+  );
+
   state.started = true;
   state.gameOver = false;
   state.levelTransitioning = false;
-  state.currentLevelIndex = 0;
+  state.currentLevelIndex = safeLevelIndex;
   state.activeLevel = null;
   state.pointerDown = false;
   state.sliceColorId = null;
@@ -456,16 +542,17 @@ function startGame() {
   burstSystem.clear();
   victoryRainSystem.reset();
 
-  trail.reset();
+  if (trail) trail.reset();
 
-  startScreenEl.classList.add("hidden");
-  gameUI.hideGameOver();
+  gameUI.hideStartScreen();
+  gameUI.closeResult();
+  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
 
   if (hasBubbleTuningOverride) {
     gameUI.showCommentary("已应用调试页同步参数。", 1300);
   }
 
-  loadLevel(0);
+  loadLevel(safeLevelIndex);
 }
 
 function loadLevel(index) {
@@ -492,7 +579,7 @@ function loadLevel(index) {
   setLevelTestSelection(index);
   updateStepsHud();
 
-  trail.reset();
+  if (trail) trail.reset();
 
   gameUI.setSliceStatus(`状态: 第${index + 1}关`);
   gameUI.showCommentary(
@@ -635,7 +722,7 @@ function tick() {
     && !state.pointerDown
     && state.pendingPops.length === 0
   ) {
-    endGame(`第${state.currentLevelIndex + 1}关失败：步数用尽`);
+    openLoseResult("步数用尽");
   }
 }
 
@@ -709,6 +796,10 @@ function consumeStep() {
 
 function updateStepsHud() {
   if (!stepsEl) return;
+  if (!state.started) {
+    stepsEl.textContent = "步数: -";
+    return;
+  }
   const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
   stepsEl.textContent = `步数: ${remaining}`;
 }
@@ -743,7 +834,73 @@ function resize() {
   levelRuntime.clearCache();
 }
 
-function endGame(reason) {
+function computeWinReward() {
+  return Math.max(1, Math.ceil((state.stepLimit - state.stepsUsed + 1) * 0.5));
+}
+
+function persistProgress() {
+  const saved = writeSave({
+    maxPassedLevel: state.maxPassedLevel,
+    coins: state.coins,
+  });
+  state.maxPassedLevel = saved.maxPassedLevel;
+  state.coins = saved.coins;
+}
+
+function addCoins(value) {
+  const delta = Math.max(0, Math.floor(value ?? 0));
+  if (delta <= 0) return;
+  state.coins += delta;
+  persistProgress();
+  gameUI.setCoins(state.coins);
+}
+
+function settleWinResult({ levelNumber, reward, isFinal, canNext }) {
+  if (state.gameOver && !canNext) return;
+  state.gameOver = !canNext;
+  state.pointerDown = false;
+  burstSystem.clear();
+  clearQueuedSelections();
+  state.pendingPops.length = 0;
+  if (trail) trail.reset();
+
+  state.resultOutcome = "win";
+  state.pendingReward = Math.max(0, Math.floor(reward));
+
+  const unlockedLevel = Math.min(LEVELS.length, Math.max(state.maxPassedLevel, levelNumber + 1));
+  state.maxPassedLevel = unlockedLevel;
+  persistProgress();
+
+  gameUI.updateStartMeta({
+    maxPassedLevel: state.maxPassedLevel,
+    selectedLevelIndex: Math.max(0, Math.min(levelNumber, state.maxPassedLevel - 1)),
+  });
+
+  gameUI.openResult("win", {
+    reward: state.pendingReward,
+    level: levelNumber,
+    score: state.stepsUsed,
+    canNext,
+    isFinal,
+  });
+  if (battleExitBtn) battleExitBtn.classList.add("hidden");
+  gameUI.setSliceStatus(`状态: 第${levelNumber}关完成`);
+
+  if (state.pendingReward > 0) {
+    const originRect = resultRewardEl?.getBoundingClientRect?.();
+    gameUI.playCoinFly(state.pendingReward, {
+      originRect,
+      onEachCoin: (value) => {
+        addCoins(value);
+      },
+      onDone: () => {
+        state.pendingReward = 0;
+      },
+    });
+  }
+}
+
+function openLoseResult(reason) {
   if (state.gameOver) return;
   state.gameOver = true;
   state.levelTransitioning = false;
@@ -753,10 +910,61 @@ function endGame(reason) {
   clearQueuedSelections();
   state.pendingPops.length = 0;
   victoryRainSystem.reset();
-  trail.reset();
+  if (trail) trail.reset();
 
-  gameUI.showGameOver(reason);
-  gameUI.setSliceStatus(`状态: ${reason}`);
+  state.resultOutcome = "lose";
+  state.pendingReward = 0;
+  gameUI.openResult("lose", {
+    reward: 0,
+    level: state.currentLevelIndex + 1,
+    score: state.stepsUsed,
+    canNext: false,
+    isFinal: false,
+  });
+  if (battleExitBtn) battleExitBtn.classList.add("hidden");
+  gameUI.setSliceStatus(`状态: 第${state.currentLevelIndex + 1}关失败 (${reason})`);
+}
+
+function retryCurrentLevel() {
+  gameUI.closeResult();
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
+  loadLevel(state.currentLevelIndex);
+}
+
+function backToStart() {
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingReward = 0;
+  state.stepLimit = 0;
+  state.stepsUsed = 0;
+  levelFlow.reset();
+  burstSystem.clear();
+  victoryRainSystem.reset();
+  clearQueuedSelections();
+  state.pendingPops.length = 0;
+  if (trail) trail.reset();
+
+  for (const fruit of fruits) scene.remove(fruit.group);
+  fruits.length = 0;
+
+  gameUI.closeResult();
+  gameUI.showStartScreen({
+    maxPassedLevel: state.maxPassedLevel,
+    selectedLevelIndex: Math.max(0, state.maxPassedLevel - 1),
+  });
+  if (battleExitBtn) battleExitBtn.classList.add("hidden");
+  gameUI.setSliceStatus("状态: 待机");
+  updateStepsHud();
+}
+
+function endGame(reason) {
+  openLoseResult(reason);
+
+  gameUI.showCommentary(reason, 1200);
 }
 
 function createBubbleMaterial(baseColor) {

@@ -1,20 +1,30 @@
+import { createStartScreen } from "./start-screen.js";
+import { createResultPage } from "./result-page.js";
+import { createCoinStatus } from "./coin-status.js";
+import { createCoinFly } from "./coin-fly.js";
+
 export function createGameUI({
   sliceStateEl,
   commentaryEl,
-  gameOverEl,
-  gameOverTitleEl,
-  levelWinEl,
-  levelWinTitleEl,
-  levelWinDescEl,
+  startScreen,
+  resultPage,
+  coinStatus,
+  coinFly,
+  levelCount,
 } = {}) {
   let commentaryTimer = 0;
+
+  const start = createStartScreen(startScreen);
+  const result = createResultPage(resultPage);
+  const coins = createCoinStatus(coinStatus);
+  const fly = createCoinFly(coinFly);
 
   function setSliceStatus(text) {
     if (!sliceStateEl) return;
     sliceStateEl.textContent = text;
   }
 
-  function showCommentary(text, durationMs) {
+  function showCommentary(text, durationMs = 1200) {
     if (!commentaryEl) return;
     commentaryEl.textContent = text;
     commentaryEl.classList.add("show");
@@ -22,35 +32,51 @@ export function createGameUI({
     commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
   }
 
-  function showLevelWin(currentLevel, nextLevel) {
-    if (!levelWinEl || !levelWinTitleEl || !levelWinDescEl) return false;
-    levelWinTitleEl.textContent = `第${currentLevel}关胜利！`;
-    levelWinDescEl.textContent = `彩色泡泡雨已送达，准备进入第${nextLevel}关。`;
-    levelWinEl.classList.remove("hidden");
-    return true;
+  function setCoins(value) {
+    coins.setCoins(value);
   }
 
-  function hideLevelWin() {
-    if (levelWinEl) levelWinEl.classList.add("hidden");
+  function showStartScreen(meta = {}) {
+    start.setMeta({ levelCount, ...meta });
+    start.show();
   }
 
-  function hideGameOver() {
-    if (gameOverEl) gameOverEl.classList.add("hidden");
+  function hideStartScreen() {
+    start.hide();
   }
 
-  function showGameOver(reason) {
-    if (gameOverTitleEl) {
-      gameOverTitleEl.textContent = reason.startsWith("全部") ? "恭喜通关！" : "本局结束";
-    }
-    if (gameOverEl) gameOverEl.classList.remove("hidden");
+  function openResult(outcome, options) {
+    result.openResult(outcome, options);
+  }
+
+  function closeResult() {
+    result.closeResult();
+  }
+
+  function playCoinFly(reward, options = {}) {
+    fly.playCoinFly(reward, options);
+  }
+
+  function isCoinFlyPlaying() {
+    return fly.isPlaying();
+  }
+
+  function getCoinAnchorRect() {
+    return coins.getAnchorRect();
   }
 
   return {
     setSliceStatus,
     showCommentary,
-    showLevelWin,
-    hideLevelWin,
-    hideGameOver,
-    showGameOver,
+    setCoins,
+    showStartScreen,
+    hideStartScreen,
+    openResult,
+    closeResult,
+    playCoinFly,
+    isCoinFlyPlaying,
+    getCoinAnchorRect,
+    getSelectedLevelIndex: start.getSelectedLevelIndex,
+    updateStartMeta: start.setMeta,
   };
 }
