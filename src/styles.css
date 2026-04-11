@@ -259,6 +259,19 @@ body {
   opacity: 0.72;
 }
 
+#control-panel,
+#control-panel * {
+  text-shadow: none !important;
+}
+
+#control-panel button,
+#control-panel input,
+#control-panel select,
+#control-panel textarea {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
 #control-panel::-webkit-scrollbar {
   width: 8px;
 }
