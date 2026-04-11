@@ -19,6 +19,7 @@ const controlBlockerEl = document.getElementById("control-blocker");
 const controlPanelEl = document.getElementById("control-panel");
 const controlCloseBtn = document.getElementById("control-close-btn");
 const controlSaveBtn = document.getElementById("control-save-btn");
+const coinStatusEl = document.getElementById("coin-status");
 const coinStatusTextEl = document.getElementById("coin-status-text");
 const coinStatusIconEl = document.getElementById("coin-status-icon");
 const coinFlyLayerEl = document.getElementById("coin-fly-layer");
@@ -177,6 +178,7 @@ let winCoinCountUp = null;
 let pendingCoinFlyCount = 0;
 let pendingCoinRewardTotal = 0;
 let coinFlyTriggered = false;
+let resultCoinRewardEnabled = false;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -737,6 +739,7 @@ function playCoinFlyAnimation(count, totalReward) {
   if (!coinFlyLayerEl || !phoneFrameEl || !coinStatusIconEl || !resultCoinIconEl) {
     addCoins(total);
     pendingCoinRewardTotal = 0;
+    resultCoinRewardEnabled = false;
     return;
   }
 
@@ -822,6 +825,7 @@ function playCoinFlyAnimation(count, totalReward) {
   }
 
   pendingCoinRewardTotal = 0;
+  resultCoinRewardEnabled = false;
 }
 
 function applyResultLayoutForOutcome(outcome, values) {
@@ -898,7 +902,7 @@ function showResultPage() {
   const isWin = state.resultOutcome === "win";
   const controlValues = currentControlValues || collectControlValues();
   applyResultLayoutForOutcome(state.resultOutcome, controlValues);
-  pendingCoinRewardTotal = isWin ? Math.max(0, Math.floor(controlValues.winCoinGain || 0)) : 0;
+  pendingCoinRewardTotal = isWin && resultCoinRewardEnabled ? Math.max(0, Math.floor(controlValues.winCoinGain || 0)) : 0;
   pendingCoinFlyCount = pendingCoinRewardTotal;
   coinFlyTriggered = false;
 
@@ -916,8 +920,7 @@ function showResultPage() {
     resultPageTitleEl.classList.toggle("is-lose", !isWin);
   }
   resultPageEl.classList.toggle("is-win", isWin);
-  const coinBarEl = document.getElementById("coin-status");
-  if (coinBarEl) coinBarEl.classList.toggle("on-result-win", isWin);
+  if (coinStatusEl) coinStatusEl.classList.toggle("on-result-win", isWin);
   if (resultPageTitleTextEl) {
     resultPageTitleTextEl.textContent = isWin ? controlValues.winTitle : controlValues.failTitle;
   }
@@ -970,24 +973,27 @@ function showResultPage() {
 
 function showFailResultPreview() {
   state.resultOutcome = "lose";
+  resultCoinRewardEnabled = false;
   showResultPage();
 }
 
 function showWinResultPreview() {
   state.resultOutcome = "win";
+  resultCoinRewardEnabled = false;
   showResultPage();
 }
 
 function passCurrentLevelAndShowWinResult() {
   markLevelPassed(state.currentLevelIndex + 1);
   state.resultOutcome = "win";
+  resultCoinRewardEnabled = true;
   hideControlPanel();
   showResultPage();
 }
 
 function hideResultPage() {
   if (!resultPageEl) return;
-  if (state.resultOutcome === "win") maybeStartCoinFlyAnimation();
+  if (state.resultOutcome === "win" && resultCoinRewardEnabled) maybeStartCoinFlyAnimation();
   if (winCoinCountUp) {
     try {
       winCoinCountUp.reset();
@@ -998,17 +1004,11 @@ function hideResultPage() {
   }
   resultPageEl.classList.add("hidden");
   if (resultMaskEl) resultMaskEl.classList.add("hidden");
-  const coinBarEl = document.getElementById("coin-status");
-  if (coinBarEl) coinBarEl.classList.remove("on-result-win");
+  if (coinStatusEl) coinStatusEl.classList.remove("on-result-win");
   if (resultCoinGainEl) resultCoinGainEl.classList.add("hidden");
 }
 
-function retryFromResultPage() {
-  hideResultPage();
-
-  state.started = true;
-  state.gameOver = false;
-  state.levelTransitioning = false;
+function resetSliceSessionState() {
   state.pointerDown = false;
   state.sliceColorId = null;
   state.sliceBroken = false;
@@ -1018,11 +1018,27 @@ function retryFromResultPage() {
   state.sliceQueue.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
+}
 
-  trail.reset();
-  particles.reset();
+function resetRoundVisualState() {
+  if (trail) trail.reset();
+  if (particles) particles.reset();
+}
+
+function prepareGameplayView() {
   gameOverEl.classList.add("hidden");
   startScreenEl.classList.add("hidden");
+}
+
+function retryFromResultPage() {
+  hideResultPage();
+
+  state.started = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  resetSliceSessionState();
+  resetRoundVisualState();
+  prepareGameplayView();
 
   loadLevel(state.currentLevelIndex);
 }
@@ -1033,18 +1049,8 @@ function exitToStartFromResultPage() {
   state.started = false;
   state.gameOver = false;
   state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  clearQueuedSelections();
-  state.sliceHitIds.clear();
-  state.sliceQueue.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-
-  trail.reset();
-  particles.reset();
+  resetSliceSessionState();
+  resetRoundVisualState();
   for (const fruit of fruits) {
     scene.remove(fruit.group);
   }
@@ -1066,20 +1072,9 @@ function goToNextLevelFromResultPage() {
   state.started = true;
   state.gameOver = false;
   state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  clearQueuedSelections();
-  state.sliceHitIds.clear();
-  state.sliceQueue.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-
-  trail.reset();
-  particles.reset();
-  gameOverEl.classList.add("hidden");
-  startScreenEl.classList.add("hidden");
+  resetSliceSessionState();
+  resetRoundVisualState();
+  prepareGameplayView();
 
   loadLevel(next);
 }
@@ -1139,18 +1134,8 @@ function startGame() {
   state.activeLevel = null;
   state.resultOutcome = "lose";
   state.score = 0;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  clearQueuedSelections();
-  state.sliceHitIds.clear();
-  state.sliceQueue.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-
-  trail.reset();
-  particles.reset();
+  resetSliceSessionState();
+  resetRoundVisualState();
 
   startScreenEl.classList.add("hidden");
   gameOverEl.classList.add("hidden");
@@ -1969,10 +1954,12 @@ function endGame(reason) {
 
   if (reason.startsWith("全部")) {
     state.resultOutcome = "win";
+    resultCoinRewardEnabled = true;
     if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `恭喜通关！总分 ${state.score}`;
     else gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
   } else {
     state.resultOutcome = "lose";
+    resultCoinRewardEnabled = false;
     if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `本局结束！本局分数 ${state.score}`;
     else gameOverTitleEl.textContent = `本局结束！本局分数 ${state.score}`;
   }
