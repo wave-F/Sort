@@ -152,6 +152,24 @@
             <em id="ctl-ladder-font-size-value">46</em>
           </label>
 
+          <label class="control-row">
+            <span>按钮宽度</span>
+            <input id="ctl-start-btn-width" type="range" min="140" max="320" step="1" value="220" />
+            <em id="ctl-start-btn-width-value">220</em>
+          </label>
+
+          <label class="control-row">
+            <span>按钮高度</span>
+            <input id="ctl-start-btn-height" type="range" min="44" max="120" step="1" value="72" />
+            <em id="ctl-start-btn-height-value">72</em>
+          </label>
+
+          <label class="control-row">
+            <span>按钮Y</span>
+            <input id="ctl-start-btn-y" type="range" min="-220" max="220" step="1" value="0" />
+            <em id="ctl-start-btn-y-value">0</em>
+          </label>
+
           <div class="control-group-actions">
             <button id="advance-start-level-btn" type="button">下一关</button>
           </div>
@@ -312,6 +330,7 @@
       </div>
 
       <div id="commentary">开始后，先锁定一种颜色再连切。</div>
+      <div id="start-toast" aria-live="polite"></div>
 
       <div id="start-screen" class="layer">
         <div class="ladder-stage">
@@ -363,6 +382,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=62"></script>
+    <script type="module" src="./src/main.js?v=67"></script>
   </body>
 </html>

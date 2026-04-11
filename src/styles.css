@@ -29,6 +29,9 @@
   --coin-text-y: 0px;
   --coin-text-size: 34px;
   --ladder-level-font-size: 46px;
+  --start-btn-width: 220px;
+  --start-btn-height: 72px;
+  --start-btn-y: 0px;
   --control-panel-x: 0px;
   --text: #fff6fb;
   --text-shadow-common: 0 3px 10px rgba(56, 34, 10, 0.55);
@@ -478,6 +481,35 @@ body {
   opacity: 1;
 }
 
+#start-toast {
+  position: absolute;
+  left: 50%;
+  top: 38.2%;
+  transform: translate(-50%, -50%);
+  z-index: 21;
+  min-width: 180px;
+  max-width: 82%;
+  padding: 10px 14px;
+  color: #6f527e;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  border: 16px solid transparent;
+  border-image-source: url("../assets/images/panel_Light1.png");
+  border-image-slice: var(--panel-slice-top) var(--panel-slice-right) var(--panel-slice-bottom) var(--panel-slice-left) fill;
+  border-image-width: 16px;
+  border-image-repeat: stretch;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#start-toast.show {
+  opacity: 1;
+  visibility: visible;
+}
+
 .layer {
   position: absolute;
   inset: 0;
@@ -544,7 +576,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .ladder-node {
@@ -585,13 +617,44 @@ body {
 #start-btn {
   position: absolute;
   left: 50%;
-  bottom: 8.5%;
-  transform: translateX(-50%);
+  top: 91.5%;
+  transform: translate(-50%, -50%) translateY(var(--start-btn-y));
+  transform-origin: center;
   margin-top: 0;
-  min-width: 220px;
+  width: var(--start-btn-width);
+  height: var(--start-btn-height);
+  min-width: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 2;
-  background: linear-gradient(180deg, #ff71cd 0%, #ef66a8 100%);
-  box-shadow: 0 12px 22px rgba(134, 67, 130, 0.42);
+  color: #ffffff;
+  background-image: url("../assets/images/button_4_Green.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  box-shadow: none;
+}
+
+#start-btn.is-all-cleared {
+  color: #6f527e;
+  background-image: url("../assets/images/button_4_White.png");
+}
+
+#start-btn:active {
+  transform: translate(-50%, -50%) translateY(var(--start-btn-y)) scale(0.97);
+}
+
+#start-btn:focus,
+#start-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+#start-btn,
+#start-btn * {
+  -webkit-tap-highlight-color: transparent;
 }
 
 #pause-overlay {

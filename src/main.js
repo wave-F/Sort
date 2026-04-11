@@ -7,6 +7,7 @@ const titleEl = document.getElementById("title");
 const scoreEl = document.getElementById("score");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
+const startToastEl = document.getElementById("start-toast");
 const startScreenEl = document.getElementById("start-screen");
 const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
@@ -53,11 +54,17 @@ const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
 const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
 const ctlScoreFruitEl = document.getElementById("ctl-score-fruit");
 const ctlLadderFontSizeEl = document.getElementById("ctl-ladder-font-size");
+const ctlStartBtnWidthEl = document.getElementById("ctl-start-btn-width");
+const ctlStartBtnHeightEl = document.getElementById("ctl-start-btn-height");
+const ctlStartBtnYEl = document.getElementById("ctl-start-btn-y");
 const ctlControlPanelXValueEl = document.getElementById("ctl-control-panel-x-value");
 const ctlTrailWidthValueEl = document.getElementById("ctl-trail-width-value");
 const ctlParticleSizeValueEl = document.getElementById("ctl-particle-size-value");
 const ctlScoreFruitValueEl = document.getElementById("ctl-score-fruit-value");
 const ctlLadderFontSizeValueEl = document.getElementById("ctl-ladder-font-size-value");
+const ctlStartBtnWidthValueEl = document.getElementById("ctl-start-btn-width-value");
+const ctlStartBtnHeightValueEl = document.getElementById("ctl-start-btn-height-value");
+const ctlStartBtnYValueEl = document.getElementById("ctl-start-btn-y-value");
 const ctlCoinBarXEl = document.getElementById("ctl-coin-bar-x");
 const ctlCoinBarYEl = document.getElementById("ctl-coin-bar-y");
 const ctlCoinBarScaleEl = document.getElementById("ctl-coin-bar-scale");
@@ -194,6 +201,7 @@ const workHit = new THREE.Vector3();
 const workA = new THREE.Vector3();
 
 let commentaryTimer = 0;
+let startToastTimer = 0;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.84));
 const key = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -260,6 +268,18 @@ function bindControlPanel() {
   if (ctlLadderFontSizeEl) {
     ctlLadderFontSizeEl.value = String(saved.ladderFontSize);
     ctlLadderFontSizeEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlStartBtnWidthEl) {
+    ctlStartBtnWidthEl.value = String(saved.startBtnWidth);
+    ctlStartBtnWidthEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlStartBtnHeightEl) {
+    ctlStartBtnHeightEl.value = String(saved.startBtnHeight);
+    ctlStartBtnHeightEl.addEventListener("input", onResultLayoutInput);
+  }
+  if (ctlStartBtnYEl) {
+    ctlStartBtnYEl.value = String(saved.startBtnY);
+    ctlStartBtnYEl.addEventListener("input", onResultLayoutInput);
   }
   if (ctlCoinBarXEl) {
     ctlCoinBarXEl.value = String(saved.coinBarX);
@@ -455,6 +475,9 @@ function syncControlPanelLabels() {
   if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
   if (ctlScoreFruitValueEl) ctlScoreFruitValueEl.textContent = String(scoring.perFruit);
   if (ctlLadderFontSizeValueEl) ctlLadderFontSizeValueEl.textContent = String(Math.floor(Number(ctlLadderFontSizeEl?.value ?? 46)));
+  if (ctlStartBtnWidthValueEl) ctlStartBtnWidthValueEl.textContent = String(Math.floor(Number(ctlStartBtnWidthEl?.value ?? 220)));
+  if (ctlStartBtnHeightValueEl) ctlStartBtnHeightValueEl.textContent = String(Math.floor(Number(ctlStartBtnHeightEl?.value ?? 72)));
+  if (ctlStartBtnYValueEl) ctlStartBtnYValueEl.textContent = String(Math.floor(Number(ctlStartBtnYEl?.value ?? 0)));
   if (ctlCoinBarXValueEl) ctlCoinBarXValueEl.textContent = String(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)));
   if (ctlCoinBarYValueEl) ctlCoinBarYValueEl.textContent = String(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)));
   if (ctlCoinBarScaleValueEl) ctlCoinBarScaleValueEl.textContent = Number(ctlCoinBarScaleEl?.value ?? 1).toFixed(2);
@@ -494,6 +517,9 @@ function readControlSave() {
     particleSize: 0.09,
     scorePerFruit: 5,
     ladderFontSize: 46,
+    startBtnWidth: 220,
+    startBtnHeight: 72,
+    startBtnY: 0,
     coinBarX: 0,
     coinBarY: 0,
     coinBarScale: 1,
@@ -541,6 +567,9 @@ function readControlSave() {
       particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
       scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
       ladderFontSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.ladderFontSize) || defaults.ladderFontSize), 20, 72),
+      startBtnWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.startBtnWidth) || defaults.startBtnWidth), 140, 320),
+      startBtnHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.startBtnHeight) || defaults.startBtnHeight), 44, 120),
+      startBtnY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.startBtnY) || defaults.startBtnY), -220, 220),
       coinBarX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarX) || defaults.coinBarX), -260, 260),
       coinBarY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarY) || defaults.coinBarY), -260, 260),
       coinBarScale: THREE.MathUtils.clamp(Number(parsed?.coinBarScale) || defaults.coinBarScale, 0.2, 2),
@@ -589,6 +618,9 @@ function collectControlValues() {
     particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
     scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
     ladderFontSize: THREE.MathUtils.clamp(Math.floor(Number(ctlLadderFontSizeEl?.value ?? 46)), 20, 72),
+    startBtnWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlStartBtnWidthEl?.value ?? 220)), 140, 320),
+    startBtnHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlStartBtnHeightEl?.value ?? 72)), 44, 120),
+    startBtnY: THREE.MathUtils.clamp(Math.floor(Number(ctlStartBtnYEl?.value ?? 0)), -220, 220),
     coinBarX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)), -260, 260),
     coinBarY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)), -260, 260),
     coinBarScale: THREE.MathUtils.clamp(Number(ctlCoinBarScaleEl?.value ?? 1), 0.2, 2),
@@ -633,6 +665,9 @@ function setControlInputs(values) {
   if (ctlParticleSizeEl) ctlParticleSizeEl.value = String(values.particleSize);
   if (ctlScoreFruitEl) ctlScoreFruitEl.value = String(values.scorePerFruit);
   if (ctlLadderFontSizeEl) ctlLadderFontSizeEl.value = String(values.ladderFontSize);
+  if (ctlStartBtnWidthEl) ctlStartBtnWidthEl.value = String(values.startBtnWidth);
+  if (ctlStartBtnHeightEl) ctlStartBtnHeightEl.value = String(values.startBtnHeight);
+  if (ctlStartBtnYEl) ctlStartBtnYEl.value = String(values.startBtnY);
   if (ctlCoinBarXEl) ctlCoinBarXEl.value = String(values.coinBarX);
   if (ctlCoinBarYEl) ctlCoinBarYEl.value = String(values.coinBarY);
   if (ctlCoinBarScaleEl) ctlCoinBarScaleEl.value = String(values.coinBarScale);
@@ -688,6 +723,9 @@ function applyControlValues(values) {
   rootStyle.setProperty("--coin-text-y", `${values.coinTextY}px`);
   rootStyle.setProperty("--coin-text-size", `${values.coinTextSize}px`);
   rootStyle.setProperty("--ladder-level-font-size", `${values.ladderFontSize}px`);
+  rootStyle.setProperty("--start-btn-width", `${values.startBtnWidth}px`);
+  rootStyle.setProperty("--start-btn-height", `${values.startBtnHeight}px`);
+  rootStyle.setProperty("--start-btn-y", `${values.startBtnY}px`);
   rootStyle.setProperty("--panel-slice-top", String(values.sliceTop));
   rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
   rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
@@ -1128,6 +1166,11 @@ function showWebGpuUnsupported() {
 
 function startGame() {
   readGameSave();
+  const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
+  if (Math.floor(state.maxPassedLevel) > totalLevels) {
+    showStartToast("已通关全部关卡", 1200);
+    return;
+  }
   hideResultPage();
   hideControlPanel();
 
@@ -1881,6 +1924,16 @@ function showCommentary(text, durationMs) {
   commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
 }
 
+function showStartToast(text, durationMs) {
+  if (!startToastEl) return;
+  startToastEl.textContent = text;
+  startToastEl.classList.add("show");
+  if (startToastTimer) clearTimeout(startToastTimer);
+  startToastTimer = window.setTimeout(() => {
+    startToastEl.classList.remove("show");
+  }, durationMs);
+}
+
 function readGameSave() {
   let parsed = null;
   try {
@@ -2003,6 +2056,15 @@ function advanceStartScreenLevelFromControl() {
   };
 }
 
+function updateStartButtonState(totalLevels) {
+  if (!startBtn) return;
+  const allCleared = Math.floor(state.maxPassedLevel) > totalLevels;
+  startBtn.classList.toggle("is-all-cleared", allCleared);
+  startBtn.textContent = allCleared ? "敬请期待" : "开始";
+  startBtn.disabled = false;
+  startBtn.setAttribute("aria-disabled", allCleared ? "true" : "false");
+}
+
 function renderLadderProgress() {
   if (!ladderNodes.length) return;
   const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length, ladderNodes.length));
@@ -2044,6 +2106,8 @@ function renderLadderProgress() {
       node.classList.add("is-current");
     }
   }
+
+  updateStartButtonState(totalLevels);
 }
 
 function endGame(reason) {
