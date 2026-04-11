@@ -2006,16 +2006,12 @@ function advanceStartScreenLevelFromControl() {
       state.maxPassedLevel = Math.min(SAVE_TOTAL_LEVELS, totalLevels + 1);
       writeGameSave();
       renderLadderProgress();
-      showCommentary("已全部通关", 1200);
-    } else {
-      showCommentary("已全部通关", 1200);
     }
     return;
   }
 
   const commitAdvance = () => {
     markLevelPassed(currentLevel);
-    showCommentary(`已推进到第${Math.min(state.maxPassedLevel, totalLevels)}关`, 1200);
   };
 
   if (!startScreenEl || startScreenEl.classList.contains("hidden") || !ladderNodesEl) {
