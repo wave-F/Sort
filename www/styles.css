@@ -302,10 +302,85 @@ body {
 
 #home-screen {
   z-index: 15;
+  position: absolute;
+  overflow: hidden;
   padding: 0;
   justify-content: space-between;
   color: #fff6ef;
-  background: linear-gradient(160deg, rgba(29, 16, 10, 0.2), rgba(29, 16, 10, 0.45));
+  background: transparent;
+}
+
+#home-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("../assets/images/09_aurora_gradient.png") center / cover no-repeat;
+  opacity: 0.6;
+}
+
+#home-float-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.home-float-bubble {
+  position: absolute;
+  left: var(--left);
+  bottom: -16%;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, calc(var(--alpha) * 0.9));
+  background: radial-gradient(circle at 30% 28%, rgba(255, 255, 255, calc(var(--alpha) * 0.34)) 0%, rgba(255, 255, 255, 0) 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--alpha) * 0.18)),
+    0 4px 10px rgba(135, 189, 255, calc(var(--alpha) * 0.16));
+  transform: translate3d(-50%, 0, 0);
+  opacity: 0;
+  animation: home-float-up var(--dur) linear infinite;
+  animation-delay: var(--delay);
+  will-change: transform, opacity;
+}
+
+.home-float-bubble::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  top: 14%;
+  width: 28%;
+  height: 20%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, calc(var(--alpha) * 0.95));
+  transform: rotate(-22deg);
+}
+
+@keyframes home-float-up {
+  0% {
+    transform: translate3d(-50%, 0, 0) scale(0.9);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  88% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(calc(-50% + var(--drift)), -132vh, 0) scale(1.06);
+    opacity: 0;
+  }
+}
+
+#home-topbar,
+#home-ui-panel,
+#home-main {
+  position: relative;
+  z-index: 1;
 }
 
 #home-topbar {

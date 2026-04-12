@@ -78,6 +78,42 @@ const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
 
+function setupHomeFloatBubbles() {
+  if (!homeScreenEl) return;
+
+  let layer = homeScreenEl.querySelector("#home-float-layer");
+  if (!(layer instanceof HTMLElement)) {
+    layer = document.createElement("div");
+    layer.id = "home-float-layer";
+    layer.setAttribute("aria-hidden", "true");
+    homeScreenEl.prepend(layer);
+  }
+
+  if (layer.childElementCount > 0) return;
+
+  const bubbleCount = 16;
+  for (let i = 0; i < bubbleCount; i += 1) {
+    const bubble = document.createElement("span");
+    bubble.className = "home-float-bubble";
+
+    const size = 10 + Math.random() * 32;
+    const left = 4 + Math.random() * 92;
+    const duration = 9 + Math.random() * 10;
+    const delay = -Math.random() * duration;
+    const drift = -18 + Math.random() * 36;
+    const alpha = 0.42 + Math.random() * 0.38;
+
+    bubble.style.setProperty("--size", `${size.toFixed(1)}px`);
+    bubble.style.setProperty("--left", `${left.toFixed(2)}%`);
+    bubble.style.setProperty("--dur", `${duration.toFixed(2)}s`);
+    bubble.style.setProperty("--delay", `${delay.toFixed(2)}s`);
+    bubble.style.setProperty("--drift", `${drift.toFixed(1)}px`);
+    bubble.style.setProperty("--alpha", alpha.toFixed(2));
+
+    layer.appendChild(bubble);
+  }
+}
+
 const rules = {
   worldHeight: 10,
   minSliceSegment: 0.02,
@@ -987,6 +1023,7 @@ function init() {
   updatePhoneAspect();
   setGameHudVisible(false);
   if (homeScreenEl) homeScreenEl.classList.remove("hidden");
+  setupHomeFloatBubbles();
   renderHomeScreen();
 
   startBtn.addEventListener("click", startGame);
@@ -1409,7 +1446,9 @@ function screenToWorld(clientX, clientY) {
 }
 
 function resize() {
-  if (!renderer) return;
+  if (!renderer) {
+    return;
+  }
   updatePhoneAspect();
   const rect = appEl.getBoundingClientRect();
   renderer.setSize(rect.width, rect.height, false);
