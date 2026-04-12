@@ -30,6 +30,26 @@ const homeLevelPrevBtn = document.getElementById("home-level-prev");
 const homeLevelCurrentBtn = document.getElementById("home-level-current");
 const homeLevelNextBtn = document.getElementById("home-level-next");
 const homeSettingsBtn = document.getElementById("home-settings-btn");
+const homeUiPanelEl = document.getElementById("home-ui-panel");
+const homeUiEnergySizeEl = document.getElementById("home-ui-energy-size");
+const homeUiEnergyXEl = document.getElementById("home-ui-energy-x");
+const homeUiEnergyYEl = document.getElementById("home-ui-energy-y");
+const homeUiCoinSizeEl = document.getElementById("home-ui-coin-size");
+const homeUiCoinIconXEl = document.getElementById("home-ui-coin-icon-x");
+const homeUiCoinIconYEl = document.getElementById("home-ui-coin-icon-y");
+const homeUiCoinXEl = document.getElementById("home-ui-coin-x");
+const homeUiCoinYEl = document.getElementById("home-ui-coin-y");
+const homeUiEnergySizeValueEl = document.getElementById("home-ui-energy-size-value");
+const homeUiEnergyXValueEl = document.getElementById("home-ui-energy-x-value");
+const homeUiEnergyYValueEl = document.getElementById("home-ui-energy-y-value");
+const homeUiCoinSizeValueEl = document.getElementById("home-ui-coin-size-value");
+const homeUiCoinIconXValueEl = document.getElementById("home-ui-coin-icon-x-value");
+const homeUiCoinIconYValueEl = document.getElementById("home-ui-coin-icon-y-value");
+const homeUiCoinXValueEl = document.getElementById("home-ui-coin-x-value");
+const homeUiCoinYValueEl = document.getElementById("home-ui-coin-y-value");
+const homeUiSaveBtn = document.getElementById("home-ui-save-btn");
+const homeUiCloseBtn = document.getElementById("home-ui-close-btn");
+const homeUiResetBtn = document.getElementById("home-ui-reset-btn");
 const homeCoinEl = document.getElementById("home-coin");
 const coinStatusEl = document.getElementById("coin-status");
 const coinStatusTextEl = document.getElementById("coin-status-text");
@@ -75,6 +95,7 @@ const bubbleRadiusScale = 3;
 const bubbleTuningStorageKey = "bubble_tuning_v1";
 const levelProgressStorageKey = "fruit_level_progress_v1";
 const coinStorageKey = "fruit_coin_balance_v1";
+const homeUiTuningStorageKey = "fruit_home_ui_tuning_v1";
 const levelWinRewardBase = 20;
 const homeEasyColorIds = [1, 2, 3, 5, 6];
 const homeMediumColorId = 4;
@@ -125,6 +146,17 @@ const defaultBubbleTuning = {
   toggleDye: true,
   toggleEdge: true,
   toggleIri: true,
+};
+
+const defaultHomeUiTuning = {
+  energyTextSize: 22,
+  energyTextX: 0,
+  energyTextY: 0,
+  coinTextSize: 24,
+  coinIconX: 0,
+  coinIconY: 0,
+  coinTextX: 0,
+  coinTextY: 0,
 };
 
 const loadedBubbleTuning = loadBubbleTuning();
@@ -434,6 +466,142 @@ function clampLevelIndex(index, fallback = 0) {
   return THREE.MathUtils.clamp(Math.floor(n), 0, maxIndex);
 }
 
+function readHomeUiTuning() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { ...defaultHomeUiTuning };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(homeUiTuningStorageKey);
+    if (!raw) return { ...defaultHomeUiTuning };
+    const parsed = JSON.parse(raw);
+    return {
+      energyTextSize: clampNumber(parsed.energyTextSize, 14, 42, defaultHomeUiTuning.energyTextSize),
+      energyTextX: clampNumber(parsed.energyTextX, -80, 80, defaultHomeUiTuning.energyTextX),
+      energyTextY: clampNumber(parsed.energyTextY, -40, 40, defaultHomeUiTuning.energyTextY),
+      coinTextSize: clampNumber(parsed.coinTextSize, 14, 42, defaultHomeUiTuning.coinTextSize),
+      coinIconX: clampNumber(parsed.coinIconX, -30, 40, defaultHomeUiTuning.coinIconX),
+      coinIconY: clampNumber(parsed.coinIconY, -30, 30, defaultHomeUiTuning.coinIconY),
+      coinTextX: clampNumber(parsed.coinTextX, -80, 80, defaultHomeUiTuning.coinTextX),
+      coinTextY: clampNumber(parsed.coinTextY, -40, 40, defaultHomeUiTuning.coinTextY),
+    };
+  } catch (_err) {
+    return { ...defaultHomeUiTuning };
+  }
+}
+
+function applyHomeUiTuning(values) {
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--home-energy-text-size", `${values.energyTextSize}px`);
+  rootStyle.setProperty("--home-energy-text-x", `${values.energyTextX}px`);
+  rootStyle.setProperty("--home-energy-text-y", `${values.energyTextY}px`);
+  rootStyle.setProperty("--home-coin-text-size", `${values.coinTextSize}px`);
+  rootStyle.setProperty("--home-coin-icon-x", `${values.coinIconX}px`);
+  rootStyle.setProperty("--home-coin-icon-y", `${values.coinIconY}px`);
+  rootStyle.setProperty("--home-coin-text-x", `${values.coinTextX}px`);
+  rootStyle.setProperty("--home-coin-text-y", `${values.coinTextY}px`);
+}
+
+function setHomeUiInputs(values) {
+  if (homeUiEnergySizeEl) homeUiEnergySizeEl.value = String(values.energyTextSize);
+  if (homeUiEnergyXEl) homeUiEnergyXEl.value = String(values.energyTextX);
+  if (homeUiEnergyYEl) homeUiEnergyYEl.value = String(values.energyTextY);
+  if (homeUiCoinSizeEl) homeUiCoinSizeEl.value = String(values.coinTextSize);
+  if (homeUiCoinIconXEl) homeUiCoinIconXEl.value = String(values.coinIconX);
+  if (homeUiCoinIconYEl) homeUiCoinIconYEl.value = String(values.coinIconY);
+  if (homeUiCoinXEl) homeUiCoinXEl.value = String(values.coinTextX);
+  if (homeUiCoinYEl) homeUiCoinYEl.value = String(values.coinTextY);
+}
+
+function syncHomeUiLabels() {
+  if (homeUiEnergySizeValueEl && homeUiEnergySizeEl) homeUiEnergySizeValueEl.textContent = homeUiEnergySizeEl.value;
+  if (homeUiEnergyXValueEl && homeUiEnergyXEl) homeUiEnergyXValueEl.textContent = homeUiEnergyXEl.value;
+  if (homeUiEnergyYValueEl && homeUiEnergyYEl) homeUiEnergyYValueEl.textContent = homeUiEnergyYEl.value;
+  if (homeUiCoinSizeValueEl && homeUiCoinSizeEl) homeUiCoinSizeValueEl.textContent = homeUiCoinSizeEl.value;
+  if (homeUiCoinIconXValueEl && homeUiCoinIconXEl) homeUiCoinIconXValueEl.textContent = homeUiCoinIconXEl.value;
+  if (homeUiCoinIconYValueEl && homeUiCoinIconYEl) homeUiCoinIconYValueEl.textContent = homeUiCoinIconYEl.value;
+  if (homeUiCoinXValueEl && homeUiCoinXEl) homeUiCoinXValueEl.textContent = homeUiCoinXEl.value;
+  if (homeUiCoinYValueEl && homeUiCoinYEl) homeUiCoinYValueEl.textContent = homeUiCoinYEl.value;
+}
+
+function collectHomeUiValues() {
+  return {
+    energyTextSize: clampNumber(homeUiEnergySizeEl?.value, 14, 42, defaultHomeUiTuning.energyTextSize),
+    energyTextX: clampNumber(homeUiEnergyXEl?.value, -80, 80, defaultHomeUiTuning.energyTextX),
+    energyTextY: clampNumber(homeUiEnergyYEl?.value, -40, 40, defaultHomeUiTuning.energyTextY),
+    coinTextSize: clampNumber(homeUiCoinSizeEl?.value, 14, 42, defaultHomeUiTuning.coinTextSize),
+    coinIconX: clampNumber(homeUiCoinIconXEl?.value, -30, 40, defaultHomeUiTuning.coinIconX),
+    coinIconY: clampNumber(homeUiCoinIconYEl?.value, -30, 30, defaultHomeUiTuning.coinIconY),
+    coinTextX: clampNumber(homeUiCoinXEl?.value, -80, 80, defaultHomeUiTuning.coinTextX),
+    coinTextY: clampNumber(homeUiCoinYEl?.value, -40, 40, defaultHomeUiTuning.coinTextY),
+  };
+}
+
+function saveHomeUiValues(values) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(homeUiTuningStorageKey, JSON.stringify(values));
+}
+
+function hideHomeUiPanel() {
+  homeUiPanelEl?.classList.add("hidden");
+}
+
+function bindHomeUiPanel() {
+  const hasAll = homeUiPanelEl
+    && homeUiEnergySizeEl && homeUiEnergyXEl && homeUiEnergyYEl
+    && homeUiCoinSizeEl && homeUiCoinIconXEl && homeUiCoinIconYEl
+    && homeUiCoinXEl && homeUiCoinYEl;
+  if (!hasAll) return;
+
+  const saved = readHomeUiTuning();
+  setHomeUiInputs(saved);
+  syncHomeUiLabels();
+  applyHomeUiTuning(saved);
+
+  const onInput = () => {
+    const values = collectHomeUiValues();
+    applyHomeUiTuning(values);
+    syncHomeUiLabels();
+  };
+
+  homeUiEnergySizeEl.addEventListener("input", onInput);
+  homeUiEnergyXEl.addEventListener("input", onInput);
+  homeUiEnergyYEl.addEventListener("input", onInput);
+  homeUiCoinSizeEl.addEventListener("input", onInput);
+  homeUiCoinIconXEl.addEventListener("input", onInput);
+  homeUiCoinIconYEl.addEventListener("input", onInput);
+  homeUiCoinXEl.addEventListener("input", onInput);
+  homeUiCoinYEl.addEventListener("input", onInput);
+
+  homeUiSaveBtn?.addEventListener("click", () => {
+    const values = collectHomeUiValues();
+    saveHomeUiValues(values);
+    hideHomeUiPanel();
+    gameUI.showCommentary("主界面样式已保存", 900);
+  });
+
+  homeUiCloseBtn?.addEventListener("click", () => {
+    const savedValues = readHomeUiTuning();
+    setHomeUiInputs(savedValues);
+    applyHomeUiTuning(savedValues);
+    syncHomeUiLabels();
+    hideHomeUiPanel();
+  });
+
+  homeUiResetBtn?.addEventListener("click", () => {
+    const defaults = { ...defaultHomeUiTuning };
+    setHomeUiInputs(defaults);
+    applyHomeUiTuning(defaults);
+    syncHomeUiLabels();
+    saveHomeUiValues(defaults);
+    gameUI.showCommentary("已恢复默认样式", 900);
+  });
+
+  homeSettingsBtn?.addEventListener("click", () => {
+    homeUiPanelEl.classList.toggle("hidden");
+  });
+}
+
 function hydrateLevelProgress() {
   if (typeof window === "undefined" || !window.localStorage) {
     state.currentPlayableLevelIndex = 0;
@@ -706,6 +874,7 @@ function hideHomeScreen() {
   state.inHome = false;
   setGameHudVisible(true);
   if (homeScreenEl) homeScreenEl.classList.add("hidden");
+  hideHomeUiPanel();
   clearHomeBubbles();
 }
 
@@ -823,11 +992,7 @@ function init() {
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
   bindHomeLevelButtons();
-  if (homeSettingsBtn) {
-    homeSettingsBtn.addEventListener("click", () => {
-      gameUI.showCommentary("设置面板稍后接入。", 900);
-    });
-  }
+  bindHomeUiPanel();
   gameUI.closeResult();
   setupLevelTestControls();
 
