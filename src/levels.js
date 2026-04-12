@@ -56,6 +56,10 @@ function normalizeLevel(rawLevel, index) {
   const stepLimit = Math.max(1, Math.floor(asNumber(rawLevel?.stepLimit, 8)));
   const seed = Math.floor(asNumber(rawLevel?.seed, 10000 + id * 137));
   const name = String(rawLevel?.name ?? `关卡${id}`).trim() || `关卡${id}`;
+  const rawDifficulty = String(rawLevel?.difficulty ?? "easy").toLowerCase();
+  const difficulty = ["easy", "medium", "hard"].includes(rawDifficulty) ? rawDifficulty : "easy";
+  const rawHomeBubbleColorId = Math.floor(asNumber(rawLevel?.homeBubbleColorId, -1));
+  const homeBubbleColorId = rawHomeBubbleColorId >= 0 && rawHomeBubbleColorId <= 7 ? rawHomeBubbleColorId : null;
   const colorCounts = normalizeColorCounts(rawLevel?.colorCounts);
   const fruits = normalizeFruits(rawLevel?.fruits);
 
@@ -66,6 +70,8 @@ function normalizeLevel(rawLevel, index) {
   return {
     id,
     name,
+    difficulty,
+    homeBubbleColorId,
     stepLimit,
     seed,
     colorCounts,

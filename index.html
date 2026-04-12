@@ -2,7 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" href="data:," />
     <title>切泡泡 - three.js WebGPU</title>
     <link rel="stylesheet" href="./src/styles.css" />
     <script type="importmap">
@@ -10,25 +11,22 @@
         "imports": {
           "three": "./node_modules/three/build/three.module.js",
           "three/webgpu": "./node_modules/three/build/three.webgpu.js",
-          "three/tsl": "./node_modules/three/build/three.tsl.js"
+          "three/tsl": "./node_modules/three/build/three.tsl.js",
+          "countup.js": "./node_modules/countup.js/dist/countUp.min.js"
         }
       }
     </script>
   </head>
   <body>
     <div id="phone-frame">
-      <div id="bg-art" aria-hidden="true"></div>
-
-      <button id="battle-exit-btn" type="button" class="hidden" aria-label="退出到开始页"></button>
-
-      <div id="coin-status" class="coin-hud" aria-label="金币状态栏">
-        <img id="coin-status-icon" class="coin-icon" src="./assets/images/currency128_Coin.png" alt="金币" />
-        <span id="coin-value">16</span>
+      <div id="coin-status">
+        <img class="coin-icon" src="./assets/images/currency128_Coin.png" alt="金币" />
+        <span id="coin-status-text">0</span>
       </div>
+      <div id="coin-fly-layer" class="hidden" aria-hidden="true"></div>
 
       <div id="hud">
         <div id="score">步数: -</div>
-        <div id="slice-state">状态: 待机</div>
       </div>
 
       <div id="level-test">
@@ -42,40 +40,64 @@
 
       <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
 
-      <div id="start-screen" class="layer start-screen">
-        <div class="ladder-stage">
-          <h1 id="start-title" class="hidden">切泡泡</h1>
-          <p id="start-subtitle" class="hidden">已解锁到第1关，共10关</p>
-          <div class="start-ladder-rail" aria-label="关卡天梯">
-            <div class="start-ladder-shine"></div>
-            <div id="start-ladder" class="start-ladder"></div>
+      <div id="home-screen" class="layer">
+        <div id="home-topbar">
+          <div class="home-status home-status-energy" aria-label="体力状态">
+            <span class="home-status-badge" aria-hidden="true">❤</span>
+            <span id="home-energy-text" class="home-status-value">满</span>
           </div>
-          <button id="start-btn" class="start-btn" type="button">开始</button>
+
+          <div class="home-status home-status-coin" aria-label="金币数量">
+            <img class="home-status-badge coin" src="./assets/images/currency128_Coin.png" alt="金币" />
+            <span id="home-coin" class="home-status-value">0</span>
+          </div>
+
+          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
         </div>
+
+        <div id="home-main">
+          <div id="home-level-strip" aria-label="最近关卡">
+            <button id="home-level-prev" class="home-level-bubble" type="button"></button>
+            <button id="home-level-current" class="home-level-bubble" type="button"></button>
+            <button id="home-level-next" class="home-level-bubble" type="button"></button>
+          </div>
+
+          <button id="start-btn" class="home-play-btn" type="button">PLAY</button>
+        </div>
+
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
 
-      <div id="result-mask" class="hidden"></div>
-      <div id="result-page" class="layer hidden result-page is-win">
+      <div id="result-mask" class="hidden" aria-hidden="true"></div>
+      <div id="result-page" class="layer hidden">
         <div class="result-card panel-light">
-          <h2 id="result-title" class="panel-title-ribbon is-lose"><span id="result-title-text">失败</span></h2>
+          <h2 id="result-page-title" class="result-title panel-title-ribbon is-lose"><span id="result-page-title-text">结果页</span></h2>
           <img id="result-coin-icon" class="result-coin hidden" src="./assets/images/currency128_Coin.png" alt="金币" />
-          <div id="result-reward" class="result-reward hidden">+0</div>
-          <p id="result-desc">当前暂无统计。</p>
+          <div id="result-coin-gain" class="result-coin-gain hidden">+0</div>
+          <p id="result-page-text">当前暂无统计。</p>
           <div class="result-actions">
-            <button id="result-retry-btn" class="result-btn hidden" type="button">重试</button>
-            <button id="result-next-btn" class="result-btn" type="button">下一关</button>
-            <button id="result-back-btn" class="result-btn result-btn-secondary" type="button">返回</button>
+            <button id="result-retry-btn" type="button" class="hidden" aria-label="重试"></button>
+            <button id="result-exit-btn" type="button" class="hidden" aria-label="返回"></button>
+            <button id="result-next-btn" type="button" class="hidden" aria-label="下一关"></button>
           </div>
         </div>
       </div>
 
-      <div id="coin-fly-layer" class="hidden"></div>
+      <div id="level-win" class="layer hidden">
+        <h2 id="level-win-title">关卡胜利！</h2>
+        <p id="level-win-desc">泡泡雨已放送，准备下一关。</p>
+        <button id="level-win-next-btn">下一关</button>
+      </div>
+
+      <div id="game-over" class="layer hidden">
+        <h2 id="game-over-title">本局结束</h2>
+        <button id="restart-btn">再来一局</button>
+      </div>
 
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=25"></script>
+    <script type="module" src="./src/main.js?v=26"></script>
   </body>
 </html>

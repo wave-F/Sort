@@ -17,37 +17,46 @@ import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
-import { readSave, writeSave } from "./state/persist.js";
 
-const phoneFrameEl = document.getElementById("phone-frame");
 const appEl = document.getElementById("app");
+const phoneFrameEl = document.getElementById("phone-frame");
 const titleEl = document.getElementById("title");
+const hudEl = document.getElementById("hud");
 const stepsEl = document.getElementById("score");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
-const startScreenEl = document.getElementById("start-screen");
-const startLadderEl = document.getElementById("start-ladder");
-const startBtn = document.getElementById("start-btn");
-const battleExitBtn = document.getElementById("battle-exit-btn");
+const homeScreenEl = document.getElementById("home-screen");
+const homeLevelPrevBtn = document.getElementById("home-level-prev");
+const homeLevelCurrentBtn = document.getElementById("home-level-current");
+const homeLevelNextBtn = document.getElementById("home-level-next");
+const homeSettingsBtn = document.getElementById("home-settings-btn");
+const homeCoinEl = document.getElementById("home-coin");
+const coinStatusEl = document.getElementById("coin-status");
+const coinStatusTextEl = document.getElementById("coin-status-text");
+const coinFlyLayerEl = document.getElementById("coin-fly-layer");
 const resultMaskEl = document.getElementById("result-mask");
 const resultPageEl = document.getElementById("result-page");
-const resultTitleEl = document.getElementById("result-title");
-const resultTitleTextEl = document.getElementById("result-title-text");
-const resultDescEl = document.getElementById("result-desc");
-const resultRewardEl = document.getElementById("result-reward");
+const resultPageTitleEl = document.getElementById("result-page-title");
+const resultPageTitleTextEl = document.getElementById("result-page-title-text");
+const resultPageTextEl = document.getElementById("result-page-text");
 const resultCoinIconEl = document.getElementById("result-coin-icon");
+const resultCoinGainEl = document.getElementById("result-coin-gain");
 const resultRetryBtn = document.getElementById("result-retry-btn");
+const resultExitBtn = document.getElementById("result-exit-btn");
 const resultNextBtn = document.getElementById("result-next-btn");
-const resultBackBtn = document.getElementById("result-back-btn");
-const coinStatusEl = document.getElementById("coin-status");
-const coinValueEl = document.getElementById("coin-value");
-const coinFlyLayerEl = document.getElementById("coin-fly-layer");
+const gameOverEl = document.getElementById("game-over");
+const gameOverTitleEl = document.getElementById("game-over-title");
+const levelWinEl = document.getElementById("level-win");
+const levelWinTitleEl = document.getElementById("level-win-title");
+const levelWinDescEl = document.getElementById("level-win-desc");
+const startBtn = document.getElementById("start-btn");
+const restartBtn = document.getElementById("restart-btn");
+const levelWinNextBtn = document.getElementById("level-win-next-btn");
 const levelTestToggleBtn = document.getElementById("level-test-toggle");
+const levelTestRootEl = document.getElementById("level-test");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
-
-const loadedSave = readSave();
 
 const rules = {
   worldHeight: 10,
@@ -64,6 +73,12 @@ const wallContactGain = 0.8;
 
 const bubbleRadiusScale = 3;
 const bubbleTuningStorageKey = "bubble_tuning_v1";
+const levelProgressStorageKey = "fruit_level_progress_v1";
+const coinStorageKey = "fruit_coin_balance_v1";
+const levelWinRewardBase = 20;
+const homeEasyColorIds = [1, 2, 3, 5, 6];
+const homeMediumColorId = 4;
+const homeHardColorId = 0;
 const popSoundFiles = [
   "oga-pop1.ogg",
   "oga-pop2.ogg",
@@ -78,14 +93,18 @@ const popSoundFiles = [
 ];
 const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
 const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
+const iphoneAspectBase = 430 / 932;
+const portraitAspectMin = 9 / 20;
+const portraitAspectMax = 1 / 2;
+const desktopAspectSwitchWidth = 820;
 
 const colors = [
-  { id: "red", name: "红泡", base: 0xff3355 },
-  { id: "orange", name: "橙泡", base: 0xff9800 },
+  { id: "red", name: "红泡", base: 0xff1a2d },
+  { id: "orange", name: "橙泡", base: 0xff7a00 },
   { id: "green", name: "绿泡", base: 0x20c85a },
-  { id: "blue", name: "蓝泡", base: 0x2f7dff },
-  { id: "purple", name: "紫泡", base: 0x9b5cff },
-  { id: "yellow", name: "黄泡", base: 0xf7d046 },
+  { id: "blue", name: "蓝泡", base: 0x145dff },
+  { id: "purple", name: "紫泡", base: 0xc24dff },
+  { id: "yellow", name: "黄泡", base: 0xd6f542 },
   { id: "pink", name: "粉泡", base: 0xff5fb2 },
   { id: "teal", name: "青泡", base: 0x14b8a6 },
 ];
@@ -115,9 +134,12 @@ const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 const state = {
   started: false,
   gameOver: false,
+  inHome: true,
   levelTransitioning: false,
   currentLevelIndex: 0,
-  maxPassedLevel: loadedSave.maxPassedLevel,
+  currentPlayableLevelIndex: 0,
+  highestPassedLevelIndex: -1,
+  selectedHomeLevelIndex: 0,
   activeLevel: null,
   pointerDown: false,
   sliceColorId: null,
@@ -132,9 +154,9 @@ const state = {
   lastMoveAt: 0,
   stepLimit: 0,
   stepsUsed: 0,
-  coins: loadedSave.coins,
-  pendingReward: 0,
-  resultOutcome: "lose",
+  coins: 0,
+  pendingWinReward: 0,
+  rewardAppliedThisRound: false,
 };
 
 const scene = new THREE.Scene();
@@ -149,6 +171,8 @@ let trail;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
+const homeBubbles = [];
+const homeBubbleBounds = { left: -999, right: 999, top: 999, bottom: -999 };
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -199,55 +223,34 @@ function createGameRuntime() {
   const gameUI = createGameUI({
     sliceStateEl,
     commentaryEl,
-    levelCount: LEVELS.length,
-    startScreen: {
-      rootEl: startScreenEl,
-      ladderEl: startLadderEl,
-      startBtn,
-      onStart: (selectedLevelIndex) => {
-        startGame(selectedLevelIndex);
-      },
-    },
+    gameOverEl,
+    gameOverTitleEl,
+    levelWinEl,
+    levelWinTitleEl,
+    levelWinDescEl,
     resultPage: {
       maskEl: resultMaskEl,
       cardEl: resultPageEl,
-      titleEl: resultTitleEl,
-      titleTextEl: resultTitleTextEl,
-      descEl: resultDescEl,
-      rewardEl: resultRewardEl,
+      titleEl: resultPageTitleEl,
+      titleTextEl: resultPageTitleTextEl,
+      descEl: resultPageTextEl,
+      rewardEl: resultCoinGainEl,
       coinIconEl: resultCoinIconEl,
       retryBtn: resultRetryBtn,
       nextBtn: resultNextBtn,
-      backBtn: resultBackBtn,
-      onRetry: () => {
-        retryCurrentLevel();
-      },
-      onNext: () => {
-        levelFlow.continueToNextLevel();
-      },
-      onBack: () => {
-        backToStart();
-      },
+      backBtn: resultExitBtn,
     },
     coinStatus: {
       rootEl: coinStatusEl,
-      valueEl: coinValueEl,
+      valueEl: coinStatusTextEl,
     },
     coinFly: {
       layerEl: coinFlyLayerEl,
       frameEl: phoneFrameEl,
-      getTargetRect: () => gameUI.getCoinAnchorRect(),
     },
-  });
-
-  gameUI.setCoins(state.coins);
-  gameUI.updateStartMeta({
-    maxPassedLevel: state.maxPassedLevel,
-    selectedLevelIndex: Math.max(0, state.maxPassedLevel - 1),
-  });
-  gameUI.showStartScreen({
-    maxPassedLevel: state.maxPassedLevel,
-    selectedLevelIndex: Math.max(0, state.maxPassedLevel - 1),
+    onResultRetry: retryCurrentLevelFromResult,
+    onResultNext: () => levelFlow.continueToNextLevel(),
+    onResultBack: backHomeFromResult,
   });
 
   const burstSystem = createBurstSystem({
@@ -299,12 +302,23 @@ function createGameRuntime() {
     },
     getCurrentLevelIndex: () => state.currentLevelIndex,
     onAllLevelsCleared: (levelCount) => {
-      const reward = computeWinReward();
-      settleWinResult({
-        levelNumber: levelCount,
+      const reward = getLevelWinReward(levelCount - 1) + 10;
+      state.highestPassedLevelIndex = LEVELS.length - 1;
+      state.currentPlayableLevelIndex = LEVELS.length - 1;
+      state.selectedHomeLevelIndex = LEVELS.length - 1;
+      persistLevelProgress();
+      state.pendingWinReward = reward;
+      state.rewardAppliedThisRound = false;
+      state.levelTransitioning = true;
+      gameUI.openResult("win", {
         reward,
-        isFinal: true,
+        level: levelCount,
+        score: Math.max(0, state.stepLimit - state.stepsUsed),
         canNext: false,
+        isFinal: true,
+        onWinCountDone: () => {
+          playWinCoinFly();
+        },
       });
     },
     onPrepareLevelWin: () => {
@@ -319,13 +333,20 @@ function createGameRuntime() {
       victoryRainSystem.update(dt);
     },
     onShowLevelWinOverlay: (current, next) => {
-      const reward = computeWinReward();
-      settleWinResult({
-        levelNumber: current,
-        nextLevel: next,
+      const nextLevelIndex = Math.max(0, next - 1);
+      const reward = getLevelWinReward(current - 1);
+      grantLevelWinProgress(nextLevelIndex);
+      state.pendingWinReward = reward;
+      state.rewardAppliedThisRound = false;
+      gameUI.openResult("win", {
         reward,
+        level: current,
+        score: Math.max(0, state.stepLimit - state.stepsUsed),
+        canNext: nextLevelIndex < LEVELS.length,
         isFinal: false,
-        canNext: true,
+        onWinCountDone: () => {
+          playWinCoinFly();
+        },
       });
       return true;
     },
@@ -333,12 +354,8 @@ function createGameRuntime() {
       gameUI.closeResult();
     },
     onContinueToLevel: (nextLevelIndex) => {
-      state.gameOver = false;
-      state.pendingReward = 0;
-      gameUI.closeResult();
-      if (battleExitBtn) battleExitBtn.classList.remove("hidden");
       victoryRainSystem.reset();
-      loadLevel(nextLevelIndex);
+      startNextLevel(nextLevelIndex);
     },
     showCommentary: (text, durationMs) => {
       gameUI.showCommentary(text, durationMs);
@@ -407,16 +424,418 @@ function clampNumber(value, min, max, fallback) {
   return THREE.MathUtils.clamp(n, min, max);
 }
 
-function init() {
-  setupLevelTestControls();
-  if (battleExitBtn) {
-    battleExitBtn.addEventListener("click", () => {
-      if (!state.started || state.gameOver || state.levelTransitioning) return;
-      backToStart();
-    });
+function clampLevelIndex(index, fallback = 0) {
+  const maxIndex = Math.max(0, LEVELS.length - 1);
+  const fallbackIndex = Number.isFinite(Number(fallback)) ? Math.floor(Number(fallback)) : 0;
+  const n = Number(index);
+  if (!Number.isFinite(n)) {
+    return THREE.MathUtils.clamp(fallbackIndex, 0, maxIndex);
+  }
+  return THREE.MathUtils.clamp(Math.floor(n), 0, maxIndex);
+}
+
+function hydrateLevelProgress() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    state.currentPlayableLevelIndex = 0;
+    state.highestPassedLevelIndex = -1;
+    state.selectedHomeLevelIndex = 0;
+    return;
   }
 
+  try {
+    const raw = window.localStorage.getItem(levelProgressStorageKey);
+    if (!raw) {
+      state.currentPlayableLevelIndex = 0;
+      state.highestPassedLevelIndex = -1;
+      state.selectedHomeLevelIndex = 0;
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    const playable = clampLevelIndex(parsed.currentPlayableLevelIndex, 0);
+    const passedRaw = Number(parsed.highestPassedLevelIndex);
+    const passed = Number.isFinite(passedRaw) ? Math.floor(passedRaw) : -1;
+    state.currentPlayableLevelIndex = playable;
+    state.highestPassedLevelIndex = THREE.MathUtils.clamp(passed, -1, LEVELS.length - 1);
+    state.selectedHomeLevelIndex = playable;
+  } catch (_err) {
+    state.currentPlayableLevelIndex = 0;
+    state.highestPassedLevelIndex = -1;
+    state.selectedHomeLevelIndex = 0;
+  }
+}
+
+function persistLevelProgress() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  const payload = {
+    currentPlayableLevelIndex: state.currentPlayableLevelIndex,
+    highestPassedLevelIndex: state.highestPassedLevelIndex,
+  };
+  window.localStorage.setItem(levelProgressStorageKey, JSON.stringify(payload));
+}
+
+function hydrateCoinBalance() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    state.coins = 0;
+    return;
+  }
+
+  const raw = window.localStorage.getItem(coinStorageKey);
+  const parsed = Number(raw);
+  state.coins = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+function persistCoinBalance() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(coinStorageKey, String(Math.max(0, Math.floor(state.coins))));
+}
+
+function syncCoinUi() {
+  const safe = Math.max(0, Math.floor(state.coins));
+  gameUI.setCoins(safe);
+  if (homeCoinEl) homeCoinEl.textContent = String(safe);
+}
+
+function addCoins(value) {
+  const gain = Math.max(0, Math.floor(value));
+  if (gain <= 0) return;
+  state.coins += gain;
+  persistCoinBalance();
+  syncCoinUi();
+}
+
+function getLevelWinReward(levelIndex) {
+  const idx = Math.max(0, Math.floor(levelIndex));
+  return levelWinRewardBase + idx * 2;
+}
+
+function playWinCoinFly() {
+  settlePendingWinReward(true);
+}
+
+function settlePendingWinReward(playFx = false) {
+  if (state.rewardAppliedThisRound) return;
+  const reward = Math.max(0, Math.floor(state.pendingWinReward));
+  if (reward <= 0) {
+    state.rewardAppliedThisRound = true;
+    return;
+  }
+
+  if (!playFx || gameUI.isCoinFlyPlaying()) {
+    addCoins(reward);
+    state.rewardAppliedThisRound = true;
+    state.pendingWinReward = 0;
+    return;
+  }
+
+  state.rewardAppliedThisRound = true;
+  const originRect = gameUI.getResultRewardRect();
+  gameUI.playCoinFly(reward, {
+    originRect,
+    onEachCoin: (part) => addCoins(part),
+    onDone: () => {
+      state.pendingWinReward = 0;
+    },
+  });
+}
+
+function bindHomeLevelButtons() {
+  const onTap = (ev) => {
+    const button = ev.currentTarget;
+    if (!(button instanceof HTMLElement)) return;
+
+    const raw = Number(button.dataset.levelIndex);
+    if (!Number.isInteger(raw) || raw < 0 || raw >= LEVELS.length) return;
+
+    const current = clampLevelIndex(state.currentPlayableLevelIndex);
+    if (raw > current) {
+      gameUI.showCommentary(`第${raw + 1}关尚未解锁`, 900);
+      return;
+    }
+
+    gameUI.showCommentary(`当前可挑战：第${current + 1}关`, 900);
+  };
+
+  homeLevelPrevBtn?.addEventListener("click", onTap);
+  homeLevelCurrentBtn?.addEventListener("click", onTap);
+  homeLevelNextBtn?.addEventListener("click", onTap);
+}
+
+function renderHomeBubble(button, index, role) {
+  if (!button) return;
+
+  if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) {
+    button.dataset.levelIndex = "";
+    button.textContent = "";
+    button.className = "home-level-bubble";
+    button.disabled = true;
+    return;
+  }
+
+  const level = LEVELS[index];
+  const classes = ["home-level-bubble", "live", role];
+  if (level.difficulty === "hard") classes.push("hard");
+  if (level.difficulty === "medium") classes.push("medium");
+  if (role === "upcoming" && index > state.currentPlayableLevelIndex) classes.push("locked");
+
+  button.dataset.levelIndex = String(index);
+  button.className = classes.join(" ");
+  button.disabled = false;
+  button.textContent = String(index + 1);
+
+  const oldTag = button.querySelector(".home-level-tag");
+  if (oldTag) oldTag.remove();
+
+  if (level.difficulty === "medium" || level.difficulty === "hard") {
+    const tag = document.createElement("span");
+    tag.className = `home-level-tag ${level.difficulty}`;
+    tag.textContent = level.difficulty === "hard" ? "HARD" : "MED";
+    button.appendChild(tag);
+  }
+}
+
+function pickHomeBubbleColorId(level, fallbackIndex) {
+  const configured = Math.floor(level?.homeBubbleColorId ?? -1);
+  if (configured >= 0 && configured < colors.length) {
+    return configured;
+  }
+
+  const difficulty = String(level?.difficulty ?? "easy").toLowerCase();
+  if (difficulty === "hard") return homeHardColorId;
+  if (difficulty === "medium") return homeMediumColorId;
+
+  const step = Math.max(0, Math.floor((level?.id ?? fallbackIndex + 1) - 1));
+  return homeEasyColorIds[step % homeEasyColorIds.length];
+}
+
+function clearHomeBubbles() {
+  for (const bubble of homeBubbles) {
+    scene.remove(bubble.group);
+  }
+  homeBubbles.length = 0;
+}
+
+function rebuildHomeBubbles(specs) {
+  if (!renderer || !trail) return;
+  clearHomeBubbles();
+  for (let i = 0; i < specs.length; i += 1) {
+    const spec = specs[i];
+    if (!spec || !spec.anchorEl || !spec.level) continue;
+    const colorId = pickHomeBubbleColorId(spec.level, spec.levelIndex);
+    const entity = new BubbleEntity({
+      id: -100 - i,
+      colorId,
+      radius: 1,
+      vx: 0,
+      vy: 0,
+      baseColor: new THREE.Color(colors[colorId].base),
+    });
+    entity.homeAnchorEl = spec.anchorEl;
+    entity.homeLevelIndex = spec.levelIndex;
+    entity.homeColorId = colorId;
+    entity.selectRing.visible = false;
+    scene.add(entity.group);
+    homeBubbles.push(entity);
+  }
+}
+
+function syncHomeBubbleLayout() {
+  if (!renderer || !state.inHome) return;
+
+  for (const bubble of homeBubbles) {
+    const anchor = bubble.homeAnchorEl;
+    if (!anchor) continue;
+
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      bubble.group.visible = false;
+      continue;
+    }
+
+    const centerX = rect.left + rect.width * 0.5;
+    const centerY = rect.top + rect.height * 0.5;
+    const center = screenToWorld(centerX, centerY);
+    const edge = screenToWorld(centerX + rect.width * 0.5, centerY);
+    const radius = Math.max(0.32, center.distanceTo(edge));
+
+    bubble.group.visible = true;
+    bubble.radius = radius;
+    bubble.baseScale = radius / bubbleBaseRadius;
+    bubble.bubble.scale.setScalar(bubble.baseScale * bubble.selectionScale);
+    bubble.selectRing.scale.setScalar(radius);
+    bubble.selectRing.position.z = radius * 0.04;
+    bubble.vel.set(0, 0, 0);
+    bubble.setPosition(center.x, center.y, 0);
+  }
+}
+
+function updateHomeBubbles(dt) {
+  if (!state.inHome || !homeBubbles.length) return;
+  syncHomeBubbleLayout();
+  for (const bubble of homeBubbles) {
+    bubble.update(dt, homeBubbleBounds);
+  }
+}
+
+function renderHomeScreen() {
+  const current = clampLevelIndex(state.currentPlayableLevelIndex);
+  state.selectedHomeLevelIndex = current;
+
+  const nextIndex = current + 1;
+  const next2Index = current + 2;
+  renderHomeBubble(homeLevelPrevBtn, current, "current");
+  renderHomeBubble(homeLevelCurrentBtn, nextIndex, "upcoming");
+  renderHomeBubble(homeLevelNextBtn, next2Index, "upcoming");
+
+  rebuildHomeBubbles([
+    { anchorEl: homeLevelPrevBtn, levelIndex: current, level: LEVELS[current] },
+    { anchorEl: homeLevelCurrentBtn, levelIndex: nextIndex, level: LEVELS[nextIndex] },
+    { anchorEl: homeLevelNextBtn, levelIndex: next2Index, level: LEVELS[next2Index] },
+  ]);
+
+}
+
+function showHomeScreen() {
+  state.inHome = true;
+  setGameHudVisible(false);
+  if (homeScreenEl) homeScreenEl.classList.remove("hidden");
+  renderHomeScreen();
+}
+
+function hideHomeScreen() {
+  state.inHome = false;
+  setGameHudVisible(true);
+  if (homeScreenEl) homeScreenEl.classList.add("hidden");
+  clearHomeBubbles();
+}
+
+function setGameHudVisible(visible) {
+  const hidden = !visible;
+  hudEl?.classList.toggle("hidden", hidden);
+  coinStatusEl?.classList.toggle("hidden", hidden);
+  levelTestRootEl?.classList.toggle("hidden", hidden);
+  commentaryEl?.classList.toggle("hidden", hidden);
+  if (hidden) {
+    levelTestPanelEl?.classList.add("hidden");
+  }
+}
+
+function clearBoardEntities() {
+  burstSystem.clear();
+  state.pendingPops.length = 0;
+  clearQueuedSelections();
+  for (const fruit of fruits) scene.remove(fruit.group);
+  fruits.length = 0;
+  victoryRainSystem.reset();
+  trail.reset();
+}
+
+function grantLevelWinProgress(nextLevelIndex) {
+  const justCleared = state.currentLevelIndex;
+  state.highestPassedLevelIndex = Math.max(state.highestPassedLevelIndex, justCleared);
+  state.currentPlayableLevelIndex = clampLevelIndex(nextLevelIndex);
+  state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
+  persistLevelProgress();
+}
+
+function retryCurrentLevelFromResult() {
+  if (!state.started) return;
+  gameUI.closeResult();
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  const loaded = loadLevel(state.currentLevelIndex);
+  if (!loaded) {
+    state.started = false;
+    showHomeScreen();
+  }
+}
+
+function backHomeFromResult() {
+  settlePendingWinReward(false);
+  gameUI.closeResult();
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function startNextLevel(nextLevelIndex) {
+  settlePendingWinReward(false);
+  gameUI.closeResult();
+  const next = clampLevelIndex(nextLevelIndex);
+  state.started = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  const loaded = loadLevel(next);
+  if (!loaded) {
+    backHomeFromResult();
+  }
+}
+
+function completeLevelAndBackHome(nextLevelIndex) {
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+
+  grantLevelWinProgress(nextLevelIndex);
+  gameUI.closeResult();
+
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function completeAllLevelsAndBackHome(levelCount) {
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.highestPassedLevelIndex = LEVELS.length - 1;
+  state.currentPlayableLevelIndex = LEVELS.length - 1;
+  state.selectedHomeLevelIndex = LEVELS.length - 1;
+  persistLevelProgress();
+  gameUI.closeResult();
+
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function init() {
+  hydrateLevelProgress();
+  hydrateCoinBalance();
+  syncCoinUi();
+  state.inHome = true;
+  updatePhoneAspect();
+  setGameHudVisible(false);
+  if (homeScreenEl) homeScreenEl.classList.remove("hidden");
+  renderHomeScreen();
+
+  startBtn.addEventListener("click", startGame);
+  restartBtn.addEventListener("click", startGame);
+  bindHomeLevelButtons();
+  if (homeSettingsBtn) {
+    homeSettingsBtn.addEventListener("click", () => {
+      gameUI.showCommentary("设置面板稍后接入。", 900);
+    });
+  }
+  gameUI.closeResult();
+  setupLevelTestControls();
+
   window.addEventListener("resize", resize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", resize);
+    window.visualViewport.addEventListener("scroll", resize);
+  }
   window.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
@@ -461,13 +880,11 @@ function jumpToLevelForTest(index) {
   if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) return;
 
   if (!state.started || state.gameOver) {
-    startGame(index);
-  } else {
-    gameUI.closeResult();
-    state.levelTransitioning = false;
-    state.gameOver = false;
-    loadLevel(index);
+    startGame();
   }
+
+  state.levelTransitioning = false;
+  loadLevel(index);
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
   gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
 }
@@ -482,6 +899,10 @@ async function setupRenderer() {
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
   scene.add(trail.mesh);
+
+  if (state.inHome) {
+    renderHomeScreen();
+  }
 
   renderer.setAnimationLoop(tick);
 }
@@ -510,21 +931,18 @@ function showWebGpuUnsupported() {
   appEl.appendChild(layer);
 }
 
-function startGame(initialLevelIndex = 0) {
+function startGame() {
   gameAudio.ensureAudioUnlocked();
   void gameAudio.preloadPopAudio();
   gameAudio.resetSelectToneProgression();
 
-  const safeLevelIndex = THREE.MathUtils.clamp(
-    Number.isInteger(initialLevelIndex) ? initialLevelIndex : 0,
-    0,
-    LEVELS.length - 1
-  );
+  const startIndex = clampLevelIndex(state.currentPlayableLevelIndex);
 
   state.started = true;
   state.gameOver = false;
+  state.inHome = false;
   state.levelTransitioning = false;
-  state.currentLevelIndex = safeLevelIndex;
+  state.currentLevelIndex = startIndex;
   state.activeLevel = null;
   state.pointerDown = false;
   state.sliceColorId = null;
@@ -538,28 +956,37 @@ function startGame(initialLevelIndex = 0) {
   state.nowPoint = null;
   state.stepLimit = 0;
   state.stepsUsed = 0;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
   levelFlow.reset();
   burstSystem.clear();
   victoryRainSystem.reset();
 
-  if (trail) trail.reset();
+  trail.reset();
 
-  gameUI.hideStartScreen();
+  hideHomeScreen();
+  gameUI.hideGameOver();
   gameUI.closeResult();
-  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
 
   if (hasBubbleTuningOverride) {
     gameUI.showCommentary("已应用调试页同步参数。", 1300);
   }
 
-  loadLevel(safeLevelIndex);
+  const loaded = loadLevel(startIndex);
+  if (!loaded) {
+    state.started = false;
+    state.inHome = true;
+    showHomeScreen();
+    gameUI.showCommentary("关卡加载失败，请重试。", 1200);
+  }
 }
 
 function loadLevel(index) {
   const level = levelRuntime.getNormalizedLevel(index);
-  if (!level) return;
+  if (!level) return false;
 
   state.currentLevelIndex = index;
+  state.selectedHomeLevelIndex = index;
   state.activeLevel = level;
   state.levelTransitioning = false;
   state.pointerDown = false;
@@ -573,13 +1000,15 @@ function loadLevel(index) {
   state.nowPoint = null;
   state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
   state.stepsUsed = 0;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
   levelFlow.reset();
   burstSystem.clear();
   victoryRainSystem.reset();
   setLevelTestSelection(index);
   updateStepsHud();
 
-  if (trail) trail.reset();
+  trail.reset();
 
   gameUI.setSliceStatus(`状态: 第${index + 1}关`);
   gameUI.showCommentary(
@@ -588,6 +1017,7 @@ function loadLevel(index) {
   );
 
   resetFruits(level);
+  return true;
 }
 
 function resetFruits(level) {
@@ -698,6 +1128,7 @@ function tick() {
 
   updateTrail(now);
   processPendingPops(dt);
+  updateHomeBubbles(dt);
 
   collisionSystem.resolve(fruits);
   burstSystem.update(dt);
@@ -722,7 +1153,7 @@ function tick() {
     && !state.pointerDown
     && state.pendingPops.length === 0
   ) {
-    openLoseResult("步数用尽");
+    endGame(`第${state.currentLevelIndex + 1}关失败：步数用尽`);
   }
 }
 
@@ -796,10 +1227,6 @@ function consumeStep() {
 
 function updateStepsHud() {
   if (!stepsEl) return;
-  if (!state.started) {
-    stepsEl.textContent = "步数: -";
-    return;
-  }
   const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
   stepsEl.textContent = `步数: ${remaining}`;
 }
@@ -818,6 +1245,7 @@ function screenToWorld(clientX, clientY) {
 
 function resize() {
   if (!renderer) return;
+  updatePhoneAspect();
   const rect = appEl.getBoundingClientRect();
   renderer.setSize(rect.width, rect.height, false);
 
@@ -834,73 +1262,24 @@ function resize() {
   levelRuntime.clearCache();
 }
 
-function computeWinReward() {
-  return Math.max(1, Math.ceil((state.stepLimit - state.stepsUsed + 1) * 0.5));
+function updatePhoneAspect() {
+  if (!phoneFrameEl) return;
+
+  const visualViewport = window.visualViewport;
+  const viewportWidth = visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = visualViewport?.height ?? window.innerHeight;
+  if (!viewportWidth || !viewportHeight) return;
+
+  const rawAspect = viewportWidth / viewportHeight;
+  const shouldLockToIphonePreview = viewportWidth >= desktopAspectSwitchWidth;
+  const targetAspect = shouldLockToIphonePreview
+    ? iphoneAspectBase
+    : THREE.MathUtils.clamp(rawAspect, portraitAspectMin, portraitAspectMax);
+
+  document.documentElement.style.setProperty("--phone-aspect-live", `${targetAspect}`);
 }
 
-function persistProgress() {
-  const saved = writeSave({
-    maxPassedLevel: state.maxPassedLevel,
-    coins: state.coins,
-  });
-  state.maxPassedLevel = saved.maxPassedLevel;
-  state.coins = saved.coins;
-}
-
-function addCoins(value) {
-  const delta = Math.max(0, Math.floor(value ?? 0));
-  if (delta <= 0) return;
-  state.coins += delta;
-  persistProgress();
-  gameUI.setCoins(state.coins);
-}
-
-function settleWinResult({ levelNumber, reward, isFinal, canNext }) {
-  if (state.gameOver && !canNext) return;
-  state.gameOver = !canNext;
-  state.pointerDown = false;
-  burstSystem.clear();
-  clearQueuedSelections();
-  state.pendingPops.length = 0;
-  if (trail) trail.reset();
-
-  state.resultOutcome = "win";
-  state.pendingReward = Math.max(0, Math.floor(reward));
-
-  const unlockedLevel = Math.min(LEVELS.length, Math.max(state.maxPassedLevel, levelNumber + 1));
-  state.maxPassedLevel = unlockedLevel;
-  persistProgress();
-
-  gameUI.updateStartMeta({
-    maxPassedLevel: state.maxPassedLevel,
-    selectedLevelIndex: Math.max(0, Math.min(levelNumber, state.maxPassedLevel - 1)),
-  });
-
-  gameUI.openResult("win", {
-    reward: state.pendingReward,
-    level: levelNumber,
-    score: state.stepsUsed,
-    canNext,
-    isFinal,
-  });
-  if (battleExitBtn) battleExitBtn.classList.add("hidden");
-  gameUI.setSliceStatus(`状态: 第${levelNumber}关完成`);
-
-  if (state.pendingReward > 0) {
-    const originRect = resultRewardEl?.getBoundingClientRect?.();
-    gameUI.playCoinFly(state.pendingReward, {
-      originRect,
-      onEachCoin: (value) => {
-        addCoins(value);
-      },
-      onDone: () => {
-        state.pendingReward = 0;
-      },
-    });
-  }
-}
-
-function openLoseResult(reason) {
+function endGame(reason) {
   if (state.gameOver) return;
   state.gameOver = true;
   state.levelTransitioning = false;
@@ -910,61 +1289,16 @@ function openLoseResult(reason) {
   clearQueuedSelections();
   state.pendingPops.length = 0;
   victoryRainSystem.reset();
-  if (trail) trail.reset();
+  trail.reset();
 
-  state.resultOutcome = "lose";
-  state.pendingReward = 0;
   gameUI.openResult("lose", {
-    reward: 0,
     level: state.currentLevelIndex + 1,
-    score: state.stepsUsed,
+    score: Math.max(0, state.stepLimit - state.stepsUsed),
+    reward: 0,
     canNext: false,
     isFinal: false,
   });
-  if (battleExitBtn) battleExitBtn.classList.add("hidden");
-  gameUI.setSliceStatus(`状态: 第${state.currentLevelIndex + 1}关失败 (${reason})`);
-}
-
-function retryCurrentLevel() {
-  gameUI.closeResult();
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
-  loadLevel(state.currentLevelIndex);
-}
-
-function backToStart() {
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingReward = 0;
-  state.stepLimit = 0;
-  state.stepsUsed = 0;
-  levelFlow.reset();
-  burstSystem.clear();
-  victoryRainSystem.reset();
-  clearQueuedSelections();
-  state.pendingPops.length = 0;
-  if (trail) trail.reset();
-
-  for (const fruit of fruits) scene.remove(fruit.group);
-  fruits.length = 0;
-
-  gameUI.closeResult();
-  gameUI.showStartScreen({
-    maxPassedLevel: state.maxPassedLevel,
-    selectedLevelIndex: Math.max(0, state.maxPassedLevel - 1),
-  });
-  if (battleExitBtn) battleExitBtn.classList.add("hidden");
-  gameUI.setSliceStatus("状态: 待机");
-  updateStepsHud();
-}
-
-function endGame(reason) {
-  openLoseResult(reason);
-
-  gameUI.showCommentary(reason, 1200);
+  gameUI.setSliceStatus(`状态: ${reason}`);
 }
 
 function createBubbleMaterial(baseColor) {
@@ -1035,7 +1369,15 @@ function createBubbleMaterial(baseColor) {
   material.iridescenceIORNode = uniform(1.3);
   material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iridescenceBaseUniform);
 
-  return { material, springUniform, crackGlowUniform, contactDirUniform, contactStrengthUniform };
+  return {
+    material,
+    springUniform,
+    crackGlowUniform,
+    contactDirUniform,
+    contactStrengthUniform,
+    tintUniform,
+    accentUniform,
+  };
 }
 
 class BubbleEntity {
@@ -1043,7 +1385,7 @@ class BubbleEntity {
     this.id = id;
     this.colorId = colorId;
     this.radius = radius;
-    this.baseColor = baseColor;
+    this.baseColor = baseColor.clone();
     this.active = true;
     this.sliced = false;
     this.life = 0;
@@ -1070,6 +1412,8 @@ class BubbleEntity {
     this.crackGlowUniform = nodeMaterialData.crackGlowUniform;
     this.contactDirUniform = nodeMaterialData.contactDirUniform;
     this.contactStrengthUniform = nodeMaterialData.contactStrengthUniform;
+    this.tintUniform = nodeMaterialData.tintUniform;
+    this.accentUniform = nodeMaterialData.accentUniform;
     this.baseScale = this.radius / bubbleBaseRadius;
     this.baseOpacity = 0.9;
 
@@ -1093,6 +1437,15 @@ class BubbleEntity {
 
     this.group.add(this.bubble, this.selectRing);
     this.resetBurstArtifacts();
+    this.setBaseColor(this.baseColor);
+  }
+
+  setBaseColor(color) {
+    if (!color) return;
+    this.baseColor.copy(color);
+    const accent = color.clone().offsetHSL(0, -0.12, 0.26);
+    if (this.tintUniform?.value) this.tintUniform.value.copy(color);
+    if (this.accentUniform?.value) this.accentUniform.value.copy(accent);
   }
 
   createSelectRing() {

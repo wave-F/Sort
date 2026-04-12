@@ -31,6 +31,7 @@
     "@capacitor/ios": "^8.3.0",
     "capacitor-haptic-plugin": "file:HabbyHapticForWeb-main/HapticForWeb/capacitor-haptic-plugin",
     "chokidar": "^4.0.3",
+    "countup.js": "^2.10.0",
     "three": "^0.183.2",
     "xlsx": "^0.18.5"
   }

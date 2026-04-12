@@ -6,6 +6,7 @@ import xlsx from "xlsx";
 const INPUT_RELATIVE = path.join("src", "excel", "Levels.xlsx");
 const OUTPUT_RELATIVE = path.join("src", "config", "levels.json");
 const REQUIRED_COLUMNS = ["id", "name", "difficulty", "colorkindcount", "fruitcountrange", "radiusrange", "speedrange", "seed"];
+const OPTIONAL_COLUMNS = ["homebubblecolorid"];
 const AVAILABLE_COLOR_IDS = [0, 1, 2, 3, 4, 5, 6, 7];
 const BOUNDS = {
   left: -2.6325,
@@ -62,6 +63,22 @@ function parseDifficulty(raw, rowNum) {
   if (["medium", "中等", "normal", "m"].includes(text)) return "medium";
   if (["hard", "困难", "h"].includes(text)) return "hard";
   throw new Error(`Invalid difficulty at row ${rowNum}, expected easy/medium/hard`);
+}
+
+function parseHomeBubbleColorId(raw, difficulty, rowNum, id) {
+  if (raw != null && String(raw).trim() !== "") {
+    const value = Math.floor(toNumber(raw, "homeBubbleColorId", rowNum));
+    if (value < 0 || value >= AVAILABLE_COLOR_IDS.length) {
+      throw new Error(`Invalid homeBubbleColorId at row ${rowNum}, expected 0-${AVAILABLE_COLOR_IDS.length - 1}`);
+    }
+    return value;
+  }
+
+  if (difficulty === "hard") return 0;
+  if (difficulty === "medium") return 4;
+
+  const easyPalette = [1, 2, 3, 5, 6];
+  return easyPalette[(Math.max(1, id) - 1) % easyPalette.length];
 }
 
 function findHeaderRow(rows) {
@@ -389,7 +406,9 @@ export function convertLevels(projectRoot = process.cwd()) {
   }
 
   const header = rows[headerRowIndex].map(normalize);
-  const col = Object.fromEntries(REQUIRED_COLUMNS.map((key) => [key, header.indexOf(key)]));
+  const requiredCol = Object.fromEntries(REQUIRED_COLUMNS.map((key) => [key, header.indexOf(key)]));
+  const optionalCol = Object.fromEntries(OPTIONAL_COLUMNS.map((key) => [key, header.indexOf(key)]));
+  const col = { ...requiredCol, ...optionalCol };
 
   const levels = [];
   for (let i = headerRowIndex + 1; i < rows.length; i += 1) {
@@ -405,6 +424,12 @@ export function convertLevels(projectRoot = process.cwd()) {
     const fruitCountRange = parseRange(row[col.fruitcountrange], "fruitCountRange", excelRowNum, true);
     const radiusRange = parseRange(row[col.radiusrange], "radiusRange", excelRowNum, false);
     const speedRange = parseRange(row[col.speedrange], "speedRange", excelRowNum, false);
+    const homeBubbleColorId = parseHomeBubbleColorId(
+      col.homebubblecolorid >= 0 ? row[col.homebubblecolorid] : null,
+      difficulty,
+      excelRowNum,
+      id
+    );
 
     const seedRaw = row[col.seed];
     const seed = (seedRaw == null || String(seedRaw).trim() === "")
@@ -442,6 +467,7 @@ export function convertLevels(projectRoot = process.cwd()) {
       id,
       name,
       difficulty,
+      homeBubbleColorId,
       seed,
       fruitCount,
       colorIds,

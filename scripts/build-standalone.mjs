@@ -38,7 +38,8 @@ const html = `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" href="data:," />
     <title>切泡泡 - standalone WebGPU</title>
     <style>${css}</style>
   </head>
@@ -59,10 +60,29 @@ const html = `<!doctype html>
 
       <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
 
-      <div id="start-screen" class="layer">
-        <h1>切泡泡</h1>
-        <p>一刀只能戳同色，碰到异色会断刀。<br />每关有步数限制，尽量用更少步通关。</p>
-        <button id="start-btn">开始游戏</button>
+      <div id="home-screen" class="layer">
+        <div id="home-topbar">
+          <div class="home-pill">
+            <span class="home-pill-icon">❤️</span>
+            <span>体力满</span>
+          </div>
+          <div class="home-pill">
+            <span class="home-pill-icon">💰</span>
+            <span id="home-coin">5680</span>
+          </div>
+          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
+        </div>
+
+        <div id="home-main">
+          <div id="home-level-strip" aria-label="最近关卡">
+            <button id="home-level-prev" class="home-level-bubble" type="button"></button>
+            <button id="home-level-current" class="home-level-bubble" type="button"></button>
+            <button id="home-level-next" class="home-level-bubble" type="button"></button>
+          </div>
+
+          <button id="start-btn" class="home-play-btn" type="button">PLAY</button>
+        </div>
+
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>

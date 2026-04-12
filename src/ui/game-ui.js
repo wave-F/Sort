@@ -6,18 +6,34 @@ import { createCoinFly } from "./coin-fly.js";
 export function createGameUI({
   sliceStateEl,
   commentaryEl,
+  gameOverEl,
+  gameOverTitleEl,
+  levelWinEl,
+  levelWinTitleEl,
+  levelWinDescEl,
   startScreen,
   resultPage,
   coinStatus,
   coinFly,
+  onResultRetry,
+  onResultNext,
+  onResultBack,
   levelCount,
 } = {}) {
   let commentaryTimer = 0;
 
   const start = createStartScreen(startScreen);
-  const result = createResultPage(resultPage);
+  const result = createResultPage({
+    ...(resultPage || {}),
+    onRetry: onResultRetry,
+    onNext: onResultNext,
+    onBack: onResultBack,
+  });
   const coins = createCoinStatus(coinStatus);
-  const fly = createCoinFly(coinFly);
+  const fly = createCoinFly({
+    ...(coinFly || {}),
+    getTargetRect: () => coins.getAnchorRect(),
+  });
 
   function setSliceStatus(text) {
     if (!sliceStateEl) return;
@@ -30,6 +46,25 @@ export function createGameUI({
     commentaryEl.classList.add("show");
     if (commentaryTimer) clearTimeout(commentaryTimer);
     commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
+  }
+
+  function showGameOver(reason = "本局结束") {
+    if (gameOverTitleEl) gameOverTitleEl.textContent = reason;
+    gameOverEl?.classList.remove("hidden");
+  }
+
+  function hideGameOver() {
+    gameOverEl?.classList.add("hidden");
+  }
+
+  function showLevelWin(title, desc) {
+    if (levelWinTitleEl && title) levelWinTitleEl.textContent = title;
+    if (levelWinDescEl && desc) levelWinDescEl.textContent = desc;
+    levelWinEl?.classList.remove("hidden");
+  }
+
+  function hideLevelWin() {
+    levelWinEl?.classList.add("hidden");
   }
 
   function setCoins(value) {
@@ -53,6 +88,10 @@ export function createGameUI({
     result.closeResult();
   }
 
+  function getResultRewardRect() {
+    return result.getRewardAnchorRect();
+  }
+
   function playCoinFly(reward, options = {}) {
     fly.playCoinFly(reward, options);
   }
@@ -68,6 +107,10 @@ export function createGameUI({
   return {
     setSliceStatus,
     showCommentary,
+    showGameOver,
+    hideGameOver,
+    showLevelWin,
+    hideLevelWin,
     setCoins,
     showStartScreen,
     hideStartScreen,
@@ -76,6 +119,7 @@ export function createGameUI({
     playCoinFly,
     isCoinFlyPlaying,
     getCoinAnchorRect,
+    getResultRewardRect,
     getSelectedLevelIndex: start.getSelectedLevelIndex,
     updateStartMeta: start.setMeta,
   };
