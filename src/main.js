@@ -77,7 +77,6 @@ const levelTestToggleBtn = document.getElementById("level-test-toggle");
 const levelTestRootEl = document.getElementById("level-test");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
-const levelTestJumpBtn = document.getElementById("level-test-jump");
 const levelTestNextStepBtn = document.getElementById("level-test-next-step");
 const levelTestExportStepBtn = document.getElementById("level-test-export-step");
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
@@ -1083,7 +1082,7 @@ function init() {
 }
 
 function setupLevelTestControls() {
-  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn || !levelTestNextStepBtn || !levelTestExportStepBtn || !levelTestHexToggleEl) {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestNextStepBtn || !levelTestExportStepBtn || !levelTestHexToggleEl) {
     return;
   }
 
@@ -1103,7 +1102,7 @@ function setupLevelTestControls() {
     levelTestPanelEl.classList.toggle("hidden");
   });
 
-  levelTestJumpBtn.addEventListener("click", () => {
+  levelTestSelectEl.addEventListener("change", () => {
     const targetIndex = Number(levelTestSelectEl.value);
     if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= LEVELS.length) {
       return;
