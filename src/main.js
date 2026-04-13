@@ -20,7 +20,6 @@ import { createLevelRuntime } from "./content/level-runtime.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
-const titleEl = document.getElementById("title");
 const hudEl = document.getElementById("hud");
 const stepsEl = document.getElementById("score");
 const hudLevelEl = document.getElementById("hud-level");
@@ -70,14 +69,9 @@ const resultExitBtn = document.getElementById("result-exit-btn");
 const resultNextBtn = document.getElementById("result-next-btn");
 const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
-const levelWinEl = document.getElementById("level-win");
-const levelWinTitleEl = document.getElementById("level-win-title");
-const levelWinDescEl = document.getElementById("level-win-desc");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
-const levelWinNextBtn = document.getElementById("level-win-next-btn");
 const levelTestToggleBtn = document.getElementById("level-test-toggle");
-const levelTestRootEl = document.getElementById("level-test");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
@@ -344,9 +338,6 @@ function createGameRuntime() {
     commentaryEl,
     gameOverEl,
     gameOverTitleEl,
-    levelWinEl,
-    levelWinTitleEl,
-    levelWinDescEl,
     resultPage: {
       maskEl: resultMaskEl,
       cardEl: resultPageEl,
@@ -1669,34 +1660,6 @@ function startNextLevel(nextLevelIndex) {
   }
 }
 
-function completeLevelAndBackHome(nextLevelIndex) {
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-
-  grantLevelWinProgress(nextLevelIndex);
-  gameUI.closeResult();
-
-  clearBoardEntities();
-  showHomeScreen();
-}
-
-function completeAllLevelsAndBackHome(levelCount) {
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.highestPassedLevelIndex = LEVELS.length - 1;
-  state.currentPlayableLevelIndex = LEVELS.length - 1;
-  state.selectedHomeLevelIndex = LEVELS.length - 1;
-  persistLevelProgress();
-  gameUI.closeResult();
-
-  clearBoardEntities();
-  showHomeScreen();
-}
-
 function init() {
   hydrateLevelProgress();
   hydrateCoinBalance();
@@ -1815,7 +1778,6 @@ async function createRenderer() {
 
   const webgpu = new THREE.WebGPURenderer({ antialias: true, forceWebGL: false });
   await webgpu.init();
-  if (titleEl) titleEl.textContent = "切泡泡 (WebGPU)";
   return webgpu;
 }
 

@@ -24,7 +24,6 @@ export function createResultPage({
   function openResult(outcome, options = {}) {
     const reward = Math.max(0, Math.floor(options.reward ?? 0));
     const levelNumber = Math.max(1, Math.floor(options.level ?? 1));
-    const score = Math.max(0, Math.floor(options.score ?? 0));
     const canNext = options.canNext === true;
     const isFinal = options.isFinal === true;
 
@@ -142,10 +141,6 @@ export function createResultPage({
     return target?.getBoundingClientRect?.() ?? null;
   }
 
-  function applyControlSettings(settings = {}) {
-    void settings;
-  }
-
   retryBtn?.addEventListener("click", () => onRetry?.());
   nextBtn?.addEventListener("click", () => onNext?.());
   backBtn?.addEventListener("click", () => onBack?.());
@@ -155,6 +150,5 @@ export function createResultPage({
     openResult,
     closeResult,
     getRewardAnchorRect,
-    applyControlSettings,
   };
 }
