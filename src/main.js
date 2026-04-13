@@ -125,6 +125,7 @@ const slicePopStaggerStep = 0.075;
 const spawnEdgePadding = 0.01;
 const spawnEdgeBias = 0.38;
 const spawnEdgeBand = 0.9;
+const boundsClampExpand = 0.2;
 const wallSlideDamping = 0.992;
 const wallContactGain = 0.8;
 
@@ -242,7 +243,7 @@ const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
 const homeBubbles = [];
 const homeBubbleBounds = { left: -999, right: 999, top: 999, bottom: -999 };
-const hexOverlayRadius = 0.2;
+const hexOverlayRadius = 0.1;
 const hexOverlayOpacity = 0.38;
 const hexOverlayBorderOpacity = 0.72;
 const hexOverlayBorderWidth = 0.02;
@@ -1265,8 +1266,8 @@ function resetFruits(level) {
     });
     const spawnMargin = fruit.radius + 0.06;
     fruit.setPosition(
-      THREE.MathUtils.clamp(def.x, bounds.left + spawnMargin, bounds.right - spawnMargin),
-      THREE.MathUtils.clamp(def.y, bounds.bottom + spawnMargin, bounds.top - spawnMargin),
+      THREE.MathUtils.clamp(def.x, bounds.left - boundsClampExpand + spawnMargin, bounds.right + boundsClampExpand - spawnMargin),
+      THREE.MathUtils.clamp(def.y, bounds.bottom - boundsClampExpand + spawnMargin, bounds.top + boundsClampExpand - spawnMargin),
       0
     );
     fruits.push(fruit);
@@ -1972,7 +1973,7 @@ class BubbleEntity {
     if (!this.sliced) {
       this.group.position.addScaledVector(this.vel, dt);
 
-      const leftLimit = worldBounds.left + this.radius;
+      const leftLimit = worldBounds.left - boundsClampExpand + this.radius;
       if (this.group.position.x < leftLimit) {
         const overlap = leftLimit - this.group.position.x;
         this.group.position.x = leftLimit;
@@ -1981,7 +1982,7 @@ class BubbleEntity {
         this.applyWallContact(1, 0, overlap);
       }
 
-      const rightLimit = worldBounds.right - this.radius;
+      const rightLimit = worldBounds.right + boundsClampExpand - this.radius;
       if (this.group.position.x > rightLimit) {
         const overlap = this.group.position.x - rightLimit;
         this.group.position.x = rightLimit;
@@ -1990,7 +1991,7 @@ class BubbleEntity {
         this.applyWallContact(-1, 0, overlap);
       }
 
-      const bottomLimit = worldBounds.bottom + this.radius;
+      const bottomLimit = worldBounds.bottom - boundsClampExpand + this.radius;
       if (this.group.position.y < bottomLimit) {
         const overlap = bottomLimit - this.group.position.y;
         this.group.position.y = bottomLimit;
@@ -1999,7 +2000,7 @@ class BubbleEntity {
         this.applyWallContact(0, 1, overlap);
       }
 
-      const topLimit = worldBounds.top - this.radius;
+      const topLimit = worldBounds.top + boundsClampExpand - this.radius;
       if (this.group.position.y > topLimit) {
         const overlap = this.group.position.y - topLimit;
         this.group.position.y = topLimit;
