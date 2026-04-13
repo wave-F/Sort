@@ -228,7 +228,7 @@ const state = {
   coins: 0,
   pendingWinReward: 0,
   rewardAppliedThisRound: false,
-  showHexOverlay: true,
+  showHexOverlay: false,
 };
 
 const scene = new THREE.Scene();
