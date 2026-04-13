@@ -1,5 +1,3 @@
-import { CountUp } from "countup.js";
-
 export function createResultPage({
   maskEl,
   cardEl,
@@ -18,7 +16,6 @@ export function createResultPage({
   onNext,
   onBack,
 } = {}) {
-  let rewardCountUp = null;
   const cardBodyEl = cardEl?.querySelector?.(".result-card") ?? cardEl;
 
   function openResult(outcome, options = {}) {
@@ -26,6 +23,7 @@ export function createResultPage({
     const levelNumber = Math.max(1, Math.floor(options.level ?? 1));
     const canNext = options.canNext === true;
     const isFinal = options.isFinal === true;
+    let shouldRunWinDone = false;
 
     if (outcome === "win") {
       if (titleTextEl) titleTextEl.textContent = isFinal ? "All Clear" : `Level ${levelNumber}`;
@@ -56,36 +54,8 @@ export function createResultPage({
       }
       if (retryBtn) retryBtn.textContent = "Retry";
 
-      if (rewardCountUp) {
-        try {
-          rewardCountUp.reset();
-        } catch (_err) {
-          // ignore reset errors
-        }
-        rewardCountUp = null;
-      }
-
-      rewardCountUp = new CountUp(rewardEl, reward, {
-        startVal: 0,
-        duration: 1.0,
-        decimalPlaces: 0,
-        useGrouping: false,
-        formattingFn: (value) => `${Math.floor(value)}`,
-      });
-
-      if (rewardCountUp.error) {
-        rewardEl.textContent = `${reward}`;
-        options.onWinCountDone?.();
-      } else {
-        window.requestAnimationFrame(() => {
-          if (!rewardCountUp) return;
-          rewardCountUp.start(() => {
-            rewardCountUp = null;
-            rewardEl.textContent = `${reward}`;
-            options.onWinCountDone?.();
-          });
-        });
-      }
+      rewardEl.textContent = `${reward}`;
+      shouldRunWinDone = true;
     } else {
       if (titleTextEl) titleTextEl.textContent = `Level ${levelNumber}`;
       if (descEl) {
@@ -109,29 +79,19 @@ export function createResultPage({
       if (retryBtn) retryBtn.textContent = "Retry";
       if (backBtn) backBtn.textContent = "Home";
 
-      if (rewardCountUp) {
-        try {
-          rewardCountUp.reset();
-        } catch (_err) {
-          // ignore reset errors
-        }
-        rewardCountUp = null;
-      }
     }
 
     maskEl?.classList.remove("hidden");
     cardEl?.classList.remove("hidden");
+
+    if (shouldRunWinDone && typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        options.onWinCountDone?.();
+      });
+    }
   }
 
   function closeResult() {
-    if (rewardCountUp) {
-      try {
-        rewardCountUp.reset();
-      } catch (_err) {
-        // ignore reset errors
-      }
-      rewardCountUp = null;
-    }
     maskEl?.classList.add("hidden");
     cardEl?.classList.add("hidden");
   }

@@ -56,29 +56,23 @@ export function createRewardFlow({
       return;
     }
 
-    const gameUI = getGameUI();
-    if (!playFx || !gameUI || gameUI.isCoinFlyPlaying()) {
-      addCoins(reward);
-      state.rewardAppliedThisRound = true;
-      state.pendingWinReward = 0;
-      return;
-    }
-
     state.rewardAppliedThisRound = true;
+    state.pendingWinReward = 0;
+    addCoins(reward);
+
+    const gameUI = getGameUI();
+    if (!playFx || !gameUI || gameUI.isCoinFlyPlaying()) return;
+
     const originRect = gameUI.getResultRewardRect();
     setGameplayCoinTopbarVisible(true);
     gameUI.playCoinFly(reward, {
       originRect,
-      onEachCoin: (part) => addCoins(part),
       onDone: () => {
-        state.pendingWinReward = 0;
         setGameplayCoinTopbarVisible(false);
       },
     });
 
     if (!gameUI.isCoinFlyPlaying()) {
-      addCoins(reward);
-      state.pendingWinReward = 0;
       setGameplayCoinTopbarVisible(false);
     }
   }
