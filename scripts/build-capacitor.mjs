@@ -11,8 +11,8 @@ const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
 const popAudioWebDir = path.join(webDir, "assets", "audio", "pop");
 const bgmAudioSrcDir = path.join(rootDir, "assets", "audio", "bgm_preview");
 const bgmAudioWebDir = path.join(webDir, "assets", "audio", "bgm_preview");
-const bgImageSrcDir = path.join(rootDir, "assets", "images", "backgrounds");
-const bgImageWebDir = path.join(webDir, "assets", "images", "backgrounds");
+const imageSrcDir = path.join(rootDir, "assets", "images");
+const imageWebDir = path.join(webDir, "assets", "images");
 
 await mkdir(webDir, { recursive: true });
 
@@ -26,11 +26,36 @@ await build({
   outfile: path.join(webDir, "main.js"),
 });
 
-const css = await readFile(path.join(rootDir, "src", "styles.css"), "utf8");
+async function bundleCssWithImports(entryPath, seen = new Set()) {
+  const key = path.resolve(entryPath);
+  if (seen.has(key)) return "";
+  seen.add(key);
+
+  const css = await readFile(key, "utf8");
+  const importRegex = /^\s*@import\s+"([^"]+)";\s*$/gm;
+  let out = "";
+  let last = 0;
+  let match;
+
+  while ((match = importRegex.exec(css)) !== null) {
+    out += css.slice(last, match.index);
+    const childPath = path.resolve(path.dirname(key), match[1]);
+    out += await bundleCssWithImports(childPath, seen);
+    last = importRegex.lastIndex;
+  }
+  out += css.slice(last);
+  return out;
+}
+
+function normalizeCssAssetUrls(css) {
+  return css.replace(/url\((['"]?)(?:\.\.\/)+assets\//g, "url($1./assets/");
+}
+
+const css = normalizeCssAssetUrls(await bundleCssWithImports(path.join(rootDir, "src", "styles.css")));
 await writeFile(path.join(webDir, "styles.css"), css, "utf8");
 await cp(popAudioSrcDir, popAudioWebDir, { recursive: true, force: true });
 await cp(bgmAudioSrcDir, bgmAudioWebDir, { recursive: true, force: true });
-await cp(bgImageSrcDir, bgImageWebDir, { recursive: true, force: true });
+await cp(imageSrcDir, imageWebDir, { recursive: true, force: true });
 
 const html = `<!doctype html>
 <html lang="zh-CN">
@@ -110,20 +135,23 @@ const html = `<!doctype html>
 
         <div id="home-settings-modal" class="hidden" aria-label="游戏设置">
           <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="游戏设置弹窗">
-            <div class="home-settings-header">
-              <h3>设置</h3>
-              <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            <div class="home-settings-title-pill">设置</div>
+            <div class="home-settings-inner">
+              <div class="home-settings-icon" aria-hidden="true">⚙️</div>
+              <label class="home-settings-row" for="setting-music-toggle">
+                <span>音乐</span>
+                <input id="setting-music-toggle" type="checkbox" checked />
+              </label>
+              <label class="home-settings-row" for="setting-sfx-toggle">
+                <span>音效</span>
+                <input id="setting-sfx-toggle" type="checkbox" checked />
+              </label>
             </div>
-            <label class="home-settings-row" for="setting-music-toggle">
-              <span>音乐</span>
-              <input id="setting-music-toggle" type="checkbox" checked />
-            </label>
-            <label class="home-settings-row" for="setting-sfx-toggle">
-              <span>音效</span>
-              <input id="setting-sfx-toggle" type="checkbox" checked />
-            </label>
-            <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
-            <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+            <div class="home-settings-actions">
+              <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
+              <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+            </div>
           </div>
         </div>
 

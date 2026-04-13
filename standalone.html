@@ -211,6 +211,7 @@ body {
   padding: 0 12px;
 }
 
+
 #gameplay-settings-mask {
   position: absolute;
   inset: 0;
@@ -655,11 +656,11 @@ body {
 }
 
 .panel-title-ribbon.is-yellow {
-  background-image: url("../assets/images/tittleRibbon_Yellow.png");
+  background-image: url("./assets/images/tittleRibbon_Yellow.png");
 }
 
 .panel-title-ribbon.is-red {
-  background-image: url("../assets/images/tittleRibbon_Red.png");
+  background-image: url("./assets/images/tittleRibbon_Red.png");
 }
 
 #start-screen,
@@ -684,7 +685,7 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url("../assets/images/09_aurora_gradient.png") center / cover no-repeat;
+  background: url("./assets/images/09_aurora_gradient.png") center / cover no-repeat;
   opacity: 0.45;
 }
 
@@ -1552,6 +1553,7 @@ body {
 }
 
 
+
 @media (max-width: 430px) {
   :root {
     --font-scale: 0.96;
@@ -1586,6 +1588,7 @@ body {
   }
 
 }
+
 
 .result-card.is-win #result-exit-btn {
   background: linear-gradient(180deg, #ffcc8d, #f2a861);
@@ -1782,20 +1785,23 @@ button:active {
 
         <div id="home-settings-modal" class="hidden" aria-label="游戏设置">
           <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="游戏设置弹窗">
-            <div class="home-settings-header">
-              <h3>设置</h3>
-              <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            <div class="home-settings-title-pill">设置</div>
+            <div class="home-settings-inner">
+              <div class="home-settings-icon" aria-hidden="true">⚙️</div>
+              <label class="home-settings-row" for="setting-music-toggle">
+                <span>音乐</span>
+                <input id="setting-music-toggle" type="checkbox" checked />
+              </label>
+              <label class="home-settings-row" for="setting-sfx-toggle">
+                <span>音效</span>
+                <input id="setting-sfx-toggle" type="checkbox" checked />
+              </label>
             </div>
-            <label class="home-settings-row" for="setting-music-toggle">
-              <span>音乐</span>
-              <input id="setting-music-toggle" type="checkbox" checked />
-            </label>
-            <label class="home-settings-row" for="setting-sfx-toggle">
-              <span>音效</span>
-              <input id="setting-sfx-toggle" type="checkbox" checked />
-            </label>
-            <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
-            <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+            <div class="home-settings-actions">
+              <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
+              <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+            </div>
           </div>
         </div>
 

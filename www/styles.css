@@ -204,6 +204,7 @@ body {
   padding: 0 12px;
 }
 
+
 #gameplay-settings-mask {
   position: absolute;
   inset: 0;
@@ -648,11 +649,11 @@ body {
 }
 
 .panel-title-ribbon.is-yellow {
-  background-image: url("../assets/images/tittleRibbon_Yellow.png");
+  background-image: url("./assets/images/tittleRibbon_Yellow.png");
 }
 
 .panel-title-ribbon.is-red {
-  background-image: url("../assets/images/tittleRibbon_Red.png");
+  background-image: url("./assets/images/tittleRibbon_Red.png");
 }
 
 #start-screen,
@@ -677,7 +678,7 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: url("../assets/images/09_aurora_gradient.png") center / cover no-repeat;
+  background: url("./assets/images/09_aurora_gradient.png") center / cover no-repeat;
   opacity: 0.45;
 }
 
@@ -1545,6 +1546,7 @@ body {
 }
 
 
+
 @media (max-width: 430px) {
   :root {
     --font-scale: 0.96;
@@ -1579,6 +1581,7 @@ body {
   }
 
 }
+
 
 .result-card.is-win #result-exit-btn {
   background: linear-gradient(180deg, #ffcc8d, #f2a861);
