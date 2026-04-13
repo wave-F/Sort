@@ -9,7 +9,17 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     selectStep: 0,
     selectLastAt: 0,
     selectNoiseBuffer: null,
+    musicEnabled: true,
+    sfxEnabled: true,
   };
+
+  function setMusicEnabled(next) {
+    state.musicEnabled = Boolean(next);
+  }
+
+  function setSfxEnabled(next) {
+    state.sfxEnabled = Boolean(next);
+  }
 
   function ensureAudioUnlocked() {
     if (typeof window === "undefined") return false;
@@ -67,6 +77,7 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
   }
 
   function playRandomPopAudio() {
+    if (!state.sfxEnabled) return;
     if (!ensureAudioUnlocked()) return;
     const ctx = state.context;
     const buffers = state.popBuffers;
@@ -103,6 +114,7 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
   }
 
   function playSelectTone() {
+    if (!state.sfxEnabled) return;
     if (!ensureAudioUnlocked()) return;
     const ctx = state.context;
     if (!ctx) return;
@@ -182,6 +194,8 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
   return {
     ensureAudioUnlocked,
     preloadPopAudio,
+    setMusicEnabled,
+    setSfxEnabled,
     playRandomPopAudio,
     resetSelectToneProgression,
     playSelectTone,

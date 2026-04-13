@@ -52,55 +52,24 @@
             <span id="home-coin" class="home-status-value">0</span>
           </div>
 
-          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
+          <button id="home-settings-btn" class="home-mini-btn" type="button" aria-label="打开设置">⚙️</button>
         </div>
 
-        <div id="home-ui-panel" class="hidden" aria-label="主界面样式调控">
-          <label class="home-ui-row" for="home-ui-energy-size">
-            <span>体力字大小</span>
-            <input id="home-ui-energy-size" type="range" min="14" max="42" step="1" value="22" />
-            <em id="home-ui-energy-size-value">22</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-energy-x">
-            <span>体力字X</span>
-            <input id="home-ui-energy-x" type="range" min="-80" max="80" step="1" value="0" />
-            <em id="home-ui-energy-x-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-energy-y">
-            <span>体力字Y</span>
-            <input id="home-ui-energy-y" type="range" min="-40" max="40" step="1" value="0" />
-            <em id="home-ui-energy-y-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-size">
-            <span>金币字大小</span>
-            <input id="home-ui-coin-size" type="range" min="14" max="42" step="1" value="24" />
-            <em id="home-ui-coin-size-value">24</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-icon-x">
-            <span>金币图标X</span>
-            <input id="home-ui-coin-icon-x" type="range" min="-30" max="40" step="1" value="0" />
-            <em id="home-ui-coin-icon-x-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-icon-y">
-            <span>金币图标Y</span>
-            <input id="home-ui-coin-icon-y" type="range" min="-30" max="30" step="1" value="0" />
-            <em id="home-ui-coin-icon-y-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-x">
-            <span>金币字X</span>
-            <input id="home-ui-coin-x" type="range" min="-80" max="80" step="1" value="0" />
-            <em id="home-ui-coin-x-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-y">
-            <span>金币字Y</span>
-            <input id="home-ui-coin-y" type="range" min="-40" max="40" step="1" value="0" />
-            <em id="home-ui-coin-y-value">0</em>
-          </label>
-
-          <div class="home-ui-actions">
-            <button id="home-ui-reset-btn" class="tool-btn" type="button">重置</button>
-            <button id="home-ui-save-btn" class="tool-btn" type="button">保存</button>
-            <button id="home-ui-close-btn" class="tool-btn" type="button">关闭</button>
+        <div id="home-settings-modal" class="hidden" aria-label="游戏设置">
+          <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="游戏设置弹窗">
+            <div class="home-settings-header">
+              <h3>设置</h3>
+              <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            </div>
+            <label class="home-settings-row" for="setting-music-toggle">
+              <span>音乐</span>
+              <input id="setting-music-toggle" type="checkbox" checked />
+            </label>
+            <label class="home-settings-row" for="setting-sfx-toggle">
+              <span>音效</span>
+              <input id="setting-sfx-toggle" type="checkbox" checked />
+            </label>
+            <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
           </div>
         </div>
 
@@ -147,6 +116,6 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=32"></script>
+    <script type="module" src="./src/main.js?v=33"></script>
   </body>
 </html>

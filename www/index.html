@@ -34,7 +34,25 @@
             <span class="home-pill-icon">💰</span>
             <span id="home-coin">5680</span>
           </div>
-          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
+          <button id="home-settings-btn" class="home-mini-btn" type="button" aria-label="打开设置">⚙️</button>
+        </div>
+
+        <div id="home-settings-modal" class="hidden" aria-label="游戏设置">
+          <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="游戏设置弹窗">
+            <div class="home-settings-header">
+              <h3>设置</h3>
+              <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            </div>
+            <label class="home-settings-row" for="setting-music-toggle">
+              <span>音乐</span>
+              <input id="setting-music-toggle" type="checkbox" checked />
+            </label>
+            <label class="home-settings-row" for="setting-sfx-toggle">
+              <span>音效</span>
+              <input id="setting-sfx-toggle" type="checkbox" checked />
+            </label>
+            <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+          </div>
         </div>
 
         <div id="home-main">

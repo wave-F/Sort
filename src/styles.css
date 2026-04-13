@@ -377,7 +377,6 @@ body {
 }
 
 #home-topbar,
-#home-ui-panel,
 #home-main {
   position: relative;
   z-index: 1;
@@ -473,47 +472,6 @@ body {
   transform: translate(var(--home-energy-text-x), var(--home-energy-text-y));
 }
 
-#home-ui-panel {
-  width: min(88%, 360px);
-  margin: 6px auto 0;
-  padding: 10px;
-  border-radius: 12px;
-  background: rgba(18, 28, 40, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(6px);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 18;
-}
-
-.home-ui-row {
-  display: grid;
-  grid-template-columns: 70px 1fr 36px;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #dceeff;
-}
-
-.home-ui-row input {
-  width: 100%;
-}
-
-.home-ui-row em {
-  font-style: normal;
-  text-align: right;
-  color: #b9d8f8;
-}
-
-.home-ui-actions {
-  margin-top: 4px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .home-mini-btn {
   width: 40px;
   height: 40px;
@@ -524,6 +482,81 @@ body {
   background: linear-gradient(180deg, #ffd6ae, #f0b27e);
   color: #5c2f12;
   box-shadow: 0 6px 0 #b9794d;
+}
+
+#home-settings-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(8, 14, 22, 0.38);
+}
+
+.home-settings-card {
+  width: min(86%, 320px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(15, 26, 40, 0.94);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-settings-header h3 {
+  margin: 0;
+  color: #f0f7ff;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.home-settings-close {
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4fbff;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.home-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #d9ebff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.home-settings-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+}
+
+.home-clear-data-btn {
+  margin-top: 4px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 173, 173, 0.45);
+  background: linear-gradient(180deg, #ff7f7f, #ea4f4f);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 10px 12px;
 }
 
 #home-main {

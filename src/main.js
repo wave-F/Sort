@@ -30,26 +30,11 @@ const homeLevelPrevBtn = document.getElementById("home-level-prev");
 const homeLevelCurrentBtn = document.getElementById("home-level-current");
 const homeLevelNextBtn = document.getElementById("home-level-next");
 const homeSettingsBtn = document.getElementById("home-settings-btn");
-const homeUiPanelEl = document.getElementById("home-ui-panel");
-const homeUiEnergySizeEl = document.getElementById("home-ui-energy-size");
-const homeUiEnergyXEl = document.getElementById("home-ui-energy-x");
-const homeUiEnergyYEl = document.getElementById("home-ui-energy-y");
-const homeUiCoinSizeEl = document.getElementById("home-ui-coin-size");
-const homeUiCoinIconXEl = document.getElementById("home-ui-coin-icon-x");
-const homeUiCoinIconYEl = document.getElementById("home-ui-coin-icon-y");
-const homeUiCoinXEl = document.getElementById("home-ui-coin-x");
-const homeUiCoinYEl = document.getElementById("home-ui-coin-y");
-const homeUiEnergySizeValueEl = document.getElementById("home-ui-energy-size-value");
-const homeUiEnergyXValueEl = document.getElementById("home-ui-energy-x-value");
-const homeUiEnergyYValueEl = document.getElementById("home-ui-energy-y-value");
-const homeUiCoinSizeValueEl = document.getElementById("home-ui-coin-size-value");
-const homeUiCoinIconXValueEl = document.getElementById("home-ui-coin-icon-x-value");
-const homeUiCoinIconYValueEl = document.getElementById("home-ui-coin-icon-y-value");
-const homeUiCoinXValueEl = document.getElementById("home-ui-coin-x-value");
-const homeUiCoinYValueEl = document.getElementById("home-ui-coin-y-value");
-const homeUiSaveBtn = document.getElementById("home-ui-save-btn");
-const homeUiCloseBtn = document.getElementById("home-ui-close-btn");
-const homeUiResetBtn = document.getElementById("home-ui-reset-btn");
+const homeSettingsModalEl = document.getElementById("home-settings-modal");
+const homeSettingsCloseBtn = document.getElementById("home-settings-close-btn");
+const settingMusicToggleEl = document.getElementById("setting-music-toggle");
+const settingSfxToggleEl = document.getElementById("setting-sfx-toggle");
+const homeClearDataBtn = document.getElementById("home-clear-data-btn");
 const homeCoinEl = document.getElementById("home-coin");
 const coinStatusEl = document.getElementById("coin-status");
 const coinStatusTextEl = document.getElementById("coin-status-text");
@@ -132,6 +117,7 @@ const bubbleTuningStorageKey = "bubble_tuning_v1";
 const levelProgressStorageKey = "fruit_level_progress_v1";
 const coinStorageKey = "fruit_coin_balance_v1";
 const homeUiTuningStorageKey = "fruit_home_ui_tuning_v1";
+const gameSettingsStorageKey = "fruit_game_settings_v1";
 const levelWinRewardBase = 20;
 const homeEasyColorIds = [1, 2, 3, 5, 6];
 const homeMediumColorId = 4;
@@ -194,9 +180,15 @@ const defaultHomeUiTuning = {
   coinTextY: 0,
 };
 
+const defaultGameSettings = {
+  musicEnabled: true,
+  sfxEnabled: true,
+};
+
 const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
+const gameSettings = readGameSettings();
 
 const state = {
   started: false,
@@ -537,103 +529,103 @@ function applyHomeUiTuning(values) {
   rootStyle.setProperty("--home-coin-text-y", `${values.coinTextY}px`);
 }
 
-function setHomeUiInputs(values) {
-  if (homeUiEnergySizeEl) homeUiEnergySizeEl.value = String(values.energyTextSize);
-  if (homeUiEnergyXEl) homeUiEnergyXEl.value = String(values.energyTextX);
-  if (homeUiEnergyYEl) homeUiEnergyYEl.value = String(values.energyTextY);
-  if (homeUiCoinSizeEl) homeUiCoinSizeEl.value = String(values.coinTextSize);
-  if (homeUiCoinIconXEl) homeUiCoinIconXEl.value = String(values.coinIconX);
-  if (homeUiCoinIconYEl) homeUiCoinIconYEl.value = String(values.coinIconY);
-  if (homeUiCoinXEl) homeUiCoinXEl.value = String(values.coinTextX);
-  if (homeUiCoinYEl) homeUiCoinYEl.value = String(values.coinTextY);
+function readGameSettings() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { ...defaultGameSettings };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(gameSettingsStorageKey);
+    if (!raw) return { ...defaultGameSettings };
+    const parsed = JSON.parse(raw);
+    return {
+      musicEnabled: Boolean(parsed.musicEnabled ?? defaultGameSettings.musicEnabled),
+      sfxEnabled: Boolean(parsed.sfxEnabled ?? defaultGameSettings.sfxEnabled),
+    };
+  } catch (_err) {
+    return { ...defaultGameSettings };
+  }
 }
 
-function syncHomeUiLabels() {
-  if (homeUiEnergySizeValueEl && homeUiEnergySizeEl) homeUiEnergySizeValueEl.textContent = homeUiEnergySizeEl.value;
-  if (homeUiEnergyXValueEl && homeUiEnergyXEl) homeUiEnergyXValueEl.textContent = homeUiEnergyXEl.value;
-  if (homeUiEnergyYValueEl && homeUiEnergyYEl) homeUiEnergyYValueEl.textContent = homeUiEnergyYEl.value;
-  if (homeUiCoinSizeValueEl && homeUiCoinSizeEl) homeUiCoinSizeValueEl.textContent = homeUiCoinSizeEl.value;
-  if (homeUiCoinIconXValueEl && homeUiCoinIconXEl) homeUiCoinIconXValueEl.textContent = homeUiCoinIconXEl.value;
-  if (homeUiCoinIconYValueEl && homeUiCoinIconYEl) homeUiCoinIconYValueEl.textContent = homeUiCoinIconYEl.value;
-  if (homeUiCoinXValueEl && homeUiCoinXEl) homeUiCoinXValueEl.textContent = homeUiCoinXEl.value;
-  if (homeUiCoinYValueEl && homeUiCoinYEl) homeUiCoinYValueEl.textContent = homeUiCoinYEl.value;
-}
-
-function collectHomeUiValues() {
-  return {
-    energyTextSize: clampNumber(homeUiEnergySizeEl?.value, 14, 42, defaultHomeUiTuning.energyTextSize),
-    energyTextX: clampNumber(homeUiEnergyXEl?.value, -80, 80, defaultHomeUiTuning.energyTextX),
-    energyTextY: clampNumber(homeUiEnergyYEl?.value, -40, 40, defaultHomeUiTuning.energyTextY),
-    coinTextSize: clampNumber(homeUiCoinSizeEl?.value, 14, 42, defaultHomeUiTuning.coinTextSize),
-    coinIconX: clampNumber(homeUiCoinIconXEl?.value, -30, 40, defaultHomeUiTuning.coinIconX),
-    coinIconY: clampNumber(homeUiCoinIconYEl?.value, -30, 30, defaultHomeUiTuning.coinIconY),
-    coinTextX: clampNumber(homeUiCoinXEl?.value, -80, 80, defaultHomeUiTuning.coinTextX),
-    coinTextY: clampNumber(homeUiCoinYEl?.value, -40, 40, defaultHomeUiTuning.coinTextY),
-  };
-}
-
-function saveHomeUiValues(values) {
+function saveGameSettings() {
   if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(homeUiTuningStorageKey, JSON.stringify(values));
+  window.localStorage.setItem(gameSettingsStorageKey, JSON.stringify(gameSettings));
 }
 
-function hideHomeUiPanel() {
-  homeUiPanelEl?.classList.add("hidden");
+function applyGameSettings() {
+  gameAudio.setMusicEnabled(gameSettings.musicEnabled);
+  gameAudio.setSfxEnabled(gameSettings.sfxEnabled);
 }
 
-function bindHomeUiPanel() {
-  const hasAll = homeUiPanelEl
-    && homeUiEnergySizeEl && homeUiEnergyXEl && homeUiEnergyYEl
-    && homeUiCoinSizeEl && homeUiCoinIconXEl && homeUiCoinIconYEl
-    && homeUiCoinXEl && homeUiCoinYEl;
-  if (!hasAll) return;
+function syncSettingsUi() {
+  if (settingMusicToggleEl) settingMusicToggleEl.checked = gameSettings.musicEnabled;
+  if (settingSfxToggleEl) settingSfxToggleEl.checked = gameSettings.sfxEnabled;
+}
 
-  const saved = readHomeUiTuning();
-  setHomeUiInputs(saved);
-  syncHomeUiLabels();
-  applyHomeUiTuning(saved);
+function showHomeSettingsModal() {
+  syncSettingsUi();
+  homeSettingsModalEl?.classList.remove("hidden");
+}
 
-  const onInput = () => {
-    const values = collectHomeUiValues();
-    applyHomeUiTuning(values);
-    syncHomeUiLabels();
-  };
+function hideHomeSettingsModal() {
+  homeSettingsModalEl?.classList.add("hidden");
+}
 
-  homeUiEnergySizeEl.addEventListener("input", onInput);
-  homeUiEnergyXEl.addEventListener("input", onInput);
-  homeUiEnergyYEl.addEventListener("input", onInput);
-  homeUiCoinSizeEl.addEventListener("input", onInput);
-  homeUiCoinIconXEl.addEventListener("input", onInput);
-  homeUiCoinIconYEl.addEventListener("input", onInput);
-  homeUiCoinXEl.addEventListener("input", onInput);
-  homeUiCoinYEl.addEventListener("input", onInput);
+function clearGameplayDataOnly() {
+  if (typeof window !== "undefined" && window.localStorage) {
+    window.localStorage.removeItem(levelProgressStorageKey);
+    window.localStorage.removeItem(coinStorageKey);
+    window.localStorage.removeItem(gameSettingsStorageKey);
+  }
 
-  homeUiSaveBtn?.addEventListener("click", () => {
-    const values = collectHomeUiValues();
-    saveHomeUiValues(values);
-    hideHomeUiPanel();
-    gameUI.showCommentary("主界面样式已保存", 900);
+  hydrateLevelProgress();
+  hydrateCoinBalance();
+  gameSettings.musicEnabled = defaultGameSettings.musicEnabled;
+  gameSettings.sfxEnabled = defaultGameSettings.sfxEnabled;
+  applyGameSettings();
+  syncSettingsUi();
+  syncCoinUi();
+
+  state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
+  if (state.inHome) {
+    renderHomeScreen();
+  }
+
+  gameUI.showCommentary("已清除游玩数据（保留TopBar和泡泡调参）", 1400);
+}
+
+function bindHomeSettingsModal() {
+  if (!homeSettingsBtn || !homeSettingsModalEl) return;
+
+  syncSettingsUi();
+
+  homeSettingsBtn.addEventListener("click", showHomeSettingsModal);
+  homeSettingsCloseBtn?.addEventListener("click", hideHomeSettingsModal);
+
+  homeSettingsModalEl.addEventListener("click", (ev) => {
+    if (ev.target === homeSettingsModalEl) {
+      hideHomeSettingsModal();
+    }
   });
 
-  homeUiCloseBtn?.addEventListener("click", () => {
-    const savedValues = readHomeUiTuning();
-    setHomeUiInputs(savedValues);
-    applyHomeUiTuning(savedValues);
-    syncHomeUiLabels();
-    hideHomeUiPanel();
+  settingMusicToggleEl?.addEventListener("change", () => {
+    gameSettings.musicEnabled = Boolean(settingMusicToggleEl.checked);
+    saveGameSettings();
+    applyGameSettings();
+    gameUI.showCommentary("音乐开关已保存（BGM后续接入）", 1000);
   });
 
-  homeUiResetBtn?.addEventListener("click", () => {
-    const defaults = { ...defaultHomeUiTuning };
-    setHomeUiInputs(defaults);
-    applyHomeUiTuning(defaults);
-    syncHomeUiLabels();
-    saveHomeUiValues(defaults);
-    gameUI.showCommentary("已恢复默认样式", 900);
+  settingSfxToggleEl?.addEventListener("change", () => {
+    gameSettings.sfxEnabled = Boolean(settingSfxToggleEl.checked);
+    saveGameSettings();
+    applyGameSettings();
   });
 
-  homeSettingsBtn?.addEventListener("click", () => {
-    homeUiPanelEl.classList.toggle("hidden");
+  homeClearDataBtn?.addEventListener("click", () => {
+    const ok = typeof window !== "undefined" ? window.confirm("确认清除关卡进度、金币和设置选项吗？") : true;
+    if (!ok) return;
+    clearGameplayDataOnly();
+    hideHomeSettingsModal();
   });
 }
 
@@ -909,7 +901,7 @@ function hideHomeScreen() {
   state.inHome = false;
   setGameHudVisible(true);
   if (homeScreenEl) homeScreenEl.classList.add("hidden");
-  hideHomeUiPanel();
+  hideHomeSettingsModal();
   clearHomeBubbles();
 }
 
@@ -1017,6 +1009,8 @@ function completeAllLevelsAndBackHome(levelCount) {
 function init() {
   hydrateLevelProgress();
   hydrateCoinBalance();
+  applyHomeUiTuning(readHomeUiTuning());
+  applyGameSettings();
   syncCoinUi();
   state.inHome = true;
   updatePhoneAspect();
@@ -1028,7 +1022,7 @@ function init() {
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
   bindHomeLevelButtons();
-  bindHomeUiPanel();
+  bindHomeSettingsModal();
   gameUI.closeResult();
   setupLevelTestControls();
 
