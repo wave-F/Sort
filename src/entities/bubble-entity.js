@@ -18,7 +18,7 @@ const BubbleBurstState = {
 };
 
 export function createBubbleMaterial(baseColor, bubbleTuning) {
-  const accentColor = baseColor.clone().offsetHSL(0, -0.12, 0.26);
+  const accentColor = baseColor.clone().offsetHSL(0, 0.1, 0.2);
   const springUniform = uniform(0);
   const crackGlowUniform = uniform(0);
   const contactDirUniform = uniform(new THREE.Vector3(1, 0, 0));
@@ -170,7 +170,7 @@ export function createBubbleEntityClass({
     setBaseColor(color) {
       if (!color) return;
       this.baseColor.copy(color);
-      const accent = color.clone().offsetHSL(0, -0.12, 0.26);
+      const accent = color.clone().offsetHSL(0, 0.1, 0.2);
       if (this.tintUniform?.value) this.tintUniform.value.copy(color);
       if (this.accentUniform?.value) this.accentUniform.value.copy(accent);
     }

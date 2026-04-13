@@ -143,12 +143,12 @@ const colors = [
 
 const defaultBubbleTuning = {
   transmission: 0.93,
-  roughness: 0.08,
-  clearcoat: 0.5,
+  roughness: 0.1,
+  clearcoat: 0.42,
   wobble: 0.022,
   flow: 1.15,
   dye: 1.12,
-  edge: 0.45,
+  edge: 0.3,
   iri: 0.75,
   springTension: 0.12,
   springDamping: 0.84,
