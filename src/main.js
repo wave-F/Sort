@@ -17,6 +17,10 @@ import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
+import { clampNumber, createLevelIndexClamper, createPersistenceController } from "./game/persistence.js";
+import { readGameSettings, createSettingsUiController } from "./game/settings-ui.js";
+import { createRewardFlow } from "./game/reward-flow.js";
+import { createHomeScreenController } from "./game/home-screen.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
@@ -78,39 +82,7 @@ const levelTestJumpBtn = document.getElementById("level-test-jump");
 const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
 
 function setupHomeFloatBubbles() {
-  if (!homeScreenEl) return;
-
-  let layer = homeScreenEl.querySelector("#home-float-layer");
-  if (!(layer instanceof HTMLElement)) {
-    layer = document.createElement("div");
-    layer.id = "home-float-layer";
-    layer.setAttribute("aria-hidden", "true");
-    homeScreenEl.prepend(layer);
-  }
-
-  if (layer.childElementCount > 0) return;
-
-  const bubbleCount = 16;
-  for (let i = 0; i < bubbleCount; i += 1) {
-    const bubble = document.createElement("span");
-    bubble.className = "home-float-bubble";
-
-    const size = 10 + Math.random() * 32;
-    const left = 4 + Math.random() * 92;
-    const duration = 9 + Math.random() * 10;
-    const delay = -Math.random() * duration;
-    const drift = -18 + Math.random() * 36;
-    const alpha = 0.42 + Math.random() * 0.38;
-
-    bubble.style.setProperty("--size", `${size.toFixed(1)}px`);
-    bubble.style.setProperty("--left", `${left.toFixed(2)}%`);
-    bubble.style.setProperty("--dur", `${duration.toFixed(2)}s`);
-    bubble.style.setProperty("--delay", `${delay.toFixed(2)}s`);
-    bubble.style.setProperty("--drift", `${drift.toFixed(1)}px`);
-    bubble.style.setProperty("--alpha", alpha.toFixed(2));
-
-    layer.appendChild(bubble);
-  }
+  homeScreenController.setupHomeFloatBubbles();
 }
 
 const rules = {
@@ -207,6 +179,8 @@ const defaultGameSettings = {
   sfxEnabled: true,
 };
 
+const clampLevelIndex = createLevelIndexClamper(LEVELS.length);
+
 const defaultUiLayoutDebugTuning = {
   winWidth: 0,
   winHeight: 0,
@@ -232,7 +206,7 @@ const defaultHudDebugTuning = {
 const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
-const gameSettings = readGameSettings();
+const gameSettings = readGameSettings({ storageKey: gameSettingsStorageKey, defaultSettings: defaultGameSettings });
 const uiLayoutDebugTuning = readUiLayoutDebugTuning();
 const hudDebugTuning = readHudDebugTuning();
 
@@ -272,6 +246,18 @@ const state = {
   outOfMovesBannerAnimation: null,
 };
 
+const persistence = createPersistenceController({
+  state,
+  storageKeys: {
+    levelProgress: levelProgressStorageKey,
+    coin: coinStorageKey,
+    stamina: staminaStorageKey,
+  },
+  levelCount: LEVELS.length,
+  staminaMax,
+  staminaRecoverIntervalMs,
+});
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xfffbf2);
 
@@ -284,8 +270,6 @@ let trail;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
-const homeBubbles = [];
-const homeBubbleBounds = { left: -999, right: 999, top: 999, bottom: -999 };
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -329,6 +313,86 @@ const {
   gameAudio,
   levelRuntime,
 } = gameRuntime;
+
+const rewardFlow = createRewardFlow({
+  state,
+  coinStorageKey,
+  levelWinRewardBase,
+  getGameUI: () => gameUI,
+  homeCoinEl,
+  gameplayCoinStatusEl,
+  gameplayTopbarEl,
+});
+
+const settingsUi = createSettingsUiController({
+  elements: {
+    homeSettingsBtn,
+    homeSettingsModalEl,
+    homeSettingsCloseBtn,
+    settingMusicToggleEl,
+    settingSfxToggleEl,
+    homeFillStaminaBtn,
+    homeClearDataBtn,
+    gameplaySettingsMaskEl,
+    gameplaySettingsRootEl,
+    gameplaySettingsToggleEl,
+    gameplaySettingsMusicEl,
+    gameplaySettingsSfxEl,
+    gameplaySettingsExitEl,
+    gameplayExitMaskEl,
+    gameplayExitModalEl,
+    gameplayExitCloseEl,
+    gameplayExitCancelEl,
+    gameplayExitConfirmEl,
+  },
+  gameSettings,
+  defaultGameSettings,
+  storageKey: gameSettingsStorageKey,
+  gameAudio,
+  gameUI,
+  onFillStaminaToMax: fillStaminaToMax,
+  onClearGameplayDataOnly: clearGameplayDataOnly,
+  onExitGameplayToHome: exitGameplayToHome,
+});
+
+const homeScreenController = createHomeScreenController({
+  state,
+  elements: {
+    homeScreenEl,
+    homeEnergyStatusEl,
+    homeLevelPrevBtn,
+    homeLevelCurrentBtn,
+    homeLevelNextBtn,
+  },
+  levels: LEVELS,
+  colors,
+  homeEasyColorIds,
+  homeMediumColorId,
+  homeHardColorId,
+  clampLevelIndex,
+  staminaMax,
+  formatCountdownMmSs,
+  getStaminaRecoverCountdownMs,
+  onSyncStaminaUi: syncStaminaUi,
+  onSettleStaminaRecovery: settleStaminaRecovery,
+  onSetGameHudVisible: setGameHudVisible,
+  onHideHomeSettingsModal: hideHomeSettingsModal,
+  getRenderer: () => renderer,
+  getTrail: () => trail,
+  screenToWorld,
+  createHomeBubbleEntity: ({ id, colorId }) => new BubbleEntity({
+    id,
+    colorId,
+    radius: 1,
+    vx: 0,
+    vy: 0,
+    baseColor: new THREE.Color(colors[colorId].base),
+  }),
+  scene,
+  bubbleBaseRadius,
+  onPlayUiClick: () => gameAudio.playUiClickAudio(),
+  onShowCommentary: (text, durationMs) => gameUI.showCommentary(text, durationMs),
+});
 
 init();
 
@@ -543,22 +607,6 @@ function loadBubbleTuning() {
   }
 }
 
-function clampNumber(value, min, max, fallback) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return THREE.MathUtils.clamp(n, min, max);
-}
-
-function clampLevelIndex(index, fallback = 0) {
-  const maxIndex = Math.max(0, LEVELS.length - 1);
-  const fallbackIndex = Number.isFinite(Number(fallback)) ? Math.floor(Number(fallback)) : 0;
-  const n = Number(index);
-  if (!Number.isFinite(n)) {
-    return THREE.MathUtils.clamp(fallbackIndex, 0, maxIndex);
-  }
-  return THREE.MathUtils.clamp(Math.floor(n), 0, maxIndex);
-}
-
 function readHomeUiTuning() {
   if (typeof window === "undefined" || !window.localStorage) {
     return { ...defaultHomeUiTuning };
@@ -701,79 +749,44 @@ function applyHudDebugTuning(values) {
   document.documentElement.style.setProperty("--hud-level-offset-x", `${values.hudLevelOffsetX}px`);
 }
 
-function readGameSettings() {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return { ...defaultGameSettings };
-  }
-
-  try {
-    const raw = window.localStorage.getItem(gameSettingsStorageKey);
-    if (!raw) return { ...defaultGameSettings };
-    const parsed = JSON.parse(raw);
-    return {
-      musicEnabled: Boolean(parsed.musicEnabled ?? defaultGameSettings.musicEnabled),
-      sfxEnabled: Boolean(parsed.sfxEnabled ?? defaultGameSettings.sfxEnabled),
-    };
-  } catch (_err) {
-    return { ...defaultGameSettings };
-  }
-}
-
 function saveGameSettings() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(gameSettingsStorageKey, JSON.stringify(gameSettings));
+  settingsUi.saveGameSettings();
 }
 
 function applyGameSettings() {
-  gameAudio.setMusicEnabled(gameSettings.musicEnabled);
-  gameAudio.setSfxEnabled(gameSettings.sfxEnabled);
+  settingsUi.applyGameSettings();
 }
 
 function syncSettingsUi() {
-  if (settingMusicToggleEl) settingMusicToggleEl.checked = gameSettings.musicEnabled;
-  if (settingSfxToggleEl) settingSfxToggleEl.checked = gameSettings.sfxEnabled;
+  settingsUi.syncSettingsUi();
 }
 
 function showHomeSettingsModal() {
-  syncSettingsUi();
-  homeSettingsModalEl?.classList.remove("hidden");
+  settingsUi.showHomeSettingsModal();
 }
 
 function hideHomeSettingsModal() {
-  homeSettingsModalEl?.classList.add("hidden");
+  settingsUi.hideHomeSettingsModal();
 }
 
 function setGameplaySettingsMenuOpen(open) {
-  if (!gameplaySettingsRootEl) return;
-  const isOpen = Boolean(open);
-  gameplaySettingsRootEl.classList.toggle("open", isOpen);
-  gameplaySettingsMaskEl?.classList.toggle("hidden", !isOpen);
+  settingsUi.setGameplaySettingsMenuOpen(open);
 }
 
 function hideGameplaySettingsMenu() {
-  setGameplaySettingsMenuOpen(false);
+  settingsUi.hideGameplaySettingsMenu();
 }
 
 function showGameplayExitModal() {
-  hideGameplaySettingsMenu();
-  gameplayExitMaskEl?.classList.remove("hidden");
-  gameplayExitModalEl?.classList.remove("hidden");
+  settingsUi.showGameplayExitModal();
 }
 
 function hideGameplayExitModal() {
-  gameplayExitMaskEl?.classList.add("hidden");
-  gameplayExitModalEl?.classList.add("hidden");
+  settingsUi.hideGameplayExitModal();
 }
 
 function syncGameplaySettingsButtons() {
-  if (gameplaySettingsMusicEl) {
-    gameplaySettingsMusicEl.classList.toggle("is-off", !gameSettings.musicEnabled);
-    gameplaySettingsMusicEl.setAttribute("aria-label", gameSettings.musicEnabled ? "音乐已开启" : "音乐已关闭");
-  }
-  if (gameplaySettingsSfxEl) {
-    gameplaySettingsSfxEl.classList.toggle("is-off", !gameSettings.sfxEnabled);
-    gameplaySettingsSfxEl.setAttribute("aria-label", gameSettings.sfxEnabled ? "音效已开启" : "音效已关闭");
-  }
+  settingsUi.syncGameplaySettingsButtons();
 }
 
 function exitGameplayToHome() {
@@ -791,72 +804,7 @@ function exitGameplayToHome() {
 }
 
 function bindGameplaySettingsMenu() {
-  if (!gameplaySettingsRootEl || !gameplaySettingsToggleEl) return;
-
-  syncGameplaySettingsButtons();
-  gameplaySettingsToggleEl.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    gameAudio.playUiClickAudio();
-    const isOpen = gameplaySettingsRootEl.classList.contains("open");
-    setGameplaySettingsMenuOpen(!isOpen);
-  });
-
-  gameplaySettingsMusicEl?.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    gameAudio.playUiClickAudio();
-    gameSettings.musicEnabled = !gameSettings.musicEnabled;
-    saveGameSettings();
-    applyGameSettings();
-    syncSettingsUi();
-    syncGameplaySettingsButtons();
-  });
-
-  gameplaySettingsSfxEl?.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    gameAudio.playUiClickAudio();
-    gameSettings.sfxEnabled = !gameSettings.sfxEnabled;
-    saveGameSettings();
-    applyGameSettings();
-    syncSettingsUi();
-    syncGameplaySettingsButtons();
-  });
-
-  gameplaySettingsExitEl?.addEventListener("click", (ev) => {
-    ev.stopPropagation();
-    gameAudio.playUiClickAudio();
-    showGameplayExitModal();
-  });
-
-  gameplaySettingsMaskEl?.addEventListener("click", () => {
-    hideGameplaySettingsMenu();
-  });
-
-  gameplayExitMaskEl?.addEventListener("click", () => {
-    hideGameplayExitModal();
-  });
-
-  gameplayExitCloseEl?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    hideGameplayExitModal();
-  });
-
-  gameplayExitCancelEl?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    hideGameplayExitModal();
-  });
-
-  gameplayExitConfirmEl?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    hideGameplayExitModal();
-    exitGameplayToHome();
-  });
-
-  window.addEventListener("pointerdown", (ev) => {
-    if (!gameplaySettingsRootEl.classList.contains("open")) return;
-    const target = ev.target;
-    if (target instanceof Node && (gameplaySettingsRootEl.contains(target) || gameplaySettingsMaskEl?.contains(target))) return;
-    hideGameplaySettingsMenu();
-  });
+  settingsUi.bindGameplaySettingsMenu();
 }
 
 function clearGameplayDataOnly() {
@@ -887,185 +835,31 @@ function clearGameplayDataOnly() {
 }
 
 function bindHomeSettingsModal() {
-  if (!homeSettingsBtn || !homeSettingsModalEl) return;
-
-  syncSettingsUi();
-
-  homeSettingsBtn.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    showHomeSettingsModal();
-  });
-  homeSettingsCloseBtn?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    hideHomeSettingsModal();
-  });
-
-  homeSettingsModalEl.addEventListener("click", (ev) => {
-    if (ev.target === homeSettingsModalEl) {
-      gameAudio.playUiClickAudio();
-      hideHomeSettingsModal();
-    }
-  });
-
-  settingMusicToggleEl?.addEventListener("change", () => {
-    gameSettings.musicEnabled = Boolean(settingMusicToggleEl.checked);
-    saveGameSettings();
-    applyGameSettings();
-    syncGameplaySettingsButtons();
-    gameUI.showCommentary("音乐开关已保存", 1000);
-  });
-
-  settingSfxToggleEl?.addEventListener("change", () => {
-    gameSettings.sfxEnabled = Boolean(settingSfxToggleEl.checked);
-    saveGameSettings();
-    applyGameSettings();
-    syncGameplaySettingsButtons();
-  });
-
-  homeFillStaminaBtn?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    fillStaminaToMax();
-    gameUI.showCommentary("测试体力：已回满", 1000);
-  });
-
-  homeClearDataBtn?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    const ok = typeof window !== "undefined" ? window.confirm("确认清除关卡进度、金币和设置选项吗？") : true;
-    if (!ok) return;
-    clearGameplayDataOnly();
-    hideHomeSettingsModal();
-  });
+  settingsUi.bindHomeSettingsModal();
 }
 
 function hydrateLevelProgress() {
-  if (typeof window === "undefined" || !window.localStorage) {
-    state.currentPlayableLevelIndex = 0;
-    state.highestPassedLevelIndex = -1;
-    state.selectedHomeLevelIndex = 0;
-    return;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(levelProgressStorageKey);
-    if (!raw) {
-      state.currentPlayableLevelIndex = 0;
-      state.highestPassedLevelIndex = -1;
-      state.selectedHomeLevelIndex = 0;
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    const playable = clampLevelIndex(parsed.currentPlayableLevelIndex, 0);
-    const passedRaw = Number(parsed.highestPassedLevelIndex);
-    const passed = Number.isFinite(passedRaw) ? Math.floor(passedRaw) : -1;
-    state.currentPlayableLevelIndex = playable;
-    state.highestPassedLevelIndex = THREE.MathUtils.clamp(passed, -1, LEVELS.length - 1);
-    state.selectedHomeLevelIndex = playable;
-  } catch (_err) {
-    state.currentPlayableLevelIndex = 0;
-    state.highestPassedLevelIndex = -1;
-    state.selectedHomeLevelIndex = 0;
-  }
+  persistence.hydrateLevelProgress();
 }
 
 function persistLevelProgress() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  const payload = {
-    currentPlayableLevelIndex: state.currentPlayableLevelIndex,
-    highestPassedLevelIndex: state.highestPassedLevelIndex,
-  };
-  window.localStorage.setItem(levelProgressStorageKey, JSON.stringify(payload));
+  persistence.persistLevelProgress();
 }
 
 function hydrateCoinBalance() {
-  if (typeof window === "undefined" || !window.localStorage) {
-    state.coins = 0;
-    return;
-  }
-
-  const raw = window.localStorage.getItem(coinStorageKey);
-  const parsed = Number(raw);
-  state.coins = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+  persistence.hydrateCoinBalance();
 }
 
 function hydrateStamina() {
-  const now = Date.now();
-  if (typeof window === "undefined" || !window.localStorage) {
-    state.stamina = staminaMax;
-    state.staminaLastRecoverAt = now;
-    return;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(staminaStorageKey);
-    if (!raw) {
-      state.stamina = staminaMax;
-      state.staminaLastRecoverAt = now;
-      persistStamina();
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    const loadedStamina = Math.floor(Number(parsed.stamina));
-    const loadedRecoverAt = Number(parsed.lastRecoverAt);
-    state.stamina = Number.isFinite(loadedStamina)
-      ? THREE.MathUtils.clamp(loadedStamina, 0, staminaMax)
-      : staminaMax;
-    state.staminaLastRecoverAt = Number.isFinite(loadedRecoverAt)
-      ? Math.max(0, Math.floor(loadedRecoverAt))
-      : now;
-  } catch (_err) {
-    state.stamina = staminaMax;
-    state.staminaLastRecoverAt = now;
-    persistStamina();
-  }
-
-  settleStaminaRecovery(now);
+  persistence.hydrateStamina();
 }
 
 function persistStamina() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  const payload = {
-    stamina: THREE.MathUtils.clamp(Math.floor(state.stamina), 0, staminaMax),
-    lastRecoverAt: Math.max(0, Math.floor(state.staminaLastRecoverAt || Date.now())),
-  };
-  window.localStorage.setItem(staminaStorageKey, JSON.stringify(payload));
+  persistence.persistStamina();
 }
 
 function settleStaminaRecovery(now = Date.now()) {
-  const safeNow = Number.isFinite(now) ? Math.floor(now) : Date.now();
-  state.stamina = THREE.MathUtils.clamp(Math.floor(state.stamina), 0, staminaMax);
-
-  if (!Number.isFinite(state.staminaLastRecoverAt) || state.staminaLastRecoverAt <= 0) {
-    state.staminaLastRecoverAt = safeNow;
-    persistStamina();
-    return;
-  }
-
-  if (safeNow < state.staminaLastRecoverAt) {
-    state.staminaLastRecoverAt = safeNow;
-    persistStamina();
-    return;
-  }
-
-  if (state.stamina >= staminaMax) {
-    if (state.staminaLastRecoverAt !== safeNow) {
-      state.staminaLastRecoverAt = safeNow;
-      persistStamina();
-    }
-    return;
-  }
-
-  const elapsed = safeNow - state.staminaLastRecoverAt;
-  const gain = Math.floor(elapsed / staminaRecoverIntervalMs);
-  if (gain <= 0) return;
-
-  state.stamina = Math.min(staminaMax, state.stamina + gain);
-  state.staminaLastRecoverAt += gain * staminaRecoverIntervalMs;
-  if (state.stamina >= staminaMax) {
-    state.staminaLastRecoverAt = safeNow;
-  }
-  persistStamina();
+  persistence.settleStaminaRecovery(now);
 }
 
 function syncStaminaUi() {
@@ -1137,103 +931,20 @@ function getStaminaRecoverCountdownMs(now = Date.now()) {
   return staminaRecoverIntervalMs - remainder;
 }
 
-function getHomeEnergyTipEl() {
-  if (!homeEnergyStatusEl) return null;
-  let tipEl = homeEnergyStatusEl.querySelector(".home-energy-tip");
-  if (tipEl instanceof HTMLElement) return tipEl;
-  tipEl = document.createElement("div");
-  tipEl.className = "home-energy-tip";
-  homeEnergyStatusEl.appendChild(tipEl);
-  return tipEl;
-}
-
-function getHomeCenterTipEl() {
-  if (!homeScreenEl) return null;
-  let tipEl = homeScreenEl.querySelector(".home-center-tip");
-  if (tipEl instanceof HTMLElement) return tipEl;
-  tipEl = document.createElement("div");
-  tipEl.className = "home-center-tip";
-  homeScreenEl.appendChild(tipEl);
-  return tipEl;
-}
-
 function hideHomeCenterTip() {
-  if (state.homeCenterTipTimer) {
-    window.clearTimeout(state.homeCenterTipTimer);
-    state.homeCenterTipTimer = 0;
-  }
-  const tipEl = getHomeCenterTipEl();
-  if (tipEl) {
-    tipEl.classList.remove("show");
-  }
+  homeScreenController.hideHomeCenterTip();
 }
 
 function showHomeCenterTip(text, durationMs = 1200) {
-  const tipEl = getHomeCenterTipEl();
-  if (!tipEl) return;
-  hideHomeCenterTip();
-  tipEl.textContent = text;
-  tipEl.classList.add("show");
-  state.homeCenterTipTimer = window.setTimeout(() => {
-    tipEl.classList.remove("show");
-    state.homeCenterTipTimer = 0;
-  }, durationMs);
+  homeScreenController.showHomeCenterTip(text, durationMs);
 }
 
 function hideHomeEnergyRecoverTip() {
-  if (state.staminaTipHideTimer) {
-    window.clearTimeout(state.staminaTipHideTimer);
-    state.staminaTipHideTimer = 0;
-  }
-  if (state.staminaTipTickTimer) {
-    window.clearInterval(state.staminaTipTickTimer);
-    state.staminaTipTickTimer = 0;
-  }
-  const tipEl = getHomeEnergyTipEl();
-  if (tipEl) {
-    tipEl.classList.remove("show");
-  }
-}
-
-function refreshHomeEnergyRecoverTipText() {
-  settleStaminaRecovery();
-  const tipEl = getHomeEnergyTipEl();
-  if (!tipEl) return;
-
-  if (state.stamina >= staminaMax) {
-    hideHomeEnergyRecoverTip();
-    return;
-  }
-
-  const leftMs = getStaminaRecoverCountdownMs();
-  tipEl.textContent = `${formatCountdownMmSs(leftMs)}后恢复1点`;
-}
-
-function showHomeEnergyRecoverTip() {
-  const tipEl = getHomeEnergyTipEl();
-  if (!tipEl) return;
-
-  hideHomeEnergyRecoverTip();
-  refreshHomeEnergyRecoverTipText();
-  if (state.stamina >= staminaMax) return;
-
-  tipEl.classList.add("show");
-  state.staminaTipTickTimer = window.setInterval(() => {
-    refreshHomeEnergyRecoverTipText();
-  }, 250);
-  state.staminaTipHideTimer = window.setTimeout(() => {
-    hideHomeEnergyRecoverTip();
-  }, 3000);
+  homeScreenController.hideHomeEnergyRecoverTip();
 }
 
 function bindHomeEnergyTip() {
-  if (!homeEnergyStatusEl) return;
-  homeEnergyStatusEl.addEventListener("click", () => {
-    settleStaminaRecovery();
-    syncStaminaUi();
-    if (state.stamina >= staminaMax) return;
-    showHomeEnergyRecoverTip();
-  });
+  homeScreenController.bindHomeEnergyTip();
 }
 
 function clearOutOfMovesBannerTimer() {
@@ -1305,256 +1016,51 @@ function playOutOfMovesBanner(onDone) {
 }
 
 function persistCoinBalance() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(coinStorageKey, String(Math.max(0, Math.floor(state.coins))));
+  rewardFlow.persistCoinBalance();
 }
 
 function syncCoinUi() {
-  const safe = Math.max(0, Math.floor(state.coins));
-  gameUI.setCoins(safe);
-  if (homeCoinEl) homeCoinEl.textContent = String(safe);
+  rewardFlow.syncCoinUi();
 }
 
 function addCoins(value) {
-  const gain = Math.max(0, Math.floor(value));
-  if (gain <= 0) return;
-  state.coins += gain;
-  persistCoinBalance();
-  syncCoinUi();
+  rewardFlow.addCoins(value);
 }
 
 function getLevelWinReward(levelIndex) {
-  void levelIndex;
-  return levelWinRewardBase;
+  return rewardFlow.getLevelWinReward(levelIndex);
 }
 
 function setGameplayCoinTopbarVisible(show) {
-  if (!gameplayCoinStatusEl || !gameplayTopbarEl) return;
-  if (show) {
-    gameplayTopbarEl.classList.remove("hidden");
-    gameplayTopbarEl.classList.add("is-floating-over-result");
-    gameplayCoinStatusEl.classList.remove("hidden");
-    gameplayCoinStatusEl.classList.remove("is-hidden-in-gameplay");
-    return;
-  }
-
-  gameplayTopbarEl.classList.remove("is-floating-over-result");
-  if (!state.inHome) {
-    gameplayCoinStatusEl.classList.add("is-hidden-in-gameplay");
-  }
+  rewardFlow.setGameplayCoinTopbarVisible(show);
 }
 
 function playWinCoinFly() {
-  settlePendingWinReward(true);
+  rewardFlow.playWinCoinFly();
 }
 
 function settlePendingWinReward(playFx = false) {
-  if (state.rewardAppliedThisRound) return;
-  const reward = Math.max(0, Math.floor(state.pendingWinReward));
-  if (reward <= 0) {
-    state.rewardAppliedThisRound = true;
-    return;
-  }
-
-  if (!playFx || gameUI.isCoinFlyPlaying()) {
-    addCoins(reward);
-    state.rewardAppliedThisRound = true;
-    state.pendingWinReward = 0;
-    return;
-  }
-
-  state.rewardAppliedThisRound = true;
-  const originRect = gameUI.getResultRewardRect();
-  setGameplayCoinTopbarVisible(true);
-  gameUI.playCoinFly(reward, {
-    originRect,
-    onEachCoin: (part) => addCoins(part),
-    onDone: () => {
-      state.pendingWinReward = 0;
-      setGameplayCoinTopbarVisible(false);
-    },
-  });
-
-  if (!gameUI.isCoinFlyPlaying()) {
-    addCoins(reward);
-    state.pendingWinReward = 0;
-    setGameplayCoinTopbarVisible(false);
-  }
+  rewardFlow.settlePendingWinReward(playFx);
 }
 
 function bindHomeLevelButtons() {
-  const onTap = (ev) => {
-    gameAudio.playUiClickAudio();
-    const button = ev.currentTarget;
-    if (!(button instanceof HTMLElement)) return;
-
-    const raw = Number(button.dataset.levelIndex);
-    if (!Number.isInteger(raw) || raw < 0 || raw >= LEVELS.length) return;
-
-    const current = clampLevelIndex(state.currentPlayableLevelIndex);
-    if (raw > current) {
-      gameUI.showCommentary(`第${raw + 1}关尚未解锁`, 900);
-      return;
-    }
-
-    gameUI.showCommentary(`当前可挑战：第${current + 1}关`, 900);
-  };
-
-  homeLevelPrevBtn?.addEventListener("click", onTap);
-  homeLevelCurrentBtn?.addEventListener("click", onTap);
-  homeLevelNextBtn?.addEventListener("click", onTap);
-}
-
-function renderHomeBubble(button, index, role) {
-  if (!button) return;
-
-  if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) {
-    button.dataset.levelIndex = "";
-    button.textContent = "";
-    button.className = "home-level-bubble";
-    button.disabled = true;
-    return;
-  }
-
-  const level = LEVELS[index];
-  const classes = ["home-level-bubble", "live", role];
-  if (level.difficulty === "hard") classes.push("hard");
-  if (level.difficulty === "medium") classes.push("medium");
-  if (role === "upcoming" && index > state.currentPlayableLevelIndex) classes.push("locked");
-
-  button.dataset.levelIndex = String(index);
-  button.className = classes.join(" ");
-  button.disabled = false;
-  button.textContent = String(index + 1);
-
-  const oldTag = button.querySelector(".home-level-tag");
-  if (oldTag) oldTag.remove();
-
-  if (level.difficulty === "medium" || level.difficulty === "hard") {
-    const tag = document.createElement("span");
-    tag.className = `home-level-tag ${level.difficulty}`;
-    tag.textContent = level.difficulty === "hard" ? "HARD" : "MED";
-    button.appendChild(tag);
-  }
-}
-
-function pickHomeBubbleColorId(level, fallbackIndex) {
-  const configured = Math.floor(level?.homeBubbleColorId ?? -1);
-  if (configured >= 0 && configured < colors.length) {
-    return configured;
-  }
-
-  const difficulty = String(level?.difficulty ?? "easy").toLowerCase();
-  if (difficulty === "hard") return homeHardColorId;
-  if (difficulty === "medium") return homeMediumColorId;
-
-  const step = Math.max(0, Math.floor((level?.id ?? fallbackIndex + 1) - 1));
-  return homeEasyColorIds[step % homeEasyColorIds.length];
-}
-
-function clearHomeBubbles() {
-  for (const bubble of homeBubbles) {
-    scene.remove(bubble.group);
-  }
-  homeBubbles.length = 0;
-}
-
-function rebuildHomeBubbles(specs) {
-  if (!renderer || !trail) return;
-  clearHomeBubbles();
-  for (let i = 0; i < specs.length; i += 1) {
-    const spec = specs[i];
-    if (!spec || !spec.anchorEl || !spec.level) continue;
-    const colorId = pickHomeBubbleColorId(spec.level, spec.levelIndex);
-    const entity = new BubbleEntity({
-      id: -100 - i,
-      colorId,
-      radius: 1,
-      vx: 0,
-      vy: 0,
-      baseColor: new THREE.Color(colors[colorId].base),
-    });
-    entity.homeAnchorEl = spec.anchorEl;
-    entity.homeLevelIndex = spec.levelIndex;
-    entity.homeColorId = colorId;
-    entity.selectRing.visible = false;
-    scene.add(entity.group);
-    homeBubbles.push(entity);
-  }
-}
-
-function syncHomeBubbleLayout() {
-  if (!renderer || !state.inHome) return;
-
-  for (const bubble of homeBubbles) {
-    const anchor = bubble.homeAnchorEl;
-    if (!anchor) continue;
-
-    const rect = anchor.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      bubble.group.visible = false;
-      continue;
-    }
-
-    const centerX = rect.left + rect.width * 0.5;
-    const centerY = rect.top + rect.height * 0.5;
-    const center = screenToWorld(centerX, centerY);
-    const edge = screenToWorld(centerX + rect.width * 0.5, centerY);
-    const radius = Math.max(0.32, center.distanceTo(edge));
-
-    bubble.group.visible = true;
-    bubble.radius = radius;
-    bubble.baseScale = radius / bubbleBaseRadius;
-    bubble.bubble.scale.setScalar(bubble.baseScale * bubble.selectionScale);
-    bubble.selectRing.scale.setScalar(radius);
-    bubble.selectRing.position.z = radius * 0.04;
-    bubble.vel.set(0, 0, 0);
-    bubble.setPosition(center.x, center.y, 0);
-  }
+  homeScreenController.bindHomeLevelButtons();
 }
 
 function updateHomeBubbles(dt) {
-  if (!state.inHome || !homeBubbles.length) return;
-  syncHomeBubbleLayout();
-  for (const bubble of homeBubbles) {
-    bubble.update(dt, homeBubbleBounds);
-  }
+  homeScreenController.updateHomeBubbles(dt);
 }
 
 function renderHomeScreen() {
-  syncStaminaUi();
-  const current = clampLevelIndex(state.currentPlayableLevelIndex);
-  state.selectedHomeLevelIndex = current;
-
-  const nextIndex = current + 1;
-  const next2Index = current + 2;
-  renderHomeBubble(homeLevelPrevBtn, current, "current");
-  renderHomeBubble(homeLevelCurrentBtn, nextIndex, "upcoming");
-  renderHomeBubble(homeLevelNextBtn, next2Index, "upcoming");
-
-  rebuildHomeBubbles([
-    { anchorEl: homeLevelPrevBtn, levelIndex: current, level: LEVELS[current] },
-    { anchorEl: homeLevelCurrentBtn, levelIndex: nextIndex, level: LEVELS[nextIndex] },
-    { anchorEl: homeLevelNextBtn, levelIndex: next2Index, level: LEVELS[next2Index] },
-  ]);
-
+  homeScreenController.renderHomeScreen();
 }
 
 function showHomeScreen() {
-  state.inHome = true;
-  setGameHudVisible(false);
-  if (homeScreenEl) homeScreenEl.classList.remove("hidden");
-  renderHomeScreen();
+  homeScreenController.showHomeScreen();
 }
 
 function hideHomeScreen() {
-  state.inHome = false;
-  hideHomeEnergyRecoverTip();
-  hideHomeCenterTip();
-  setGameHudVisible(true);
-  if (homeScreenEl) homeScreenEl.classList.add("hidden");
-  hideHomeSettingsModal();
-  clearHomeBubbles();
+  homeScreenController.hideHomeScreen();
 }
 
 function setGameHudVisible(visible) {
