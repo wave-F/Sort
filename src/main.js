@@ -138,7 +138,6 @@ const homeMediumColorId = 4;
 const homeHardColorId = 0;
 const popSoundFiles = [
   "oga-pop1.ogg",
-  "oga-pop2.ogg",
   "oga-pop3.ogg",
   "oga-pop4.ogg",
   "oga-pop5.ogg",
