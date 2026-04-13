@@ -79,6 +79,9 @@ const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
 const levelTestNextStepBtn = document.getElementById("level-test-next-step");
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
+const levelTestFlow1Label = "测试流程1(最大联通区域)";
+const levelTestFlow2Label = "测试流程2(可达区域)";
+const levelTestFlow3Label = "测试流程3(消除)";
 
 function setupHomeFloatBubbles() {
   if (!homeScreenEl) return;
@@ -228,6 +231,7 @@ const state = {
   pendingWinReward: 0,
   rewardAppliedThisRound: false,
   showHexOverlay: true,
+  levelTestFlowMode: 1,
 };
 
 const scene = new THREE.Scene();
@@ -258,6 +262,9 @@ let hexOverlayCenters = [];
 const hexOverlayTopColorIds = [];
 const hexOverlayTopZValues = [];
 const hexOverlayHighlighted = new Set();
+const hexOverlayFlow1Region = new Set();
+const hexOverlayFlow2Region = new Set();
+let hexOverlayFlow1ColorId = -1;
 let hexOverlayStepX = hexOverlayRadius * 1.5;
 let hexOverlayStepY = Math.sqrt(3) * hexOverlayRadius;
 const hexOverlayDefaultColor = new THREE.Color(0x000000);
@@ -1074,6 +1081,7 @@ function setupLevelTestControls() {
   }
 
   levelTestHexToggleEl.checked = state.showHexOverlay;
+  levelTestNextStepBtn.textContent = levelTestFlow1Label;
 
   levelTestSelectEl.innerHTML = "";
   for (let i = 0; i < LEVELS.length; i += 1) {
@@ -1103,7 +1111,22 @@ function setupLevelTestControls() {
 
   levelTestNextStepBtn.addEventListener("click", () => {
     if (!state.started || state.inHome || !state.showHexOverlay) return;
-    testNextStepOnHexOverlay();
+    if (state.levelTestFlowMode === 1) {
+      testNextStepOnHexOverlay();
+      state.levelTestFlowMode = 2;
+      levelTestNextStepBtn.textContent = levelTestFlow2Label;
+      return;
+    }
+    if (state.levelTestFlowMode === 2) {
+      testReachableRegionFromFlow1();
+      state.levelTestFlowMode = 3;
+      levelTestNextStepBtn.textContent = levelTestFlow3Label;
+      return;
+    }
+
+    runFlow3EliminateFromFlow12();
+    state.levelTestFlowMode = 1;
+    levelTestNextStepBtn.textContent = levelTestFlow1Label;
   });
 }
 
@@ -1121,6 +1144,12 @@ function jumpToLevelForTest(index) {
 
   state.levelTransitioning = false;
   loadLevel(index);
+  state.levelTestFlowMode = 1;
+  hexOverlayHighlighted.clear();
+  hexOverlayFlow1Region.clear();
+  hexOverlayFlow2Region.clear();
+  hexOverlayFlow1ColorId = -1;
+  if (levelTestNextStepBtn) levelTestNextStepBtn.textContent = levelTestFlow1Label;
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
   gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
 }
@@ -1422,45 +1451,53 @@ function getHexLabelMaterial(label) {
   return material;
 }
 
-function testNextStepOnHexOverlay() {
-  updateHexOverlayColors();
-
-  hexOverlayHighlighted.clear();
-  if (!hexOverlayCenters.length || !hexOverlayTopColorIds.length) {
-    updateHexOverlayColors();
-    return;
+function getHexNeighborCells(col, row) {
+  if (col % 2 === 0) {
+    return [
+      [col, row - 1],
+      [col, row + 1],
+      [col - 1, row - 1],
+      [col - 1, row],
+      [col + 1, row - 1],
+      [col + 1, row],
+    ];
   }
+  return [
+    [col, row - 1],
+    [col, row + 1],
+    [col - 1, row],
+    [col - 1, row + 1],
+    [col + 1, row],
+    [col + 1, row + 1],
+  ];
+}
 
+function buildHexIndexByCell() {
   const keyOfCell = (col, row) => `${col},${row}`;
   const indexByCell = new Map();
   for (let i = 0; i < hexOverlayCenters.length; i += 1) {
     const c = hexOverlayCenters[i];
     indexByCell.set(keyOfCell(c.col, c.row), i);
   }
+  return { indexByCell, keyOfCell };
+}
+
+function testNextStepOnHexOverlay() {
+  updateHexOverlayColors();
+
+  hexOverlayHighlighted.clear();
+  hexOverlayFlow1Region.clear();
+  hexOverlayFlow2Region.clear();
+  hexOverlayFlow1ColorId = -1;
+  if (!hexOverlayCenters.length || !hexOverlayTopColorIds.length) {
+    updateHexOverlayColors();
+    return;
+  }
+
+  const { indexByCell, keyOfCell } = buildHexIndexByCell();
 
   const visited = new Uint8Array(hexOverlayCenters.length);
   let bestRegion = [];
-
-  const getNeighborCells = (col, row) => {
-    if (col % 2 === 0) {
-      return [
-        [col, row - 1],
-        [col, row + 1],
-        [col - 1, row - 1],
-        [col - 1, row],
-        [col + 1, row - 1],
-        [col + 1, row],
-      ];
-    }
-    return [
-      [col, row - 1],
-      [col, row + 1],
-      [col - 1, row],
-      [col - 1, row + 1],
-      [col + 1, row],
-      [col + 1, row + 1],
-    ];
-  };
 
   for (let i = 0; i < hexOverlayCenters.length; i += 1) {
     if (visited[i]) continue;
@@ -1479,7 +1516,7 @@ function testNextStepOnHexOverlay() {
       region.push(idx);
       const center = hexOverlayCenters[idx];
 
-      const neighbors = getNeighborCells(center.col, center.row);
+      const neighbors = getHexNeighborCells(center.col, center.row);
       for (let k = 0; k < neighbors.length; k += 1) {
         const nextIdx = indexByCell.get(keyOfCell(neighbors[k][0], neighbors[k][1]));
         if (nextIdx === undefined || visited[nextIdx]) continue;
@@ -1496,12 +1533,115 @@ function testNextStepOnHexOverlay() {
 
   for (let i = 0; i < bestRegion.length; i += 1) {
     hexOverlayHighlighted.add(bestRegion[i]);
+    hexOverlayFlow1Region.add(bestRegion[i]);
+  }
+  if (bestRegion.length > 0) {
+    const first = bestRegion[0];
+    hexOverlayFlow1ColorId = hexOverlayTopColorIds[first] ?? -1;
   }
 
   updateHexOverlayColors();
   if (bestRegion.length > 0) {
     gameUI.showCommentary(`测试下一步：最大同色连通 ${bestRegion.length} 格`, 900);
   }
+}
+
+function testReachableRegionFromFlow1() {
+  updateHexOverlayColors();
+
+  if (!hexOverlayFlow1Region.size || hexOverlayFlow1ColorId < 0) {
+    gameUI.showCommentary("请先执行流程1", 900);
+    return;
+  }
+
+  const { indexByCell, keyOfCell } = buildHexIndexByCell();
+  const visited = new Uint8Array(hexOverlayCenters.length);
+  const queue = [];
+  const result = new Set();
+
+  for (const idx of hexOverlayFlow1Region) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= hexOverlayCenters.length) continue;
+    if (visited[idx]) continue;
+    visited[idx] = 1;
+    queue.push(idx);
+    result.add(idx);
+  }
+
+  for (let q = 0; q < queue.length; q += 1) {
+    const idx = queue[q];
+    const center = hexOverlayCenters[idx];
+    const neighbors = getHexNeighborCells(center.col, center.row);
+
+    for (let k = 0; k < neighbors.length; k += 1) {
+      const nextIdx = indexByCell.get(keyOfCell(neighbors[k][0], neighbors[k][1]));
+      if (nextIdx === undefined || visited[nextIdx]) continue;
+
+      const nextColor = hexOverlayTopColorIds[nextIdx];
+      if (nextColor !== -1 && nextColor !== hexOverlayFlow1ColorId) continue;
+
+      visited[nextIdx] = 1;
+      queue.push(nextIdx);
+      if (nextColor === hexOverlayFlow1ColorId) result.add(nextIdx);
+    }
+  }
+
+  hexOverlayHighlighted.clear();
+  hexOverlayFlow2Region.clear();
+  for (const idx of result) {
+    hexOverlayFlow2Region.add(idx);
+    hexOverlayHighlighted.add(idx);
+  }
+  updateHexOverlayColors();
+  gameUI.showCommentary(`流程2：可达同色区域 ${result.size} 格`, 900);
+}
+
+function runFlow3EliminateFromFlow12() {
+  updateHexOverlayColors();
+
+  if (hexOverlayFlow1ColorId < 0 || (!hexOverlayFlow1Region.size && !hexOverlayFlow2Region.size)) {
+    gameUI.showCommentary("请先执行流程1和流程2", 900);
+    return;
+  }
+
+  const selectedHexes = new Set();
+  for (const idx of hexOverlayFlow1Region) selectedHexes.add(idx);
+  for (const idx of hexOverlayFlow2Region) selectedHexes.add(idx);
+
+  let removed = 0;
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit?.active || fruit.sliced) continue;
+    if (fruit.colorId !== hexOverlayFlow1ColorId) continue;
+
+    let shouldRemove = false;
+    const hitRadiusSq = fruit.radius * fruit.radius;
+    for (const idx of selectedHexes) {
+      const center = hexOverlayCenters[idx];
+      if (!center) continue;
+      const dx = center.x - fruit.group.position.x;
+      const dy = center.y - fruit.group.position.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq <= hitRadiusSq) {
+        shouldRemove = true;
+        break;
+      }
+    }
+
+    if (!shouldRemove) continue;
+    fruit.setSelected(false);
+    fruit.sliced = true;
+    fruit.active = false;
+    fruit.group.visible = false;
+    removed += 1;
+  }
+
+  hexOverlayHighlighted.clear();
+  hexOverlayFlow1Region.clear();
+  hexOverlayFlow2Region.clear();
+  hexOverlayFlow1ColorId = -1;
+  rebuildHexOverlay();
+  updateHexOverlayColors();
+  gameUI.showCommentary(`流程3：已消除 ${removed} 个同色泡泡`, 1000);
 }
 
 function drawHexOverlay(centers, radius) {
@@ -1598,6 +1738,9 @@ function rebuildHexOverlay() {
   hexOverlayTopColorIds.length = 0;
   hexOverlayTopZValues.length = 0;
   hexOverlayHighlighted.clear();
+  hexOverlayFlow1Region.clear();
+  hexOverlayFlow2Region.clear();
+  hexOverlayFlow1ColorId = -1;
 
   hexOverlayCenters = [];
   const r = hexOverlayRadius;
