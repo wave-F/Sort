@@ -56,6 +56,7 @@ const html = `<!doctype html>
         </div>
         <div class="gameplay-topbar-spacer gameplay-topbar-right" aria-hidden="true"></div>
       </div>
+      <div id="coin-fly-layer" class="hidden" aria-hidden="true"></div>
 
       <div id="hud" aria-label="关卡状态">
         <div class="home-status gameplay-hud-item" aria-label="剩余步数">
@@ -99,14 +100,16 @@ const html = `<!doctype html>
 
       <div id="home-screen" class="layer">
         <div id="home-topbar">
-          <div class="home-pill">
-            <span class="home-pill-icon">❤️</span>
-            <span>体力满</span>
+          <div class="home-status home-status-energy" aria-label="体力状态">
+            <span class="home-status-badge" aria-hidden="true">❤</span>
+            <span id="home-energy-text" class="home-status-value">FULL</span>
           </div>
-          <div class="home-pill">
-            <span class="home-pill-icon">💰</span>
-            <span id="home-coin">5680</span>
+
+          <div class="home-status home-status-coin" aria-label="金币数量">
+            <img class="home-status-badge coin" src="./assets/images/currency128_Coin.png" alt="金币" />
+            <span id="home-coin" class="home-status-value">0</span>
           </div>
+
           <button id="home-settings-btn" class="home-mini-btn" type="button" aria-label="打开设置">⚙️</button>
         </div>
 
@@ -124,6 +127,7 @@ const html = `<!doctype html>
               <span>音效</span>
               <input id="setting-sfx-toggle" type="checkbox" checked />
             </label>
+            <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
             <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
           </div>
         </div>
@@ -141,6 +145,7 @@ const html = `<!doctype html>
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
+      <div id="out-of-moves-banner" class="hidden" aria-hidden="true">OUT OF MOVES!</div>
 
       <div id="result-mask" class="hidden" aria-hidden="true"></div>
       <div id="result-page" class="layer hidden">
