@@ -134,7 +134,9 @@ const popSoundFiles = [
   "oga-pop10.ogg",
 ];
 const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
+const clickSoundUrl = "./assets/audio/pop/click.wav";
 const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
+const levelBgmUrl = "./assets/audio/bgm_preview/result_win_soft_carefree.mp3";
 const iphoneAspectBase = 430 / 932;
 const portraitAspectMin = 9 / 20;
 const portraitAspectMax = 1 / 2;
@@ -307,9 +309,18 @@ function createGameRuntime() {
       layerEl: coinFlyLayerEl,
       frameEl: phoneFrameEl,
     },
-    onResultRetry: retryCurrentLevelFromResult,
-    onResultNext: () => levelFlow.continueToNextLevel(),
-    onResultBack: backHomeFromResult,
+    onResultRetry: () => {
+      gameAudio.playUiClickAudio();
+      retryCurrentLevelFromResult();
+    },
+    onResultNext: () => {
+      gameAudio.playUiClickAudio();
+      levelFlow.continueToNextLevel();
+    },
+    onResultBack: () => {
+      gameAudio.playUiClickAudio();
+      backHomeFromResult();
+    },
   });
 
   const burstSystem = createBurstSystem({
@@ -324,7 +335,9 @@ function createGameRuntime() {
 
   const gameAudio = createGameAudio({
     popSoundUrls,
+    clickSoundUrl,
     selectScaleFrequencies,
+    levelBgmUrl,
   });
 
   const victoryRainSystem = createVictoryRainSystem({
@@ -346,7 +359,6 @@ function createGameRuntime() {
   const sliceSystem = createSliceSystem({
     camera,
     raycaster,
-    colors,
     minSliceSegment: rules.minSliceSegment,
     sliceGridCellSize: 1.2,
   });
@@ -599,11 +611,18 @@ function bindHomeSettingsModal() {
 
   syncSettingsUi();
 
-  homeSettingsBtn.addEventListener("click", showHomeSettingsModal);
-  homeSettingsCloseBtn?.addEventListener("click", hideHomeSettingsModal);
+  homeSettingsBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    showHomeSettingsModal();
+  });
+  homeSettingsCloseBtn?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    hideHomeSettingsModal();
+  });
 
   homeSettingsModalEl.addEventListener("click", (ev) => {
     if (ev.target === homeSettingsModalEl) {
+      gameAudio.playUiClickAudio();
       hideHomeSettingsModal();
     }
   });
@@ -612,7 +631,7 @@ function bindHomeSettingsModal() {
     gameSettings.musicEnabled = Boolean(settingMusicToggleEl.checked);
     saveGameSettings();
     applyGameSettings();
-    gameUI.showCommentary("音乐开关已保存（BGM后续接入）", 1000);
+    gameUI.showCommentary("音乐开关已保存", 1000);
   });
 
   settingSfxToggleEl?.addEventListener("change", () => {
@@ -622,6 +641,7 @@ function bindHomeSettingsModal() {
   });
 
   homeClearDataBtn?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
     const ok = typeof window !== "undefined" ? window.confirm("确认清除关卡进度、金币和设置选项吗？") : true;
     if (!ok) return;
     clearGameplayDataOnly();
@@ -736,6 +756,7 @@ function settlePendingWinReward(playFx = false) {
 
 function bindHomeLevelButtons() {
   const onTap = (ev) => {
+    gameAudio.playUiClickAudio();
     const button = ev.currentTarget;
     if (!(button instanceof HTMLElement)) return;
 
@@ -909,8 +930,10 @@ function setGameHudVisible(visible) {
   const hidden = !visible;
   hudEl?.classList.toggle("hidden", hidden);
   coinStatusEl?.classList.toggle("hidden", hidden);
+  coinStatusEl?.classList.toggle("is-hidden-in-gameplay", visible);
   levelTestRootEl?.classList.toggle("hidden", hidden);
-  commentaryEl?.classList.toggle("hidden", hidden);
+  commentaryEl?.classList.add("hidden");
+  sliceStateEl?.classList.add("hidden");
   if (hidden) {
     levelTestPanelEl?.classList.add("hidden");
   }
@@ -1019,8 +1042,14 @@ function init() {
   setupHomeFloatBubbles();
   renderHomeScreen();
 
-  startBtn.addEventListener("click", startGame);
-  restartBtn.addEventListener("click", startGame);
+  startBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    startGame();
+  });
+  restartBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    startGame();
+  });
   bindHomeLevelButtons();
   bindHomeSettingsModal();
   gameUI.closeResult();
@@ -1054,10 +1083,12 @@ function setupLevelTestControls() {
   }
 
   levelTestToggleBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
     levelTestPanelEl.classList.toggle("hidden");
   });
 
   levelTestJumpBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
     const targetIndex = Number(levelTestSelectEl.value);
     if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= LEVELS.length) {
       return;
@@ -1205,12 +1236,6 @@ function loadLevel(index) {
 
   trail.reset();
 
-  gameUI.setSliceStatus(`状态: 第${index + 1}关`);
-  gameUI.showCommentary(
-    `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount} · 步数${state.stepLimit}`,
-    2400
-  );
-
   resetFruits(level);
   return true;
 }
@@ -1273,7 +1298,6 @@ function onPointerDown(ev) {
 
   trail.reset();
   trail.push(world, state.lastMoveAt);
-  gameUI.setSliceStatus("状态: 划线中");
 }
 
 function onPointerMove(ev) {
@@ -1292,8 +1316,6 @@ function onPointerMove(ev) {
     trail,
     consumeStep,
     settleQueuedSlices,
-    setSliceStatus: gameUI.setSliceStatus,
-    showCommentary: gameUI.showCommentary,
     resetSelectToneProgression: gameAudio.resetSelectToneProgression,
     playSelectTone: gameAudio.playSelectTone,
   });
@@ -1310,10 +1332,6 @@ function onPointerUp() {
   if (state.keepFullTrailDuringDrag) trail.reset();
 
   if (state.gameOver) return;
-  if (state.sliceBroken) gameUI.setSliceStatus("状态: 断刀");
-  else if (state.sliceColorId !== null) gameUI.setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
-  else gameUI.setSliceStatus("状态: 空挥");
-
 }
 
 function tick() {
@@ -1423,7 +1441,7 @@ function consumeStep() {
 function updateStepsHud() {
   if (!stepsEl) return;
   const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
-  stepsEl.textContent = `步数: ${remaining}`;
+  stepsEl.textContent = `MOVE:${remaining}`;
 }
 
 function screenToWorld(clientX, clientY) {
@@ -1439,10 +1457,10 @@ function screenToWorld(clientX, clientY) {
 }
 
 function resize() {
+  updatePhoneAspect();
   if (!renderer) {
     return;
   }
-  updatePhoneAspect();
   const rect = appEl.getBoundingClientRect();
   renderer.setSize(rect.width, rect.height, false);
 
@@ -1473,7 +1491,17 @@ function updatePhoneAspect() {
     ? iphoneAspectBase
     : THREE.MathUtils.clamp(rawAspect, portraitAspectMin, portraitAspectMax);
 
+  const framePadding = 24;
+  const maxFrameWidth = 470;
+  const availableWidth = Math.max(280, viewportWidth - framePadding);
+  const availableHeight = Math.max(560, viewportHeight - framePadding);
+  const widthByHeight = availableHeight * targetAspect;
+  const frameWidth = Math.min(maxFrameWidth, availableWidth, widthByHeight);
+  const frameHeight = frameWidth / targetAspect;
+  const uiScale = THREE.MathUtils.clamp(frameHeight / 932, 0.76, 1.06);
+
   document.documentElement.style.setProperty("--phone-aspect-live", `${targetAspect}`);
+  document.documentElement.style.setProperty("--ui-scale", `${uiScale.toFixed(4)}`);
 }
 
 function endGame(reason) {
@@ -1495,7 +1523,6 @@ function endGame(reason) {
     canNext: false,
     isFinal: false,
   });
-  gameUI.setSliceStatus(`状态: ${reason}`);
 }
 
 function createBubbleMaterial(baseColor) {

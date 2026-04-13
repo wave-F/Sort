@@ -9,6 +9,8 @@ const rootDir = path.resolve(__dirname, "..");
 const webDir = path.join(rootDir, "www");
 const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
 const popAudioWebDir = path.join(webDir, "assets", "audio", "pop");
+const bgmAudioSrcDir = path.join(rootDir, "assets", "audio", "bgm_preview");
+const bgmAudioWebDir = path.join(webDir, "assets", "audio", "bgm_preview");
 const bgImageSrcDir = path.join(rootDir, "assets", "images", "backgrounds");
 const bgImageWebDir = path.join(webDir, "assets", "images", "backgrounds");
 
@@ -27,6 +29,7 @@ await build({
 const css = await readFile(path.join(rootDir, "src", "styles.css"), "utf8");
 await writeFile(path.join(webDir, "styles.css"), css, "utf8");
 await cp(popAudioSrcDir, popAudioWebDir, { recursive: true, force: true });
+await cp(bgmAudioSrcDir, bgmAudioWebDir, { recursive: true, force: true });
 await cp(bgImageSrcDir, bgImageWebDir, { recursive: true, force: true });
 
 const html = `<!doctype html>
@@ -40,8 +43,8 @@ const html = `<!doctype html>
   </head>
   <body>
     <div id="phone-frame">
-      <div id="hud">
-        <div id="score">步数: -</div>
+      <div id="hud" class="home-status" aria-label="剩余步数">
+        <span id="score" class="home-status-value">MOVE:0</span>
       </div>
 
       <div id="level-test">

@@ -10,6 +10,8 @@ const distDir = path.join(rootDir, "dist");
 const bundlePath = path.join(distDir, "main.bundle.js");
 const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
 const popAudioDistDir = path.join(distDir, "assets", "audio", "pop");
+const bgmAudioSrcDir = path.join(rootDir, "assets", "audio", "bgm_preview");
+const bgmAudioDistDir = path.join(distDir, "assets", "audio", "bgm_preview");
 const bgImageSrcDir = path.join(rootDir, "assets", "images", "backgrounds");
 const bgImageDistDir = path.join(distDir, "assets", "images", "backgrounds");
 const standalonePath = path.join(rootDir, "standalone.html");
@@ -32,6 +34,7 @@ const [css, js] = await Promise.all([
 ]);
 
 await cp(popAudioSrcDir, popAudioDistDir, { recursive: true, force: true });
+await cp(bgmAudioSrcDir, bgmAudioDistDir, { recursive: true, force: true });
 await cp(bgImageSrcDir, bgImageDistDir, { recursive: true, force: true });
 
 const html = `<!doctype html>
@@ -45,8 +48,8 @@ const html = `<!doctype html>
   </head>
   <body>
     <div id="phone-frame">
-      <div id="hud">
-        <div id="score">步数: -</div>
+      <div id="hud" class="home-status" aria-label="剩余步数">
+        <span id="score" class="home-status-value">MOVE:0</span>
       </div>
 
       <div id="level-test">

@@ -9,6 +9,7 @@
   --frame: #3d2616;
   --phone-aspect-base: 430 / 932;
   --phone-aspect-live: var(--phone-aspect-base);
+  --ui-scale: 1;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -21,6 +22,18 @@
   --home-coin-icon-y: 0px;
   --home-coin-text-x: 0px;
   --home-coin-text-y: 0px;
+  --hud-width: clamp(124px, calc(156px * var(--ui-scale)), 172px);
+  --hud-height: clamp(38px, calc(46px * var(--ui-scale)), 54px);
+  --coin-status-width: clamp(168px, calc(208px * var(--ui-scale)), 222px);
+  --coin-status-height: clamp(46px, calc(56px * var(--ui-scale)), 60px);
+  --home-level-size: clamp(76px, calc(90px * var(--ui-scale)), 100px);
+  --home-level-size-current: clamp(100px, calc(118px * var(--ui-scale)), 126px);
+  --home-level-gap: clamp(12px, calc(18px * var(--ui-scale)), 22px);
+  --home-level-strip-min-h: clamp(260px, calc(322px * var(--ui-scale)), 344px);
+  --home-play-font: clamp(30px, calc(42px * var(--ui-scale)), 44px);
+  --home-play-pad-y: clamp(12px, calc(16px * var(--ui-scale)), 18px);
+  --home-play-pad-x: clamp(42px, calc(58px * var(--ui-scale)), 64px);
+  --home-play-margin-top: clamp(12px, calc(24px * var(--ui-scale)), 28px);
 }
 
 * {
@@ -80,30 +93,34 @@ body {
   position: absolute;
   right: calc(12px + var(--safe-right));
   top: calc(12px + var(--safe-top));
-  width: 208px;
-  height: 56px;
+  width: var(--coin-status-width);
+  height: var(--coin-status-height);
   z-index: 17;
-  background: url("../assets/images/label_Light1.png") center / 208px 56px no-repeat;
+  background: url("../assets/images/label_Light1.png") center / 100% 100% no-repeat;
   pointer-events: none;
+}
+
+#coin-status.is-hidden-in-gameplay {
+  opacity: 0;
 }
 
 #coin-status .coin-icon {
   position: absolute;
   left: 7px;
   top: 50%;
-  width: 42px;
-  height: 42px;
+  width: clamp(34px, calc(42px * var(--ui-scale)), 46px);
+  height: clamp(34px, calc(42px * var(--ui-scale)), 46px);
   object-fit: contain;
   transform: translateY(-50%);
 }
 
 #coin-status-text {
   position: absolute;
-  right: 16px;
+  right: clamp(10px, calc(16px * var(--ui-scale)), 18px);
   top: 50%;
   transform: translateY(-50%);
   color: #fff8d6;
-  font-size: 30px;
+  font-size: clamp(22px, calc(30px * var(--ui-scale)), 32px);
   font-weight: 900;
   line-height: 1;
   text-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
@@ -132,12 +149,13 @@ body {
   position: absolute;
   top: calc(12px + var(--safe-top));
   left: calc(12px + var(--safe-left));
-  z-index: 6;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(6px);
+  width: var(--hud-width);
+  min-height: var(--hud-height);
+  z-index: 17;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 #level-test {
@@ -153,8 +171,8 @@ body {
 
 .tool-btn {
   margin-top: 0;
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: clamp(7px, calc(8px * var(--ui-scale)), 10px) clamp(12px, calc(14px * var(--ui-scale)), 16px);
+  font-size: clamp(12px, calc(13px * var(--ui-scale)), 14px);
   font-weight: 800;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -204,9 +222,12 @@ body {
 
 #score {
   margin-top: 0;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 800;
-  color: var(--accent);
+  color: #c9585f;
+  width: auto;
+  text-align: center;
+  transform: none;
 }
 
 #cuts,
@@ -221,13 +242,13 @@ body {
   top: calc(18px + var(--safe-top));
   transform: translateX(-50%);
   z-index: 7;
-  padding: 8px 14px;
+  padding: clamp(6px, calc(8px * var(--ui-scale)), 10px) clamp(12px, calc(14px * var(--ui-scale)), 16px);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   color: #2f5f89;
   border: 1px solid rgba(92, 178, 255, 0.5);
   box-shadow: 0 8px 16px rgba(92, 178, 255, 0.25);
-  font-size: 12px;
+  font-size: clamp(11px, calc(12px * var(--ui-scale)), 13px);
   font-weight: 700;
   pointer-events: none;
   opacity: 0;
@@ -249,10 +270,10 @@ body {
   justify-content: center;
   text-align: center;
   padding:
-    calc(24px + var(--safe-top))
-    calc(24px + var(--safe-right))
-    calc(24px + var(--safe-bottom))
-    calc(24px + var(--safe-left));
+    calc(clamp(16px, calc(24px * var(--ui-scale)), 28px) + var(--safe-top))
+    calc(clamp(16px, calc(24px * var(--ui-scale)), 28px) + var(--safe-right))
+    calc(clamp(16px, calc(24px * var(--ui-scale)), 28px) + var(--safe-bottom))
+    calc(clamp(16px, calc(24px * var(--ui-scale)), 28px) + var(--safe-left));
 }
 
 .panel-light {
@@ -566,12 +587,12 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: clamp(6px, calc(8px * var(--ui-scale)), 10px);
   padding:
-    24px
-    calc(24px + var(--safe-right))
-    calc(12px + var(--safe-bottom))
-    calc(24px + var(--safe-left));
+    clamp(16px, calc(24px * var(--ui-scale)), 28px)
+    calc(clamp(16px, calc(24px * var(--ui-scale)), 28px) + var(--safe-right))
+    calc(clamp(8px, calc(12px * var(--ui-scale)), 18px) + var(--safe-bottom))
+    calc(clamp(16px, calc(24px * var(--ui-scale)), 28px) + var(--safe-left));
 }
 
 #home-title {
@@ -592,14 +613,14 @@ body {
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
-  gap: 18px;
+  gap: var(--home-level-gap);
   margin-top: 0;
-  min-height: 322px;
+  min-height: var(--home-level-strip-min-h);
 }
 
 .home-level-bubble {
-  width: 90px;
-  height: 90px;
+  width: var(--home-level-size);
+  height: var(--home-level-size);
   margin: 0;
   padding: 0;
   border-radius: 999px;
@@ -607,7 +628,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
+  font-size: clamp(24px, calc(30px * var(--ui-scale)), 32px);
   font-weight: 900;
   letter-spacing: 0.01em;
   color: #fff;
@@ -636,8 +657,8 @@ body {
 }
 
 .home-level-bubble.current {
-  width: 118px;
-  height: 118px;
+  width: var(--home-level-size-current);
+  height: var(--home-level-size-current);
   background: radial-gradient(circle at 30% 30%, #4ade80, #166534);
   animation: bubble-float 2.8s ease-in-out infinite;
 }
@@ -697,16 +718,33 @@ body {
 }
 
 .home-play-btn {
-  margin-top: 24px;
-  padding: 16px 58px;
+  margin-top: var(--home-play-margin-top);
+  padding: var(--home-play-pad-y) var(--home-play-pad-x);
   border-radius: 36px;
-  font-size: 42px;
+  font-size: var(--home-play-font);
   font-weight: 900;
   letter-spacing: 0.06em;
   background: linear-gradient(180deg, #61d96f, #20a44d);
-  border-bottom: 8px solid #156d36;
+  border-bottom: clamp(5px, calc(8px * var(--ui-scale)), 9px) solid #156d36;
   box-shadow: 0 14px 26px rgba(12, 62, 30, 0.35);
   animation: play-pulse 3.4s ease-in-out infinite;
+}
+
+@media (max-height: 760px) {
+  :root {
+    --home-level-gap: clamp(10px, calc(14px * var(--ui-scale)), 18px);
+    --home-level-strip-min-h: clamp(232px, calc(280px * var(--ui-scale)), 310px);
+    --home-play-margin-top: clamp(8px, calc(12px * var(--ui-scale)), 14px);
+  }
+}
+
+@media (max-height: 700px) {
+  :root {
+    --home-level-size: clamp(68px, calc(82px * var(--ui-scale)), 92px);
+    --home-level-size-current: clamp(90px, calc(106px * var(--ui-scale)), 114px);
+    --home-level-strip-min-h: clamp(208px, calc(248px * var(--ui-scale)), 276px);
+    --home-play-font: clamp(26px, calc(34px * var(--ui-scale)), 36px);
+  }
 }
 
 #level-win {

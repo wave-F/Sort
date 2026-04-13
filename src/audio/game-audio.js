@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 
-export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = [] } = {}) {
+export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = [], levelBgmUrl = "", clickSoundUrl = "" } = {}) {
   const state = {
     context: null,
     unlocked: false,
@@ -11,10 +11,118 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     selectNoiseBuffer: null,
     musicEnabled: true,
     sfxEnabled: true,
+    levelBgm: null,
+    uiClickPool: [],
+    uiClickIndex: 0,
+    bgmUnlockRetryBound: false,
+    bgmUnlockRetryHandler: null,
   };
+
+  function getNextUiClickAudio() {
+    if (!clickSoundUrl || typeof Audio === "undefined") return null;
+
+    if (!state.uiClickPool.length) {
+      for (let i = 0; i < 4; i += 1) {
+        const audio = new Audio(clickSoundUrl);
+        audio.preload = "auto";
+        audio.volume = 0.35;
+        state.uiClickPool.push(audio);
+      }
+    }
+
+    const audio = state.uiClickPool[state.uiClickIndex % state.uiClickPool.length] || null;
+    state.uiClickIndex += 1;
+    return audio;
+  }
+
+  function playUiClickAudio() {
+    if (!state.sfxEnabled) return;
+    const clickAudio = getNextUiClickAudio();
+    if (!clickAudio) return;
+    clickAudio.currentTime = 0;
+    const playTask = clickAudio.play();
+    if (playTask && typeof playTask.catch === "function") {
+      playTask.catch(() => {});
+    }
+  }
+
+  function unbindBgmUnlockRetry() {
+    if (!state.bgmUnlockRetryBound || typeof window === "undefined" || !state.bgmUnlockRetryHandler) return;
+    window.removeEventListener("pointerdown", state.bgmUnlockRetryHandler);
+    window.removeEventListener("touchstart", state.bgmUnlockRetryHandler);
+    window.removeEventListener("keydown", state.bgmUnlockRetryHandler);
+    state.bgmUnlockRetryBound = false;
+    state.bgmUnlockRetryHandler = null;
+  }
+
+  function bindBgmUnlockRetry() {
+    if (state.bgmUnlockRetryBound || typeof window === "undefined") return;
+
+    const retry = () => {
+      if (!state.musicEnabled) {
+        unbindBgmUnlockRetry();
+        return;
+      }
+
+      const bgm = getLevelBgm();
+      if (!bgm) {
+        unbindBgmUnlockRetry();
+        return;
+      }
+
+      const playTask = bgm.play();
+      if (playTask && typeof playTask.then === "function") {
+        playTask.then(unbindBgmUnlockRetry).catch(() => {});
+      } else {
+        unbindBgmUnlockRetry();
+      }
+    };
+
+    state.bgmUnlockRetryHandler = retry;
+    state.bgmUnlockRetryBound = true;
+    window.addEventListener("pointerdown", retry, { passive: true });
+    window.addEventListener("touchstart", retry, { passive: true });
+    window.addEventListener("keydown", retry);
+  }
+
+  function getLevelBgm() {
+    if (!levelBgmUrl || typeof Audio === "undefined") return null;
+    if (state.levelBgm) return state.levelBgm;
+
+    const audio = new Audio(levelBgmUrl);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0.25;
+    state.levelBgm = audio;
+    return audio;
+  }
+
+  function playLevelBgm() {
+    if (!state.musicEnabled) return;
+    const bgm = getLevelBgm();
+    if (!bgm) return;
+    const playTask = bgm.play();
+    if (playTask && typeof playTask.catch === "function") {
+      playTask.catch(() => {
+        bindBgmUnlockRetry();
+      });
+    }
+  }
+
+  function stopLevelBgm() {
+    const bgm = state.levelBgm;
+    if (!bgm) return;
+    bgm.pause();
+    unbindBgmUnlockRetry();
+  }
 
   function setMusicEnabled(next) {
     state.musicEnabled = Boolean(next);
+    if (state.musicEnabled) {
+      playLevelBgm();
+    } else {
+      stopLevelBgm();
+    }
   }
 
   function setSfxEnabled(next) {
@@ -196,6 +304,9 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     preloadPopAudio,
     setMusicEnabled,
     setSfxEnabled,
+    playLevelBgm,
+    stopLevelBgm,
+    playUiClickAudio,
     playRandomPopAudio,
     resetSelectToneProgression,
     playSelectTone,

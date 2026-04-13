@@ -15,7 +15,6 @@ function gridKey(cellX, cellY) {
 export function createSliceSystem({
   camera,
   raycaster,
-  colors,
   minSliceSegment = 0.02,
   sliceGridCellSize = 1.2,
 } = {}) {
@@ -125,8 +124,6 @@ export function createSliceSystem({
     trail,
     consumeStep,
     settleQueuedSlices,
-    setSliceStatus,
-    showCommentary,
     resetSelectToneProgression,
     playSelectTone,
   }) {
@@ -162,8 +159,6 @@ export function createSliceSystem({
           consumeStep();
         }
         state.sliceColorId = fruit.colorId;
-        setSliceStatus(`状态: 锁定${colors[fruit.colorId].name}`);
-        showCommentary(`这刀只戳${colors[fruit.colorId].name}。`, 1200);
       }
 
       if (fruit.colorId !== state.sliceColorId) {
@@ -175,8 +170,6 @@ export function createSliceSystem({
         state.lastPoint = null;
         state.nowPoint = null;
         resetSelectToneProgression();
-        setSliceStatus(`状态: 断刀（碰到${colors[fruit.colorId].name}，已结算）`);
-        showCommentary(`碰到${colors[fruit.colorId].name}，已结算已选泡泡。`, 1500);
         return;
       }
 
@@ -188,7 +181,6 @@ export function createSliceSystem({
       });
       fruit.setSelected(true);
       playSelectTone();
-      setSliceStatus(`状态: 已选${state.sliceHitIds.size}个${colors[state.sliceColorId].name}`);
       return;
     }
   }
