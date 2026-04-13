@@ -2,25 +2,60 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>刀切水果 - iOS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" href="data:," />
+    <title>切泡泡 - iOS</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div id="phone-frame">
       <div id="hud">
-        <div id="score">分数: 0</div>
+        <div id="score">步数: -</div>
       </div>
 
-      <div id="commentary">开始后，先锁定一种颜色再连切。</div>
+      <div id="level-test">
+        <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
+        <div id="level-test-panel" class="hidden">
+          <label for="level-test-select">选择关卡</label>
+          <select id="level-test-select"></select>
+          <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
+        </div>
+      </div>
 
-      <div id="start-screen" class="layer">
-        <h1>刀切水果</h1>
-        <p>一刀只能切同色，碰到异色会断刀。<br />不限刀数，尽量拿高分。</p>
-        <button id="start-btn">开始游戏</button>
+      <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
+
+      <div id="home-screen" class="layer">
+        <div id="home-topbar">
+          <div class="home-pill">
+            <span class="home-pill-icon">❤️</span>
+            <span>体力满</span>
+          </div>
+          <div class="home-pill">
+            <span class="home-pill-icon">💰</span>
+            <span id="home-coin">5680</span>
+          </div>
+          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
+        </div>
+
+        <div id="home-main">
+          <div id="home-level-strip" aria-label="最近关卡">
+            <button id="home-level-prev" class="home-level-bubble" type="button"></button>
+            <button id="home-level-current" class="home-level-bubble" type="button"></button>
+            <button id="home-level-next" class="home-level-bubble" type="button"></button>
+          </div>
+
+          <button id="start-btn" class="home-play-btn" type="button">PLAY</button>
+        </div>
+
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
+
+      <div id="level-win" class="layer hidden">
+        <h2 id="level-win-title">关卡胜利！</h2>
+        <p id="level-win-desc">泡泡雨已放送，准备下一关。</p>
+        <button id="level-win-next-btn">下一关</button>
+      </div>
 
       <div id="game-over" class="layer hidden">
         <h2 id="game-over-title">本局结束</h2>

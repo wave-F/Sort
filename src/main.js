@@ -1,159 +1,214 @@
 import * as THREE from "three/webgpu";
-import { CountUp } from "countup.js";
+import {
+  normalLocal,
+  normalView,
+  positionLocal,
+  positionViewDirection,
+  time,
+  uniform,
+  vec3,
+} from "three/tsl";
 import { LEVELS } from "./levels.js";
+import { createLevelFlowController } from "./flow/level-flow.js";
+import { createCollisionSystem } from "./systems/collision-system.js";
+import { createSliceSystem } from "./systems/slice-system.js";
+import { createVictoryRainSystem } from "./systems/victory-rain-system.js";
+import { createBurstSystem } from "./systems/burst-system.js";
+import { createGameUI } from "./ui/game-ui.js";
+import { createGameAudio } from "./audio/game-audio.js";
+import { createLevelRuntime } from "./content/level-runtime.js";
 
 const appEl = document.getElementById("app");
+const phoneFrameEl = document.getElementById("phone-frame");
 const titleEl = document.getElementById("title");
-const scoreEl = document.getElementById("score");
+const hudEl = document.getElementById("hud");
+const stepsEl = document.getElementById("score");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
-const startToastEl = document.getElementById("start-toast");
-const startScreenEl = document.getElementById("start-screen");
-const gameOverEl = document.getElementById("game-over");
-const gameOverTitleEl = document.getElementById("game-over-title");
-const gameOverTitleTextEl = document.getElementById("game-over-title-text");
-const startBtn = document.getElementById("start-btn");
-const restartBtn = document.getElementById("restart-btn");
-const battleExitBtn = document.getElementById("battle-exit-btn");
-const trailCompareToggleEl = document.getElementById("trail-compare-toggle");
-const controlBtn = document.getElementById("control-btn");
-const controlBlockerEl = document.getElementById("control-blocker");
-const controlPanelEl = document.getElementById("control-panel");
-const controlCloseBtn = document.getElementById("control-close-btn");
-const controlSaveBtn = document.getElementById("control-save-btn");
+const homeScreenEl = document.getElementById("home-screen");
+const homeLevelPrevBtn = document.getElementById("home-level-prev");
+const homeLevelCurrentBtn = document.getElementById("home-level-current");
+const homeLevelNextBtn = document.getElementById("home-level-next");
+const homeSettingsBtn = document.getElementById("home-settings-btn");
+const homeUiPanelEl = document.getElementById("home-ui-panel");
+const homeUiEnergySizeEl = document.getElementById("home-ui-energy-size");
+const homeUiEnergyXEl = document.getElementById("home-ui-energy-x");
+const homeUiEnergyYEl = document.getElementById("home-ui-energy-y");
+const homeUiCoinSizeEl = document.getElementById("home-ui-coin-size");
+const homeUiCoinIconXEl = document.getElementById("home-ui-coin-icon-x");
+const homeUiCoinIconYEl = document.getElementById("home-ui-coin-icon-y");
+const homeUiCoinXEl = document.getElementById("home-ui-coin-x");
+const homeUiCoinYEl = document.getElementById("home-ui-coin-y");
+const homeUiEnergySizeValueEl = document.getElementById("home-ui-energy-size-value");
+const homeUiEnergyXValueEl = document.getElementById("home-ui-energy-x-value");
+const homeUiEnergyYValueEl = document.getElementById("home-ui-energy-y-value");
+const homeUiCoinSizeValueEl = document.getElementById("home-ui-coin-size-value");
+const homeUiCoinIconXValueEl = document.getElementById("home-ui-coin-icon-x-value");
+const homeUiCoinIconYValueEl = document.getElementById("home-ui-coin-icon-y-value");
+const homeUiCoinXValueEl = document.getElementById("home-ui-coin-x-value");
+const homeUiCoinYValueEl = document.getElementById("home-ui-coin-y-value");
+const homeUiSaveBtn = document.getElementById("home-ui-save-btn");
+const homeUiCloseBtn = document.getElementById("home-ui-close-btn");
+const homeUiResetBtn = document.getElementById("home-ui-reset-btn");
+const homeCoinEl = document.getElementById("home-coin");
 const coinStatusEl = document.getElementById("coin-status");
 const coinStatusTextEl = document.getElementById("coin-status-text");
-const coinStatusIconEl = document.getElementById("coin-status-icon");
 const coinFlyLayerEl = document.getElementById("coin-fly-layer");
-const phoneFrameEl = document.getElementById("phone-frame");
-const showFailResultBtn = document.getElementById("show-fail-result-btn");
-const showWinResultBtn = document.getElementById("show-win-result-btn");
-const passWinResultBtn = document.getElementById("pass-win-result-btn");
 const resultMaskEl = document.getElementById("result-mask");
 const resultPageEl = document.getElementById("result-page");
-const resultRetryBtn = document.getElementById("result-retry-btn");
-const resultExitBtn = document.getElementById("result-exit-btn");
-const resultNextBtn = document.getElementById("result-next-btn");
 const resultPageTitleEl = document.getElementById("result-page-title");
 const resultPageTitleTextEl = document.getElementById("result-page-title-text");
 const resultPageTextEl = document.getElementById("result-page-text");
 const resultCoinIconEl = document.getElementById("result-coin-icon");
 const resultCoinGainEl = document.getElementById("result-coin-gain");
-const ctlFailTitleEl = document.getElementById("ctl-fail-title");
-const ctlFailBodyEl = document.getElementById("ctl-fail-body");
-const ctlWinTitleEl = document.getElementById("ctl-win-title");
-const ctlWinCoinGainEl = document.getElementById("ctl-win-coin-gain");
-const ctlWinCoinXEl = document.getElementById("ctl-win-coin-x");
-const ctlWinCoinYEl = document.getElementById("ctl-win-coin-y");
-const ctlWinCoinScaleEl = document.getElementById("ctl-win-coin-scale");
-const ctlWinGainXEl = document.getElementById("ctl-win-gain-x");
-const ctlWinGainYEl = document.getElementById("ctl-win-gain-y");
-const ctlWinGainSizeEl = document.getElementById("ctl-win-gain-size");
-const ctlWinGainColorEl = document.getElementById("ctl-win-gain-color");
-const ctlTrailWidthEl = document.getElementById("ctl-trail-width");
-const ctlControlPanelXEl = document.getElementById("ctl-control-panel-x");
-const ctlParticleSizeEl = document.getElementById("ctl-particle-size");
-const ctlScoreFruitEl = document.getElementById("ctl-score-fruit");
-const ctlLadderFontSizeEl = document.getElementById("ctl-ladder-font-size");
-const ctlStartBtnWidthEl = document.getElementById("ctl-start-btn-width");
-const ctlStartBtnHeightEl = document.getElementById("ctl-start-btn-height");
-const ctlStartBtnYEl = document.getElementById("ctl-start-btn-y");
-const ctlControlPanelXValueEl = document.getElementById("ctl-control-panel-x-value");
-const ctlTrailWidthValueEl = document.getElementById("ctl-trail-width-value");
-const ctlParticleSizeValueEl = document.getElementById("ctl-particle-size-value");
-const ctlScoreFruitValueEl = document.getElementById("ctl-score-fruit-value");
-const ctlLadderFontSizeValueEl = document.getElementById("ctl-ladder-font-size-value");
-const ctlStartBtnWidthValueEl = document.getElementById("ctl-start-btn-width-value");
-const ctlStartBtnHeightValueEl = document.getElementById("ctl-start-btn-height-value");
-const ctlStartBtnYValueEl = document.getElementById("ctl-start-btn-y-value");
-const ctlCoinBarXEl = document.getElementById("ctl-coin-bar-x");
-const ctlCoinBarYEl = document.getElementById("ctl-coin-bar-y");
-const ctlCoinBarScaleEl = document.getElementById("ctl-coin-bar-scale");
-const ctlCoinIconXEl = document.getElementById("ctl-coin-icon-x");
-const ctlCoinIconYEl = document.getElementById("ctl-coin-icon-y");
-const ctlCoinIconScaleEl = document.getElementById("ctl-coin-icon-scale");
-const ctlCoinTextXEl = document.getElementById("ctl-coin-text-x");
-const ctlCoinTextYEl = document.getElementById("ctl-coin-text-y");
-const ctlCoinTextSizeEl = document.getElementById("ctl-coin-text-size");
-const ctlCoinBarXValueEl = document.getElementById("ctl-coin-bar-x-value");
-const ctlCoinBarYValueEl = document.getElementById("ctl-coin-bar-y-value");
-const ctlCoinBarScaleValueEl = document.getElementById("ctl-coin-bar-scale-value");
-const ctlCoinIconXValueEl = document.getElementById("ctl-coin-icon-x-value");
-const ctlCoinIconYValueEl = document.getElementById("ctl-coin-icon-y-value");
-const ctlCoinIconScaleValueEl = document.getElementById("ctl-coin-icon-scale-value");
-const ctlCoinTextXValueEl = document.getElementById("ctl-coin-text-x-value");
-const ctlCoinTextYValueEl = document.getElementById("ctl-coin-text-y-value");
-const ctlCoinTextSizeValueEl = document.getElementById("ctl-coin-text-size-value");
-const ctlPanelMarginTopEl = document.getElementById("ctl-panel-margin-top");
-const ctlPanelMarginRightEl = document.getElementById("ctl-panel-margin-right");
-const ctlPanelMarginBottomEl = document.getElementById("ctl-panel-margin-bottom");
-const ctlPanelMarginLeftEl = document.getElementById("ctl-panel-margin-left");
-const ctlPanelMarginTopValueEl = document.getElementById("ctl-panel-margin-top-value");
-const ctlPanelMarginRightValueEl = document.getElementById("ctl-panel-margin-right-value");
-const ctlPanelMarginBottomValueEl = document.getElementById("ctl-panel-margin-bottom-value");
-const ctlPanelMarginLeftValueEl = document.getElementById("ctl-panel-margin-left-value");
-const ctlFailResultWidthEl = document.getElementById("ctl-fail-result-width");
-const ctlFailResultHeightEl = document.getElementById("ctl-fail-result-height");
-const ctlFailResultYEl = document.getElementById("ctl-fail-result-y");
-const ctlFailActionsYEl = document.getElementById("ctl-fail-actions-y");
-const ctlFailActionsScaleEl = document.getElementById("ctl-fail-actions-scale");
-const ctlFailResultWidthValueEl = document.getElementById("ctl-fail-result-width-value");
-const ctlFailResultHeightValueEl = document.getElementById("ctl-fail-result-height-value");
-const ctlFailResultYValueEl = document.getElementById("ctl-fail-result-y-value");
-const ctlFailActionsYValueEl = document.getElementById("ctl-fail-actions-y-value");
-const ctlFailActionsScaleValueEl = document.getElementById("ctl-fail-actions-scale-value");
-const ctlWinResultWidthEl = document.getElementById("ctl-win-result-width");
-const ctlWinResultHeightEl = document.getElementById("ctl-win-result-height");
-const ctlWinResultYEl = document.getElementById("ctl-win-result-y");
-const ctlWinActionsYEl = document.getElementById("ctl-win-actions-y");
-const ctlWinActionsScaleEl = document.getElementById("ctl-win-actions-scale");
-const ctlWinResultWidthValueEl = document.getElementById("ctl-win-result-width-value");
-const ctlWinResultHeightValueEl = document.getElementById("ctl-win-result-height-value");
-const ctlWinResultYValueEl = document.getElementById("ctl-win-result-y-value");
-const ctlWinActionsYValueEl = document.getElementById("ctl-win-actions-y-value");
-const ctlWinActionsScaleValueEl = document.getElementById("ctl-win-actions-scale-value");
-const ctlWinCoinXValueEl = document.getElementById("ctl-win-coin-x-value");
-const ctlWinCoinYValueEl = document.getElementById("ctl-win-coin-y-value");
-const ctlWinCoinScaleValueEl = document.getElementById("ctl-win-coin-scale-value");
-const ctlWinGainXValueEl = document.getElementById("ctl-win-gain-x-value");
-const ctlWinGainYValueEl = document.getElementById("ctl-win-gain-y-value");
-const ctlWinGainSizeValueEl = document.getElementById("ctl-win-gain-size-value");
-const ctlResultMaskOpacityEl = document.getElementById("ctl-result-mask-opacity");
-const ctlResultMaskOpacityValueEl = document.getElementById("ctl-result-mask-opacity-value");
-const advanceStartLevelBtn = document.getElementById("advance-start-level-btn");
-const ladderNodes = Array.from(document.querySelectorAll(".ladder-node"));
-const ladderNodesEl = document.querySelector(".ladder-nodes");
+const resultRetryBtn = document.getElementById("result-retry-btn");
+const resultExitBtn = document.getElementById("result-exit-btn");
+const resultNextBtn = document.getElementById("result-next-btn");
+const gameOverEl = document.getElementById("game-over");
+const gameOverTitleEl = document.getElementById("game-over-title");
+const levelWinEl = document.getElementById("level-win");
+const levelWinTitleEl = document.getElementById("level-win-title");
+const levelWinDescEl = document.getElementById("level-win-desc");
+const startBtn = document.getElementById("start-btn");
+const restartBtn = document.getElementById("restart-btn");
+const levelWinNextBtn = document.getElementById("level-win-next-btn");
+const levelTestToggleBtn = document.getElementById("level-test-toggle");
+const levelTestRootEl = document.getElementById("level-test");
+const levelTestPanelEl = document.getElementById("level-test-panel");
+const levelTestSelectEl = document.getElementById("level-test-select");
+const levelTestJumpBtn = document.getElementById("level-test-jump");
+
+function setupHomeFloatBubbles() {
+  if (!homeScreenEl) return;
+
+  let layer = homeScreenEl.querySelector("#home-float-layer");
+  if (!(layer instanceof HTMLElement)) {
+    layer = document.createElement("div");
+    layer.id = "home-float-layer";
+    layer.setAttribute("aria-hidden", "true");
+    homeScreenEl.prepend(layer);
+  }
+
+  if (layer.childElementCount > 0) return;
+
+  const bubbleCount = 16;
+  for (let i = 0; i < bubbleCount; i += 1) {
+    const bubble = document.createElement("span");
+    bubble.className = "home-float-bubble";
+
+    const size = 10 + Math.random() * 32;
+    const left = 4 + Math.random() * 92;
+    const duration = 9 + Math.random() * 10;
+    const delay = -Math.random() * duration;
+    const drift = -18 + Math.random() * 36;
+    const alpha = 0.42 + Math.random() * 0.38;
+
+    bubble.style.setProperty("--size", `${size.toFixed(1)}px`);
+    bubble.style.setProperty("--left", `${left.toFixed(2)}%`);
+    bubble.style.setProperty("--dur", `${duration.toFixed(2)}s`);
+    bubble.style.setProperty("--delay", `${delay.toFixed(2)}s`);
+    bubble.style.setProperty("--drift", `${drift.toFixed(1)}px`);
+    bubble.style.setProperty("--alpha", alpha.toFixed(2));
+
+    layer.appendChild(bubble);
+  }
+}
 
 const rules = {
   worldHeight: 10,
   minSliceSegment: 0.02,
+  playAreaInset: 0.18,
 };
 
-const scoring = {
-  perFruit: 5,
-  comboBonusFactor: 2,
-};
+const slicePopStaggerStep = 0.075;
+const spawnEdgePadding = 0.01;
+const spawnEdgeBias = 0.38;
+const spawnEdgeBand = 0.9;
+const wallSlideDamping = 0.992;
+const wallContactGain = 0.8;
+
+const bubbleRadiusScale = 3;
+const bubbleTuningStorageKey = "bubble_tuning_v1";
+const levelProgressStorageKey = "fruit_level_progress_v1";
+const coinStorageKey = "fruit_coin_balance_v1";
+const homeUiTuningStorageKey = "fruit_home_ui_tuning_v1";
+const levelWinRewardBase = 20;
+const homeEasyColorIds = [1, 2, 3, 5, 6];
+const homeMediumColorId = 4;
+const homeHardColorId = 0;
+const popSoundFiles = [
+  "oga-pop1.ogg",
+  "oga-pop2.ogg",
+  "oga-pop3.ogg",
+  "oga-pop4.ogg",
+  "oga-pop5.ogg",
+  "oga-pop6.ogg",
+  "oga-pop7.ogg",
+  "oga-pop8.ogg",
+  "oga-pop9.ogg",
+  "oga-pop10.ogg",
+];
+const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
+const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
+const iphoneAspectBase = 430 / 932;
+const portraitAspectMin = 9 / 20;
+const portraitAspectMax = 1 / 2;
+const desktopAspectSwitchWidth = 820;
 
 const colors = [
-  { id: "red", name: "红果", peel: 0xff5c5c, flesh: 0xffb7b7 },
-  { id: "orange", name: "橙果", peel: 0xffa23b, flesh: 0xffd6a0 },
-  { id: "green", name: "青果", peel: 0x61c85d, flesh: 0xbee8aa },
-  { id: "purple", name: "紫果", peel: 0x8170df, flesh: 0xbeb3ef },
+  { id: "red", name: "红泡", base: 0xff1a2d },
+  { id: "orange", name: "橙泡", base: 0xff7a00 },
+  { id: "green", name: "绿泡", base: 0x20c85a },
+  { id: "blue", name: "蓝泡", base: 0x145dff },
+  { id: "purple", name: "紫泡", base: 0xc24dff },
+  { id: "yellow", name: "黄泡", base: 0xd6f542 },
+  { id: "pink", name: "粉泡", base: 0xff5fb2 },
+  { id: "teal", name: "青泡", base: 0x14b8a6 },
 ];
 
-const selectedRingColor = 0xffdf73;
-const SAVE_KEY = "fruit-save-v1";
-const SAVE_TOTAL_LEVELS = 10;
-const CONTROL_SAVE_KEY = "fruit-control-v1";
-const LADDER_RETURN_DELAY_MS = 300;
+const defaultBubbleTuning = {
+  transmission: 0.93,
+  roughness: 0.1,
+  clearcoat: 0.42,
+  wobble: 0.022,
+  flow: 1.15,
+  dye: 1.12,
+  edge: 0.3,
+  iri: 0.75,
+  springTension: 0.12,
+  springDamping: 0.84,
+  lightKey: 1.25,
+  lightAmbient: 0.62,
+  toggleDye: true,
+  toggleEdge: true,
+  toggleIri: true,
+};
+
+const defaultHomeUiTuning = {
+  energyTextSize: 22,
+  energyTextX: 0,
+  energyTextY: 0,
+  coinTextSize: 24,
+  coinIconX: 0,
+  coinIconY: 0,
+  coinTextX: 0,
+  coinTextY: 0,
+};
+
+const loadedBubbleTuning = loadBubbleTuning();
+const bubbleTuning = loadedBubbleTuning.value;
+const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 
 const state = {
   started: false,
   gameOver: false,
+  inHome: true,
   levelTransitioning: false,
   currentLevelIndex: 0,
+  currentPlayableLevelIndex: 0,
+  highestPassedLevelIndex: -1,
+  selectedHomeLevelIndex: 0,
   activeLevel: null,
-  score: 0,
   pointerDown: false,
   sliceColorId: null,
   sliceBroken: false,
@@ -161,91 +216,828 @@ const state = {
   keepFullTrailDuringDrag: true,
   sliceHitIds: new Set(),
   sliceQueue: [],
+  pendingPops: [],
   lastPoint: null,
   nowPoint: null,
   lastMoveAt: 0,
-  maxPassedLevel: 1,
-  coins: 16,
-  resultOutcome: "lose",
-};
-
-const levelEditor = {
-  lastSeed: Math.floor(Date.now() % 1000000),
-  savedLayouts: [],
+  stepLimit: 0,
+  stepsUsed: 0,
+  coins: 0,
+  pendingWinReward: 0,
+  rewardAppliedThisRound: false,
 };
 
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xfffbf2);
 
-const camera = new THREE.OrthographicCamera();
-camera.position.set(0, 0, 9);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.set(0, 0, 12.1);
 camera.lookAt(0, 0, 0);
 
 let renderer;
 let trail;
-let particles;
-let currentControlValues = null;
-let controlPanelBaseline = null;
-let winCoinCountUp = null;
-let pendingCoinFlyCount = 0;
-let pendingCoinRewardTotal = 0;
-let coinFlyTriggered = false;
-let resultCoinRewardEnabled = false;
-let ladderAdvanceAnimating = false;
-let startScreenHistoryProgressLevel = 1;
-let ladderReturnAnimating = false;
-let ladderReturnDelayTimer = 0;
-let startButtonTransitionLocked = false;
-let coinStatusCountUp = null;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
+const homeBubbles = [];
+const homeBubbleBounds = { left: -999, right: 999, top: 999, bottom: -999 };
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
 const playPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 const workHit = new THREE.Vector3();
-const workA = new THREE.Vector3();
 
-let commentaryTimer = 0;
-let startToastTimer = 0;
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.84));
-const key = new THREE.DirectionalLight(0xffffff, 1.1);
-key.position.set(2, 5, 6);
+scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
+const key = new THREE.DirectionalLight(0xffffff, bubbleTuning.lightKey);
+key.position.set(4, 7, 4);
 scene.add(key);
+
+const rim = new THREE.DirectionalLight(0x8ce7ff, 0.82);
+rim.position.set(-6, 4, -5);
+scene.add(rim);
+
+const fill = new THREE.DirectionalLight(0xff9ec8, 0.44);
+fill.position.set(2, -4, 3);
+scene.add(fill);
+
+const bubbleBaseRadius = 1.2;
+const bubbleGeometry = new THREE.SphereGeometry(bubbleBaseRadius, 120, 120);
+const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
+
+const BubbleBurstState = {
+  IDLE: "IDLE",
+  PRE_BURST: "PRE_BURST",
+  BURST: "BURST",
+  DISSIPATE: "DISSIPATE",
+  RESET: "RESET",
+};
+
+const gameRuntime = createGameRuntime();
+const {
+  gameUI,
+  burstSystem,
+  victoryRainSystem,
+  collisionSystem,
+  sliceSystem,
+  levelFlow,
+  gameAudio,
+  levelRuntime,
+} = gameRuntime;
 
 init();
 
-function init() {
-  readGameSave();
+function createGameRuntime() {
+  const gameUI = createGameUI({
+    sliceStateEl,
+    commentaryEl,
+    gameOverEl,
+    gameOverTitleEl,
+    levelWinEl,
+    levelWinTitleEl,
+    levelWinDescEl,
+    resultPage: {
+      maskEl: resultMaskEl,
+      cardEl: resultPageEl,
+      titleEl: resultPageTitleEl,
+      titleTextEl: resultPageTitleTextEl,
+      descEl: resultPageTextEl,
+      rewardEl: resultCoinGainEl,
+      coinIconEl: resultCoinIconEl,
+      retryBtn: resultRetryBtn,
+      nextBtn: resultNextBtn,
+      backBtn: resultExitBtn,
+    },
+    coinStatus: {
+      rootEl: coinStatusEl,
+      valueEl: coinStatusTextEl,
+    },
+    coinFly: {
+      layerEl: coinFlyLayerEl,
+      frameEl: phoneFrameEl,
+    },
+    onResultRetry: retryCurrentLevelFromResult,
+    onResultNext: () => levelFlow.continueToNextLevel(),
+    onResultBack: backHomeFromResult,
+  });
 
-  if (trailCompareToggleEl) {
-    state.keepFullTrailDuringDrag = trailCompareToggleEl.checked;
-    trailCompareToggleEl.addEventListener("change", onTrailCompareToggleChange);
+  const burstSystem = createBurstSystem({
+    scene,
+    colors,
+    bubbleTuning,
+    bubbleBaseRadius,
+    burstBubbleGeometry,
+    createBubbleMaterial,
+    poolSize: 180,
+  });
+
+  const gameAudio = createGameAudio({
+    popSoundUrls,
+    selectScaleFrequencies,
+  });
+
+  const victoryRainSystem = createVictoryRainSystem({
+    scene,
+    bounds,
+    colors,
+    bubbleRadiusScale,
+    bubbleBaseRadius,
+    emitDuration: 0.78,
+    spawnRate: 74,
+    maxBubbles: 56,
+  });
+
+  const collisionSystem = createCollisionSystem({
+    cellSize: 1.2,
+    neighborRange: 2,
+  });
+
+  const sliceSystem = createSliceSystem({
+    camera,
+    raycaster,
+    colors,
+    minSliceSegment: rules.minSliceSegment,
+    sliceGridCellSize: 1.2,
+  });
+
+  const levelFlow = createLevelFlowController({
+    levelCount: LEVELS.length,
+    isStarted: () => state.started,
+    isGameOver: () => state.gameOver,
+    isLevelTransitioning: () => state.levelTransitioning,
+    setLevelTransitioning: (value) => {
+      state.levelTransitioning = Boolean(value);
+    },
+    getCurrentLevelIndex: () => state.currentLevelIndex,
+    onAllLevelsCleared: (levelCount) => {
+      const reward = getLevelWinReward(levelCount - 1) + 10;
+      state.highestPassedLevelIndex = LEVELS.length - 1;
+      state.currentPlayableLevelIndex = LEVELS.length - 1;
+      state.selectedHomeLevelIndex = LEVELS.length - 1;
+      persistLevelProgress();
+      state.pendingWinReward = reward;
+      state.rewardAppliedThisRound = false;
+      state.levelTransitioning = true;
+      gameUI.openResult("win", {
+        reward,
+        level: levelCount,
+        score: Math.max(0, state.stepLimit - state.stepsUsed),
+        canNext: false,
+        isFinal: true,
+        onWinCountDone: () => {
+          playWinCoinFly();
+        },
+      });
+    },
+    onPrepareLevelWin: () => {
+      state.pointerDown = false;
+      clearQueuedSelections();
+      trail.reset();
+    },
+    onVictoryFxStart: () => {
+      victoryRainSystem.start();
+    },
+    onVictoryFxUpdate: (dt) => {
+      victoryRainSystem.update(dt);
+    },
+    onShowLevelWinOverlay: (current, next) => {
+      const nextLevelIndex = Math.max(0, next - 1);
+      const reward = getLevelWinReward(current - 1);
+      grantLevelWinProgress(nextLevelIndex);
+      state.pendingWinReward = reward;
+      state.rewardAppliedThisRound = false;
+      gameUI.openResult("win", {
+        reward,
+        level: current,
+        score: Math.max(0, state.stepLimit - state.stepsUsed),
+        canNext: nextLevelIndex < LEVELS.length,
+        isFinal: false,
+        onWinCountDone: () => {
+          playWinCoinFly();
+        },
+      });
+      return true;
+    },
+    onHideLevelWinOverlay: () => {
+      gameUI.closeResult();
+    },
+    onContinueToLevel: (nextLevelIndex) => {
+      victoryRainSystem.reset();
+      startNextLevel(nextLevelIndex);
+    },
+    showCommentary: (text, durationMs) => {
+      gameUI.showCommentary(text, durationMs);
+    },
+    clearDelayMs: 500,
+    overlayDelaySec: 1.12,
+  });
+
+  const levelRuntime = createLevelRuntime({
+    levels: LEVELS,
+    colors,
+    bounds,
+    bubbleRadiusScale,
+    spawnEdgePadding,
+    spawnEdgeBias,
+    spawnEdgeBand,
+  });
+
+  return {
+    gameUI,
+    burstSystem,
+    victoryRainSystem,
+    collisionSystem,
+    sliceSystem,
+    levelFlow,
+    gameAudio,
+    levelRuntime,
+  };
+}
+
+function loadBubbleTuning() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { value: { ...defaultBubbleTuning }, fromStorage: false };
   }
+
+  try {
+    const raw = window.localStorage.getItem(bubbleTuningStorageKey);
+    if (!raw) return { value: { ...defaultBubbleTuning }, fromStorage: false };
+    const parsed = JSON.parse(raw);
+    const safe = {
+      transmission: clampNumber(parsed.transmission, 0.5, 1, defaultBubbleTuning.transmission),
+      roughness: clampNumber(parsed.roughness, 0.01, 0.3, defaultBubbleTuning.roughness),
+      clearcoat: clampNumber(parsed.clearcoat, 0, 1, defaultBubbleTuning.clearcoat),
+      wobble: clampNumber(parsed.wobble, 0, 0.08, defaultBubbleTuning.wobble),
+      flow: clampNumber(parsed.flow, 0.2, 2.5, defaultBubbleTuning.flow),
+      dye: clampNumber(parsed.dye, 0.6, 2.4, defaultBubbleTuning.dye),
+      edge: clampNumber(parsed.edge, 0, 0.8, defaultBubbleTuning.edge),
+      iri: clampNumber(parsed.iri, 0, 1, defaultBubbleTuning.iri),
+      springTension: clampNumber(parsed.springTension, 0.04, 0.25, defaultBubbleTuning.springTension),
+      springDamping: clampNumber(parsed.springDamping, 0.7, 0.98, defaultBubbleTuning.springDamping),
+      lightKey: clampNumber(parsed.lightKey, 0.3, 2, defaultBubbleTuning.lightKey),
+      lightAmbient: clampNumber(parsed.lightAmbient, 0.1, 1, defaultBubbleTuning.lightAmbient),
+      toggleDye: parsed.toggleDye !== false,
+      toggleEdge: parsed.toggleEdge !== false,
+      toggleIri: parsed.toggleIri !== false,
+    };
+    return { value: safe, fromStorage: true };
+  } catch (_err) {
+    return { value: { ...defaultBubbleTuning }, fromStorage: false };
+  }
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return THREE.MathUtils.clamp(n, min, max);
+}
+
+function clampLevelIndex(index, fallback = 0) {
+  const maxIndex = Math.max(0, LEVELS.length - 1);
+  const fallbackIndex = Number.isFinite(Number(fallback)) ? Math.floor(Number(fallback)) : 0;
+  const n = Number(index);
+  if (!Number.isFinite(n)) {
+    return THREE.MathUtils.clamp(fallbackIndex, 0, maxIndex);
+  }
+  return THREE.MathUtils.clamp(Math.floor(n), 0, maxIndex);
+}
+
+function readHomeUiTuning() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { ...defaultHomeUiTuning };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(homeUiTuningStorageKey);
+    if (!raw) return { ...defaultHomeUiTuning };
+    const parsed = JSON.parse(raw);
+    return {
+      energyTextSize: clampNumber(parsed.energyTextSize, 14, 42, defaultHomeUiTuning.energyTextSize),
+      energyTextX: clampNumber(parsed.energyTextX, -80, 80, defaultHomeUiTuning.energyTextX),
+      energyTextY: clampNumber(parsed.energyTextY, -40, 40, defaultHomeUiTuning.energyTextY),
+      coinTextSize: clampNumber(parsed.coinTextSize, 14, 42, defaultHomeUiTuning.coinTextSize),
+      coinIconX: clampNumber(parsed.coinIconX, -30, 40, defaultHomeUiTuning.coinIconX),
+      coinIconY: clampNumber(parsed.coinIconY, -30, 30, defaultHomeUiTuning.coinIconY),
+      coinTextX: clampNumber(parsed.coinTextX, -80, 80, defaultHomeUiTuning.coinTextX),
+      coinTextY: clampNumber(parsed.coinTextY, -40, 40, defaultHomeUiTuning.coinTextY),
+    };
+  } catch (_err) {
+    return { ...defaultHomeUiTuning };
+  }
+}
+
+function applyHomeUiTuning(values) {
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--home-energy-text-size", `${values.energyTextSize}px`);
+  rootStyle.setProperty("--home-energy-text-x", `${values.energyTextX}px`);
+  rootStyle.setProperty("--home-energy-text-y", `${values.energyTextY}px`);
+  rootStyle.setProperty("--home-coin-text-size", `${values.coinTextSize}px`);
+  rootStyle.setProperty("--home-coin-icon-x", `${values.coinIconX}px`);
+  rootStyle.setProperty("--home-coin-icon-y", `${values.coinIconY}px`);
+  rootStyle.setProperty("--home-coin-text-x", `${values.coinTextX}px`);
+  rootStyle.setProperty("--home-coin-text-y", `${values.coinTextY}px`);
+}
+
+function setHomeUiInputs(values) {
+  if (homeUiEnergySizeEl) homeUiEnergySizeEl.value = String(values.energyTextSize);
+  if (homeUiEnergyXEl) homeUiEnergyXEl.value = String(values.energyTextX);
+  if (homeUiEnergyYEl) homeUiEnergyYEl.value = String(values.energyTextY);
+  if (homeUiCoinSizeEl) homeUiCoinSizeEl.value = String(values.coinTextSize);
+  if (homeUiCoinIconXEl) homeUiCoinIconXEl.value = String(values.coinIconX);
+  if (homeUiCoinIconYEl) homeUiCoinIconYEl.value = String(values.coinIconY);
+  if (homeUiCoinXEl) homeUiCoinXEl.value = String(values.coinTextX);
+  if (homeUiCoinYEl) homeUiCoinYEl.value = String(values.coinTextY);
+}
+
+function syncHomeUiLabels() {
+  if (homeUiEnergySizeValueEl && homeUiEnergySizeEl) homeUiEnergySizeValueEl.textContent = homeUiEnergySizeEl.value;
+  if (homeUiEnergyXValueEl && homeUiEnergyXEl) homeUiEnergyXValueEl.textContent = homeUiEnergyXEl.value;
+  if (homeUiEnergyYValueEl && homeUiEnergyYEl) homeUiEnergyYValueEl.textContent = homeUiEnergyYEl.value;
+  if (homeUiCoinSizeValueEl && homeUiCoinSizeEl) homeUiCoinSizeValueEl.textContent = homeUiCoinSizeEl.value;
+  if (homeUiCoinIconXValueEl && homeUiCoinIconXEl) homeUiCoinIconXValueEl.textContent = homeUiCoinIconXEl.value;
+  if (homeUiCoinIconYValueEl && homeUiCoinIconYEl) homeUiCoinIconYValueEl.textContent = homeUiCoinIconYEl.value;
+  if (homeUiCoinXValueEl && homeUiCoinXEl) homeUiCoinXValueEl.textContent = homeUiCoinXEl.value;
+  if (homeUiCoinYValueEl && homeUiCoinYEl) homeUiCoinYValueEl.textContent = homeUiCoinYEl.value;
+}
+
+function collectHomeUiValues() {
+  return {
+    energyTextSize: clampNumber(homeUiEnergySizeEl?.value, 14, 42, defaultHomeUiTuning.energyTextSize),
+    energyTextX: clampNumber(homeUiEnergyXEl?.value, -80, 80, defaultHomeUiTuning.energyTextX),
+    energyTextY: clampNumber(homeUiEnergyYEl?.value, -40, 40, defaultHomeUiTuning.energyTextY),
+    coinTextSize: clampNumber(homeUiCoinSizeEl?.value, 14, 42, defaultHomeUiTuning.coinTextSize),
+    coinIconX: clampNumber(homeUiCoinIconXEl?.value, -30, 40, defaultHomeUiTuning.coinIconX),
+    coinIconY: clampNumber(homeUiCoinIconYEl?.value, -30, 30, defaultHomeUiTuning.coinIconY),
+    coinTextX: clampNumber(homeUiCoinXEl?.value, -80, 80, defaultHomeUiTuning.coinTextX),
+    coinTextY: clampNumber(homeUiCoinYEl?.value, -40, 40, defaultHomeUiTuning.coinTextY),
+  };
+}
+
+function saveHomeUiValues(values) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(homeUiTuningStorageKey, JSON.stringify(values));
+}
+
+function hideHomeUiPanel() {
+  homeUiPanelEl?.classList.add("hidden");
+}
+
+function bindHomeUiPanel() {
+  const hasAll = homeUiPanelEl
+    && homeUiEnergySizeEl && homeUiEnergyXEl && homeUiEnergyYEl
+    && homeUiCoinSizeEl && homeUiCoinIconXEl && homeUiCoinIconYEl
+    && homeUiCoinXEl && homeUiCoinYEl;
+  if (!hasAll) return;
+
+  const saved = readHomeUiTuning();
+  setHomeUiInputs(saved);
+  syncHomeUiLabels();
+  applyHomeUiTuning(saved);
+
+  const onInput = () => {
+    const values = collectHomeUiValues();
+    applyHomeUiTuning(values);
+    syncHomeUiLabels();
+  };
+
+  homeUiEnergySizeEl.addEventListener("input", onInput);
+  homeUiEnergyXEl.addEventListener("input", onInput);
+  homeUiEnergyYEl.addEventListener("input", onInput);
+  homeUiCoinSizeEl.addEventListener("input", onInput);
+  homeUiCoinIconXEl.addEventListener("input", onInput);
+  homeUiCoinIconYEl.addEventListener("input", onInput);
+  homeUiCoinXEl.addEventListener("input", onInput);
+  homeUiCoinYEl.addEventListener("input", onInput);
+
+  homeUiSaveBtn?.addEventListener("click", () => {
+    const values = collectHomeUiValues();
+    saveHomeUiValues(values);
+    hideHomeUiPanel();
+    gameUI.showCommentary("主界面样式已保存", 900);
+  });
+
+  homeUiCloseBtn?.addEventListener("click", () => {
+    const savedValues = readHomeUiTuning();
+    setHomeUiInputs(savedValues);
+    applyHomeUiTuning(savedValues);
+    syncHomeUiLabels();
+    hideHomeUiPanel();
+  });
+
+  homeUiResetBtn?.addEventListener("click", () => {
+    const defaults = { ...defaultHomeUiTuning };
+    setHomeUiInputs(defaults);
+    applyHomeUiTuning(defaults);
+    syncHomeUiLabels();
+    saveHomeUiValues(defaults);
+    gameUI.showCommentary("已恢复默认样式", 900);
+  });
+
+  homeSettingsBtn?.addEventListener("click", () => {
+    homeUiPanelEl.classList.toggle("hidden");
+  });
+}
+
+function hydrateLevelProgress() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    state.currentPlayableLevelIndex = 0;
+    state.highestPassedLevelIndex = -1;
+    state.selectedHomeLevelIndex = 0;
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(levelProgressStorageKey);
+    if (!raw) {
+      state.currentPlayableLevelIndex = 0;
+      state.highestPassedLevelIndex = -1;
+      state.selectedHomeLevelIndex = 0;
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    const playable = clampLevelIndex(parsed.currentPlayableLevelIndex, 0);
+    const passedRaw = Number(parsed.highestPassedLevelIndex);
+    const passed = Number.isFinite(passedRaw) ? Math.floor(passedRaw) : -1;
+    state.currentPlayableLevelIndex = playable;
+    state.highestPassedLevelIndex = THREE.MathUtils.clamp(passed, -1, LEVELS.length - 1);
+    state.selectedHomeLevelIndex = playable;
+  } catch (_err) {
+    state.currentPlayableLevelIndex = 0;
+    state.highestPassedLevelIndex = -1;
+    state.selectedHomeLevelIndex = 0;
+  }
+}
+
+function persistLevelProgress() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  const payload = {
+    currentPlayableLevelIndex: state.currentPlayableLevelIndex,
+    highestPassedLevelIndex: state.highestPassedLevelIndex,
+  };
+  window.localStorage.setItem(levelProgressStorageKey, JSON.stringify(payload));
+}
+
+function hydrateCoinBalance() {
+  if (typeof window === "undefined" || !window.localStorage) {
+    state.coins = 0;
+    return;
+  }
+
+  const raw = window.localStorage.getItem(coinStorageKey);
+  const parsed = Number(raw);
+  state.coins = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+function persistCoinBalance() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  window.localStorage.setItem(coinStorageKey, String(Math.max(0, Math.floor(state.coins))));
+}
+
+function syncCoinUi() {
+  const safe = Math.max(0, Math.floor(state.coins));
+  gameUI.setCoins(safe);
+  if (homeCoinEl) homeCoinEl.textContent = String(safe);
+}
+
+function addCoins(value) {
+  const gain = Math.max(0, Math.floor(value));
+  if (gain <= 0) return;
+  state.coins += gain;
+  persistCoinBalance();
+  syncCoinUi();
+}
+
+function getLevelWinReward(levelIndex) {
+  const idx = Math.max(0, Math.floor(levelIndex));
+  return levelWinRewardBase + idx * 2;
+}
+
+function playWinCoinFly() {
+  settlePendingWinReward(true);
+}
+
+function settlePendingWinReward(playFx = false) {
+  if (state.rewardAppliedThisRound) return;
+  const reward = Math.max(0, Math.floor(state.pendingWinReward));
+  if (reward <= 0) {
+    state.rewardAppliedThisRound = true;
+    return;
+  }
+
+  if (!playFx || gameUI.isCoinFlyPlaying()) {
+    addCoins(reward);
+    state.rewardAppliedThisRound = true;
+    state.pendingWinReward = 0;
+    return;
+  }
+
+  state.rewardAppliedThisRound = true;
+  const originRect = gameUI.getResultRewardRect();
+  gameUI.playCoinFly(reward, {
+    originRect,
+    onEachCoin: (part) => addCoins(part),
+    onDone: () => {
+      state.pendingWinReward = 0;
+    },
+  });
+}
+
+function bindHomeLevelButtons() {
+  const onTap = (ev) => {
+    const button = ev.currentTarget;
+    if (!(button instanceof HTMLElement)) return;
+
+    const raw = Number(button.dataset.levelIndex);
+    if (!Number.isInteger(raw) || raw < 0 || raw >= LEVELS.length) return;
+
+    const current = clampLevelIndex(state.currentPlayableLevelIndex);
+    if (raw > current) {
+      gameUI.showCommentary(`第${raw + 1}关尚未解锁`, 900);
+      return;
+    }
+
+    gameUI.showCommentary(`当前可挑战：第${current + 1}关`, 900);
+  };
+
+  homeLevelPrevBtn?.addEventListener("click", onTap);
+  homeLevelCurrentBtn?.addEventListener("click", onTap);
+  homeLevelNextBtn?.addEventListener("click", onTap);
+}
+
+function renderHomeBubble(button, index, role) {
+  if (!button) return;
+
+  if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) {
+    button.dataset.levelIndex = "";
+    button.textContent = "";
+    button.className = "home-level-bubble";
+    button.disabled = true;
+    return;
+  }
+
+  const level = LEVELS[index];
+  const classes = ["home-level-bubble", "live", role];
+  if (level.difficulty === "hard") classes.push("hard");
+  if (level.difficulty === "medium") classes.push("medium");
+  if (role === "upcoming" && index > state.currentPlayableLevelIndex) classes.push("locked");
+
+  button.dataset.levelIndex = String(index);
+  button.className = classes.join(" ");
+  button.disabled = false;
+  button.textContent = String(index + 1);
+
+  const oldTag = button.querySelector(".home-level-tag");
+  if (oldTag) oldTag.remove();
+
+  if (level.difficulty === "medium" || level.difficulty === "hard") {
+    const tag = document.createElement("span");
+    tag.className = `home-level-tag ${level.difficulty}`;
+    tag.textContent = level.difficulty === "hard" ? "HARD" : "MED";
+    button.appendChild(tag);
+  }
+}
+
+function pickHomeBubbleColorId(level, fallbackIndex) {
+  const configured = Math.floor(level?.homeBubbleColorId ?? -1);
+  if (configured >= 0 && configured < colors.length) {
+    return configured;
+  }
+
+  const difficulty = String(level?.difficulty ?? "easy").toLowerCase();
+  if (difficulty === "hard") return homeHardColorId;
+  if (difficulty === "medium") return homeMediumColorId;
+
+  const step = Math.max(0, Math.floor((level?.id ?? fallbackIndex + 1) - 1));
+  return homeEasyColorIds[step % homeEasyColorIds.length];
+}
+
+function clearHomeBubbles() {
+  for (const bubble of homeBubbles) {
+    scene.remove(bubble.group);
+  }
+  homeBubbles.length = 0;
+}
+
+function rebuildHomeBubbles(specs) {
+  if (!renderer || !trail) return;
+  clearHomeBubbles();
+  for (let i = 0; i < specs.length; i += 1) {
+    const spec = specs[i];
+    if (!spec || !spec.anchorEl || !spec.level) continue;
+    const colorId = pickHomeBubbleColorId(spec.level, spec.levelIndex);
+    const entity = new BubbleEntity({
+      id: -100 - i,
+      colorId,
+      radius: 1,
+      vx: 0,
+      vy: 0,
+      baseColor: new THREE.Color(colors[colorId].base),
+    });
+    entity.homeAnchorEl = spec.anchorEl;
+    entity.homeLevelIndex = spec.levelIndex;
+    entity.homeColorId = colorId;
+    entity.selectRing.visible = false;
+    scene.add(entity.group);
+    homeBubbles.push(entity);
+  }
+}
+
+function syncHomeBubbleLayout() {
+  if (!renderer || !state.inHome) return;
+
+  for (const bubble of homeBubbles) {
+    const anchor = bubble.homeAnchorEl;
+    if (!anchor) continue;
+
+    const rect = anchor.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      bubble.group.visible = false;
+      continue;
+    }
+
+    const centerX = rect.left + rect.width * 0.5;
+    const centerY = rect.top + rect.height * 0.5;
+    const center = screenToWorld(centerX, centerY);
+    const edge = screenToWorld(centerX + rect.width * 0.5, centerY);
+    const radius = Math.max(0.32, center.distanceTo(edge));
+
+    bubble.group.visible = true;
+    bubble.radius = radius;
+    bubble.baseScale = radius / bubbleBaseRadius;
+    bubble.bubble.scale.setScalar(bubble.baseScale * bubble.selectionScale);
+    bubble.selectRing.scale.setScalar(radius);
+    bubble.selectRing.position.z = radius * 0.04;
+    bubble.vel.set(0, 0, 0);
+    bubble.setPosition(center.x, center.y, 0);
+  }
+}
+
+function updateHomeBubbles(dt) {
+  if (!state.inHome || !homeBubbles.length) return;
+  syncHomeBubbleLayout();
+  for (const bubble of homeBubbles) {
+    bubble.update(dt, homeBubbleBounds);
+  }
+}
+
+function renderHomeScreen() {
+  const current = clampLevelIndex(state.currentPlayableLevelIndex);
+  state.selectedHomeLevelIndex = current;
+
+  const nextIndex = current + 1;
+  const next2Index = current + 2;
+  renderHomeBubble(homeLevelPrevBtn, current, "current");
+  renderHomeBubble(homeLevelCurrentBtn, nextIndex, "upcoming");
+  renderHomeBubble(homeLevelNextBtn, next2Index, "upcoming");
+
+  rebuildHomeBubbles([
+    { anchorEl: homeLevelPrevBtn, levelIndex: current, level: LEVELS[current] },
+    { anchorEl: homeLevelCurrentBtn, levelIndex: nextIndex, level: LEVELS[nextIndex] },
+    { anchorEl: homeLevelNextBtn, levelIndex: next2Index, level: LEVELS[next2Index] },
+  ]);
+
+}
+
+function showHomeScreen() {
+  state.inHome = true;
+  setGameHudVisible(false);
+  if (homeScreenEl) homeScreenEl.classList.remove("hidden");
+  renderHomeScreen();
+}
+
+function hideHomeScreen() {
+  state.inHome = false;
+  setGameHudVisible(true);
+  if (homeScreenEl) homeScreenEl.classList.add("hidden");
+  hideHomeUiPanel();
+  clearHomeBubbles();
+}
+
+function setGameHudVisible(visible) {
+  const hidden = !visible;
+  hudEl?.classList.toggle("hidden", hidden);
+  coinStatusEl?.classList.toggle("hidden", hidden);
+  levelTestRootEl?.classList.toggle("hidden", hidden);
+  commentaryEl?.classList.toggle("hidden", hidden);
+  if (hidden) {
+    levelTestPanelEl?.classList.add("hidden");
+  }
+}
+
+function clearBoardEntities() {
+  burstSystem.clear();
+  state.pendingPops.length = 0;
+  clearQueuedSelections();
+  for (const fruit of fruits) scene.remove(fruit.group);
+  fruits.length = 0;
+  victoryRainSystem.reset();
+  trail.reset();
+}
+
+function grantLevelWinProgress(nextLevelIndex) {
+  const justCleared = state.currentLevelIndex;
+  state.highestPassedLevelIndex = Math.max(state.highestPassedLevelIndex, justCleared);
+  state.currentPlayableLevelIndex = clampLevelIndex(nextLevelIndex);
+  state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
+  persistLevelProgress();
+}
+
+function retryCurrentLevelFromResult() {
+  if (!state.started) return;
+  gameUI.closeResult();
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  const loaded = loadLevel(state.currentLevelIndex);
+  if (!loaded) {
+    state.started = false;
+    showHomeScreen();
+  }
+}
+
+function backHomeFromResult() {
+  settlePendingWinReward(false);
+  gameUI.closeResult();
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function startNextLevel(nextLevelIndex) {
+  settlePendingWinReward(false);
+  gameUI.closeResult();
+  const next = clampLevelIndex(nextLevelIndex);
+  state.started = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  const loaded = loadLevel(next);
+  if (!loaded) {
+    backHomeFromResult();
+  }
+}
+
+function completeLevelAndBackHome(nextLevelIndex) {
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+
+  grantLevelWinProgress(nextLevelIndex);
+  gameUI.closeResult();
+
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function completeAllLevelsAndBackHome(levelCount) {
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.highestPassedLevelIndex = LEVELS.length - 1;
+  state.currentPlayableLevelIndex = LEVELS.length - 1;
+  state.selectedHomeLevelIndex = LEVELS.length - 1;
+  persistLevelProgress();
+  gameUI.closeResult();
+
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function init() {
+  hydrateLevelProgress();
+  hydrateCoinBalance();
+  syncCoinUi();
+  state.inHome = true;
+  updatePhoneAspect();
+  setGameHudVisible(false);
+  if (homeScreenEl) homeScreenEl.classList.remove("hidden");
+  setupHomeFloatBubbles();
+  renderHomeScreen();
 
   startBtn.addEventListener("click", startGame);
   restartBtn.addEventListener("click", startGame);
-
-  if (controlBtn) controlBtn.addEventListener("click", toggleControlPanel);
-  if (controlBlockerEl) controlBlockerEl.addEventListener("click", discardAndHideControlPanel);
-  if (controlCloseBtn) controlCloseBtn.addEventListener("click", discardAndHideControlPanel);
-  if (controlSaveBtn) controlSaveBtn.addEventListener("click", saveAndApplyControls);
-  if (showFailResultBtn) showFailResultBtn.addEventListener("click", showFailResultPreview);
-  if (showWinResultBtn) showWinResultBtn.addEventListener("click", showWinResultPreview);
-  if (passWinResultBtn) passWinResultBtn.addEventListener("click", passCurrentLevelAndShowWinResult);
-  if (battleExitBtn) battleExitBtn.addEventListener("click", exitToStartFromBattle);
-  if (advanceStartLevelBtn) advanceStartLevelBtn.addEventListener("click", advanceStartScreenLevelFromControl);
-  if (resultRetryBtn) resultRetryBtn.addEventListener("click", retryFromResultPage);
-  if (resultExitBtn) resultExitBtn.addEventListener("click", exitToStartFromResultPage);
-  if (resultNextBtn) resultNextBtn.addEventListener("click", goToNextLevelFromResultPage);
-
-  bindControlPanel();
+  bindHomeLevelButtons();
+  bindHomeUiPanel();
+  gameUI.closeResult();
+  setupLevelTestControls();
 
   window.addEventListener("resize", resize);
-  window.addEventListener("keydown", onEditorHotkey);
-  window.addEventListener("keydown", onUiHotkey);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", resize);
+    window.visualViewport.addEventListener("scroll", resize);
+  }
   window.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
@@ -254,970 +1046,65 @@ function init() {
   setupRenderer();
 }
 
-function bindControlPanel() {
-  const saved = readControlSave();
-
-  if (ctlTrailWidthEl) {
-    ctlTrailWidthEl.value = String(saved.trailWidth);
-    ctlTrailWidthEl.addEventListener("input", onTrailWidthInput);
-  }
-  if (ctlControlPanelXEl) {
-    ctlControlPanelXEl.value = String(saved.controlPanelX);
-    ctlControlPanelXEl.addEventListener("input", onControlPanelPositionInput);
-  }
-  if (ctlParticleSizeEl) {
-    ctlParticleSizeEl.value = String(saved.particleSize);
-    ctlParticleSizeEl.addEventListener("input", onParticleSizeInput);
-  }
-  if (ctlScoreFruitEl) {
-    ctlScoreFruitEl.value = String(saved.scorePerFruit);
-    ctlScoreFruitEl.addEventListener("input", onScorePerFruitInput);
-  }
-  if (ctlLadderFontSizeEl) {
-    ctlLadderFontSizeEl.value = String(saved.ladderFontSize);
-    ctlLadderFontSizeEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlStartBtnWidthEl) {
-    ctlStartBtnWidthEl.value = String(saved.startBtnWidth);
-    ctlStartBtnWidthEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlStartBtnHeightEl) {
-    ctlStartBtnHeightEl.value = String(saved.startBtnHeight);
-    ctlStartBtnHeightEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlStartBtnYEl) {
-    ctlStartBtnYEl.value = String(saved.startBtnY);
-    ctlStartBtnYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinBarXEl) {
-    ctlCoinBarXEl.value = String(saved.coinBarX);
-    ctlCoinBarXEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinBarYEl) {
-    ctlCoinBarYEl.value = String(saved.coinBarY);
-    ctlCoinBarYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinBarScaleEl) {
-    ctlCoinBarScaleEl.value = String(saved.coinBarScale);
-    ctlCoinBarScaleEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinIconXEl) {
-    ctlCoinIconXEl.value = String(saved.coinIconX);
-    ctlCoinIconXEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinIconYEl) {
-    ctlCoinIconYEl.value = String(saved.coinIconY);
-    ctlCoinIconYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinIconScaleEl) {
-    ctlCoinIconScaleEl.value = String(saved.coinIconScale);
-    ctlCoinIconScaleEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinTextXEl) {
-    ctlCoinTextXEl.value = String(saved.coinTextX);
-    ctlCoinTextXEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinTextYEl) {
-    ctlCoinTextYEl.value = String(saved.coinTextY);
-    ctlCoinTextYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlCoinTextSizeEl) {
-    ctlCoinTextSizeEl.value = String(saved.coinTextSize);
-    ctlCoinTextSizeEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlPanelMarginTopEl) {
-    ctlPanelMarginTopEl.value = String(saved.sliceTop);
-    ctlPanelMarginTopEl.addEventListener("input", onPanelSliceInput);
-  }
-  if (ctlPanelMarginRightEl) {
-    ctlPanelMarginRightEl.value = String(saved.sliceRight);
-    ctlPanelMarginRightEl.addEventListener("input", onPanelSliceInput);
-  }
-  if (ctlPanelMarginBottomEl) {
-    ctlPanelMarginBottomEl.value = String(saved.sliceBottom);
-    ctlPanelMarginBottomEl.addEventListener("input", onPanelSliceInput);
-  }
-  if (ctlPanelMarginLeftEl) {
-    ctlPanelMarginLeftEl.value = String(saved.sliceLeft);
-    ctlPanelMarginLeftEl.addEventListener("input", onPanelSliceInput);
-  }
-  if (ctlFailResultWidthEl) {
-    ctlFailResultWidthEl.value = String(saved.failResultWidth);
-    ctlFailResultWidthEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlFailResultHeightEl) {
-    ctlFailResultHeightEl.value = String(saved.failResultHeight);
-    ctlFailResultHeightEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlFailResultYEl) {
-    ctlFailResultYEl.value = String(saved.failResultY);
-    ctlFailResultYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlFailActionsYEl) {
-    ctlFailActionsYEl.value = String(saved.failActionsY);
-    ctlFailActionsYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlFailActionsScaleEl) {
-    ctlFailActionsScaleEl.value = String(saved.failActionsScale);
-    ctlFailActionsScaleEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinResultWidthEl) {
-    ctlWinResultWidthEl.value = String(saved.winResultWidth);
-    ctlWinResultWidthEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinResultHeightEl) {
-    ctlWinResultHeightEl.value = String(saved.winResultHeight);
-    ctlWinResultHeightEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinResultYEl) {
-    ctlWinResultYEl.value = String(saved.winResultY);
-    ctlWinResultYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinActionsYEl) {
-    ctlWinActionsYEl.value = String(saved.winActionsY);
-    ctlWinActionsYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinActionsScaleEl) {
-    ctlWinActionsScaleEl.value = String(saved.winActionsScale);
-    ctlWinActionsScaleEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinCoinGainEl) {
-    ctlWinCoinGainEl.value = String(saved.winCoinGain);
-    ctlWinCoinGainEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinCoinXEl) {
-    ctlWinCoinXEl.value = String(saved.winCoinX);
-    ctlWinCoinXEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinCoinYEl) {
-    ctlWinCoinYEl.value = String(saved.winCoinY);
-    ctlWinCoinYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinCoinScaleEl) {
-    ctlWinCoinScaleEl.value = String(saved.winCoinScale);
-    ctlWinCoinScaleEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinGainXEl) {
-    ctlWinGainXEl.value = String(saved.winGainX);
-    ctlWinGainXEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinGainYEl) {
-    ctlWinGainYEl.value = String(saved.winGainY);
-    ctlWinGainYEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinGainSizeEl) {
-    ctlWinGainSizeEl.value = String(saved.winGainSize);
-    ctlWinGainSizeEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlWinGainColorEl) {
-    ctlWinGainColorEl.value = saved.winGainColor;
-    ctlWinGainColorEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlResultMaskOpacityEl) {
-    ctlResultMaskOpacityEl.value = String(saved.resultMaskOpacity);
-    ctlResultMaskOpacityEl.addEventListener("input", onResultLayoutInput);
-  }
-  if (ctlFailTitleEl) {
-    ctlFailTitleEl.value = saved.failTitle;
-    ctlFailTitleEl.addEventListener("input", onFailCopyInput);
-  }
-  if (ctlFailBodyEl) {
-    ctlFailBodyEl.value = saved.failBody;
-    ctlFailBodyEl.addEventListener("input", onFailCopyInput);
-  }
-  if (ctlWinTitleEl) {
-    ctlWinTitleEl.value = saved.winTitle;
-    ctlWinTitleEl.addEventListener("input", onFailCopyInput);
-  }
-
-  applyControlValues(saved);
-  syncControlPanelLabels();
-}
-
-function onUiHotkey(ev) {
-  if (ev.repeat) return;
-  if (ev.key.toLowerCase() !== "g") return;
-  const tag = String(ev.target?.tagName || "").toLowerCase();
-  if (tag === "input" || tag === "textarea" || tag === "select") return;
-  ev.preventDefault();
-  toggleControlPanel();
-}
-
-function onTrailWidthInput(ev) {
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
-}
-
-function onControlPanelPositionInput() {
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
-}
-
-function onParticleSizeInput(ev) {
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
-}
-
-function onScorePerFruitInput(ev) {
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
-}
-
-function onPanelSliceInput() {
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
-}
-
-function onResultLayoutInput() {
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
-}
-
-function onFailCopyInput() {
-  applyControlValues(collectControlValues());
-}
-
-function syncControlPanelLabels() {
-  if (ctlControlPanelXValueEl) ctlControlPanelXValueEl.textContent = String(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)));
-  if (ctlTrailWidthValueEl) ctlTrailWidthValueEl.textContent = (trail?.width ?? Number(ctlTrailWidthEl?.value ?? 0.12)).toFixed(2);
-  if (ctlParticleSizeValueEl) ctlParticleSizeValueEl.textContent = (particles?.material?.size ?? Number(ctlParticleSizeEl?.value ?? 0.09)).toFixed(2);
-  if (ctlScoreFruitValueEl) ctlScoreFruitValueEl.textContent = String(scoring.perFruit);
-  if (ctlLadderFontSizeValueEl) ctlLadderFontSizeValueEl.textContent = String(Math.floor(Number(ctlLadderFontSizeEl?.value ?? 46)));
-  if (ctlStartBtnWidthValueEl) ctlStartBtnWidthValueEl.textContent = String(Math.floor(Number(ctlStartBtnWidthEl?.value ?? 220)));
-  if (ctlStartBtnHeightValueEl) ctlStartBtnHeightValueEl.textContent = String(Math.floor(Number(ctlStartBtnHeightEl?.value ?? 72)));
-  if (ctlStartBtnYValueEl) ctlStartBtnYValueEl.textContent = String(Math.floor(Number(ctlStartBtnYEl?.value ?? 0)));
-  if (ctlCoinBarXValueEl) ctlCoinBarXValueEl.textContent = String(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)));
-  if (ctlCoinBarYValueEl) ctlCoinBarYValueEl.textContent = String(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)));
-  if (ctlCoinBarScaleValueEl) ctlCoinBarScaleValueEl.textContent = Number(ctlCoinBarScaleEl?.value ?? 1).toFixed(2);
-  if (ctlCoinIconXValueEl) ctlCoinIconXValueEl.textContent = String(Math.floor(Number(ctlCoinIconXEl?.value ?? 0)));
-  if (ctlCoinIconYValueEl) ctlCoinIconYValueEl.textContent = String(Math.floor(Number(ctlCoinIconYEl?.value ?? 0)));
-  if (ctlCoinIconScaleValueEl) ctlCoinIconScaleValueEl.textContent = Number(ctlCoinIconScaleEl?.value ?? 1).toFixed(2);
-  if (ctlCoinTextXValueEl) ctlCoinTextXValueEl.textContent = String(Math.floor(Number(ctlCoinTextXEl?.value ?? 0)));
-  if (ctlCoinTextYValueEl) ctlCoinTextYValueEl.textContent = String(Math.floor(Number(ctlCoinTextYEl?.value ?? 0)));
-  if (ctlCoinTextSizeValueEl) ctlCoinTextSizeValueEl.textContent = String(Math.floor(Number(ctlCoinTextSizeEl?.value ?? 34)));
-  if (ctlPanelMarginTopValueEl) ctlPanelMarginTopValueEl.textContent = String(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)));
-  if (ctlPanelMarginRightValueEl) ctlPanelMarginRightValueEl.textContent = String(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)));
-  if (ctlPanelMarginBottomValueEl) ctlPanelMarginBottomValueEl.textContent = String(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)));
-  if (ctlPanelMarginLeftValueEl) ctlPanelMarginLeftValueEl.textContent = String(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)));
-  if (ctlFailResultWidthValueEl) ctlFailResultWidthValueEl.textContent = String(Math.floor(Number(ctlFailResultWidthEl?.value ?? 320)));
-  if (ctlFailResultHeightValueEl) ctlFailResultHeightValueEl.textContent = String(Math.floor(Number(ctlFailResultHeightEl?.value ?? 260)));
-  if (ctlFailResultYValueEl) ctlFailResultYValueEl.textContent = String(Math.floor(Number(ctlFailResultYEl?.value ?? 0)));
-  if (ctlFailActionsYValueEl) ctlFailActionsYValueEl.textContent = String(Math.floor(Number(ctlFailActionsYEl?.value ?? 0)));
-  if (ctlFailActionsScaleValueEl) ctlFailActionsScaleValueEl.textContent = Number(ctlFailActionsScaleEl?.value ?? 1).toFixed(2);
-  if (ctlWinResultWidthValueEl) ctlWinResultWidthValueEl.textContent = String(Math.floor(Number(ctlWinResultWidthEl?.value ?? 320)));
-  if (ctlWinResultHeightValueEl) ctlWinResultHeightValueEl.textContent = String(Math.floor(Number(ctlWinResultHeightEl?.value ?? 260)));
-  if (ctlWinResultYValueEl) ctlWinResultYValueEl.textContent = String(Math.floor(Number(ctlWinResultYEl?.value ?? 0)));
-  if (ctlWinActionsYValueEl) ctlWinActionsYValueEl.textContent = String(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)));
-  if (ctlWinActionsScaleValueEl) ctlWinActionsScaleValueEl.textContent = Number(ctlWinActionsScaleEl?.value ?? 1).toFixed(2);
-  if (ctlWinCoinXValueEl) ctlWinCoinXValueEl.textContent = String(Math.floor(Number(ctlWinCoinXEl?.value ?? 0)));
-  if (ctlWinCoinYValueEl) ctlWinCoinYValueEl.textContent = String(Math.floor(Number(ctlWinCoinYEl?.value ?? 0)));
-  if (ctlWinCoinScaleValueEl) ctlWinCoinScaleValueEl.textContent = Number(ctlWinCoinScaleEl?.value ?? 1).toFixed(2);
-  if (ctlWinGainXValueEl) ctlWinGainXValueEl.textContent = String(Math.floor(Number(ctlWinGainXEl?.value ?? 0)));
-  if (ctlWinGainYValueEl) ctlWinGainYValueEl.textContent = String(Math.floor(Number(ctlWinGainYEl?.value ?? 0)));
-  if (ctlWinGainSizeValueEl) ctlWinGainSizeValueEl.textContent = String(Math.floor(Number(ctlWinGainSizeEl?.value ?? 44)));
-  if (ctlResultMaskOpacityValueEl) ctlResultMaskOpacityValueEl.textContent = Number(ctlResultMaskOpacityEl?.value ?? 0.38).toFixed(2);
-}
-
-function readControlSave() {
-  const defaults = {
-    trailWidth: 0.12,
-    controlPanelX: 0,
-    particleSize: 0.09,
-    scorePerFruit: 5,
-    ladderFontSize: 46,
-    startBtnWidth: 220,
-    startBtnHeight: 72,
-    startBtnY: 0,
-    coinBarX: 0,
-    coinBarY: 0,
-    coinBarScale: 1,
-    coinIconX: 0,
-    coinIconY: 0,
-    coinIconScale: 1,
-    coinTextX: 0,
-    coinTextY: 0,
-    coinTextSize: 34,
-    sliceTop: 28,
-    sliceRight: 28,
-    sliceBottom: 28,
-    sliceLeft: 28,
-    failResultWidth: 320,
-    failResultHeight: 260,
-    failResultY: 0,
-    failActionsY: 0,
-    failActionsScale: 1,
-    winResultWidth: 320,
-    winResultHeight: 260,
-    winResultY: 0,
-    winActionsY: 0,
-    winActionsScale: 1,
-    winCoinGain: 20,
-    winCoinX: 0,
-    winCoinY: 0,
-    winCoinScale: 1,
-    winGainX: 0,
-    winGainY: 0,
-    winGainSize: 44,
-    winGainColor: "#ffd95f",
-    resultMaskOpacity: 0.38,
-    failTitle: "失败",
-    failBody: "当前分数 {score} · 当前关卡 {level}",
-    winTitle: "胜利",
-  };
-
-  try {
-    const raw = localStorage.getItem(CONTROL_SAVE_KEY);
-    if (!raw) return defaults;
-    const parsed = JSON.parse(raw);
-    return {
-      trailWidth: THREE.MathUtils.clamp(Number(parsed?.trailWidth) || defaults.trailWidth, 0.06, 0.22),
-      controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.controlPanelX) || defaults.controlPanelX), -220, 420),
-      particleSize: THREE.MathUtils.clamp(Number(parsed?.particleSize) || defaults.particleSize, 0.04, 0.22),
-      scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(parsed?.scorePerFruit) || defaults.scorePerFruit), 1, 15),
-      ladderFontSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.ladderFontSize) || defaults.ladderFontSize), 20, 72),
-      startBtnWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.startBtnWidth) || defaults.startBtnWidth), 140, 320),
-      startBtnHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.startBtnHeight) || defaults.startBtnHeight), 44, 120),
-      startBtnY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.startBtnY) || defaults.startBtnY), -220, 220),
-      coinBarX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarX) || defaults.coinBarX), -260, 260),
-      coinBarY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinBarY) || defaults.coinBarY), -260, 260),
-      coinBarScale: THREE.MathUtils.clamp(Number(parsed?.coinBarScale) || defaults.coinBarScale, 0.2, 2),
-      coinIconX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinIconX) || defaults.coinIconX), -220, 220),
-      coinIconY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinIconY) || defaults.coinIconY), -220, 220),
-      coinIconScale: THREE.MathUtils.clamp(Number(parsed?.coinIconScale) || defaults.coinIconScale, 0.2, 2),
-      coinTextX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinTextX) || defaults.coinTextX), -220, 220),
-      coinTextY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinTextY) || defaults.coinTextY), -220, 220),
-      coinTextSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.coinTextSize) || defaults.coinTextSize), 12, 64),
-      sliceTop: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceTop) || defaults.sliceTop), 8, 200),
-      sliceRight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceRight) || defaults.sliceRight), 8, 200),
-      sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceBottom) || defaults.sliceBottom), 8, 200),
-      sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(parsed?.sliceLeft) || defaults.sliceLeft), 8, 200),
-      failResultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failResultWidth) || defaults.failResultWidth), 220, 420),
-      failResultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failResultHeight) || defaults.failResultHeight), 160, 560),
-      failResultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failResultY) || defaults.failResultY), -220, 220),
-      failActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.failActionsY) || defaults.failActionsY), -180, 180),
-      failActionsScale: THREE.MathUtils.clamp(Number(parsed?.failActionsScale) || defaults.failActionsScale, 0.1, 1.6),
-      winResultWidth: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultWidth) || defaults.winResultWidth), 220, 420),
-      winResultHeight: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultHeight) || defaults.winResultHeight), 160, 560),
-      winResultY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winResultY) || defaults.winResultY), -220, 220),
-      winActionsY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winActionsY) || defaults.winActionsY), -180, 180),
-      winActionsScale: THREE.MathUtils.clamp(Number(parsed?.winActionsScale) || defaults.winActionsScale, 0.1, 1.6),
-      winCoinGain: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winCoinGain) || defaults.winCoinGain), 0, 99999),
-      winCoinX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winCoinX) || defaults.winCoinX), -220, 220),
-      winCoinY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winCoinY) || defaults.winCoinY), -220, 220),
-      winCoinScale: THREE.MathUtils.clamp(Number(parsed?.winCoinScale) || defaults.winCoinScale, 0.1, 3),
-      winGainX: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winGainX) || parsed?.winTextX || defaults.winGainX), -220, 220),
-      winGainY: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winGainY) || parsed?.winTextY || defaults.winGainY), -220, 220),
-      winGainSize: THREE.MathUtils.clamp(Math.floor(Number(parsed?.winGainSize) || defaults.winGainSize), 18, 96),
-      winGainColor: /^#[0-9a-fA-F]{6}$/.test(String(parsed?.winGainColor || "")) ? String(parsed.winGainColor) : defaults.winGainColor,
-      resultMaskOpacity: THREE.MathUtils.clamp(Number(parsed?.resultMaskOpacity) || defaults.resultMaskOpacity, 0, 0.9),
-      failTitle: String(parsed?.failTitle ?? defaults.failTitle).slice(0, 18),
-      failBody: String(parsed?.failBody ?? defaults.failBody).slice(0, 80),
-      winTitle: String(parsed?.winTitle ?? defaults.winTitle).slice(0, 18),
-    };
-  } catch (_err) {
-    return defaults;
-  }
-}
-
-function collectControlValues() {
-  return {
-    trailWidth: THREE.MathUtils.clamp(Number(ctlTrailWidthEl?.value ?? 0.12), 0.06, 0.22),
-    controlPanelX: THREE.MathUtils.clamp(Math.floor(Number(ctlControlPanelXEl?.value ?? 0)), -220, 420),
-    particleSize: THREE.MathUtils.clamp(Number(ctlParticleSizeEl?.value ?? 0.09), 0.04, 0.22),
-    scorePerFruit: THREE.MathUtils.clamp(Math.floor(Number(ctlScoreFruitEl?.value ?? 5)), 1, 15),
-    ladderFontSize: THREE.MathUtils.clamp(Math.floor(Number(ctlLadderFontSizeEl?.value ?? 46)), 20, 72),
-    startBtnWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlStartBtnWidthEl?.value ?? 220)), 140, 320),
-    startBtnHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlStartBtnHeightEl?.value ?? 72)), 44, 120),
-    startBtnY: THREE.MathUtils.clamp(Math.floor(Number(ctlStartBtnYEl?.value ?? 0)), -220, 220),
-    coinBarX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarXEl?.value ?? 0)), -260, 260),
-    coinBarY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinBarYEl?.value ?? 0)), -260, 260),
-    coinBarScale: THREE.MathUtils.clamp(Number(ctlCoinBarScaleEl?.value ?? 1), 0.2, 2),
-    coinIconX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinIconXEl?.value ?? 0)), -220, 220),
-    coinIconY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinIconYEl?.value ?? 0)), -220, 220),
-    coinIconScale: THREE.MathUtils.clamp(Number(ctlCoinIconScaleEl?.value ?? 1), 0.2, 2),
-    coinTextX: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinTextXEl?.value ?? 0)), -220, 220),
-    coinTextY: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinTextYEl?.value ?? 0)), -220, 220),
-    coinTextSize: THREE.MathUtils.clamp(Math.floor(Number(ctlCoinTextSizeEl?.value ?? 34)), 12, 64),
-    sliceTop: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginTopEl?.value ?? 28)), 8, 200),
-    sliceRight: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginRightEl?.value ?? 28)), 8, 200),
-    sliceBottom: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginBottomEl?.value ?? 28)), 8, 200),
-    sliceLeft: THREE.MathUtils.clamp(Math.floor(Number(ctlPanelMarginLeftEl?.value ?? 28)), 8, 200),
-    failResultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlFailResultWidthEl?.value ?? 320)), 220, 420),
-    failResultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlFailResultHeightEl?.value ?? 260)), 160, 560),
-    failResultY: THREE.MathUtils.clamp(Math.floor(Number(ctlFailResultYEl?.value ?? 0)), -220, 220),
-    failActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlFailActionsYEl?.value ?? 0)), -180, 180),
-    failActionsScale: THREE.MathUtils.clamp(Number(ctlFailActionsScaleEl?.value ?? 1), 0.1, 1.6),
-    winResultWidth: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultWidthEl?.value ?? 320)), 220, 420),
-    winResultHeight: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultHeightEl?.value ?? 260)), 160, 560),
-    winResultY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinResultYEl?.value ?? 0)), -220, 220),
-    winActionsY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinActionsYEl?.value ?? 0)), -180, 180),
-    winActionsScale: THREE.MathUtils.clamp(Number(ctlWinActionsScaleEl?.value ?? 1), 0.1, 1.6),
-    winCoinGain: THREE.MathUtils.clamp(Math.floor(Number(ctlWinCoinGainEl?.value ?? 20)), 0, 99999),
-    winCoinX: THREE.MathUtils.clamp(Math.floor(Number(ctlWinCoinXEl?.value ?? 0)), -220, 220),
-    winCoinY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinCoinYEl?.value ?? 0)), -220, 220),
-    winCoinScale: THREE.MathUtils.clamp(Number(ctlWinCoinScaleEl?.value ?? 1), 0.1, 3),
-    winGainX: THREE.MathUtils.clamp(Math.floor(Number(ctlWinGainXEl?.value ?? 0)), -220, 220),
-    winGainY: THREE.MathUtils.clamp(Math.floor(Number(ctlWinGainYEl?.value ?? 0)), -220, 220),
-    winGainSize: THREE.MathUtils.clamp(Math.floor(Number(ctlWinGainSizeEl?.value ?? 44)), 18, 96),
-    winGainColor: /^#[0-9a-fA-F]{6}$/.test(String(ctlWinGainColorEl?.value || "")) ? String(ctlWinGainColorEl.value) : "#ffd95f",
-    resultMaskOpacity: THREE.MathUtils.clamp(Number(ctlResultMaskOpacityEl?.value ?? 0.38), 0, 0.9),
-    failTitle: (String(ctlFailTitleEl?.value ?? "失败").trim() || "失败").slice(0, 18),
-    failBody: (String(ctlFailBodyEl?.value ?? "当前分数 {score} · 当前关卡 {level}").trim() || "当前分数 {score} · 当前关卡 {level}").slice(0, 80),
-    winTitle: (String(ctlWinTitleEl?.value ?? "胜利").trim() || "胜利").slice(0, 18),
-  };
-}
-
-function setControlInputs(values) {
-  if (ctlTrailWidthEl) ctlTrailWidthEl.value = String(values.trailWidth);
-  if (ctlControlPanelXEl) ctlControlPanelXEl.value = String(values.controlPanelX);
-  if (ctlParticleSizeEl) ctlParticleSizeEl.value = String(values.particleSize);
-  if (ctlScoreFruitEl) ctlScoreFruitEl.value = String(values.scorePerFruit);
-  if (ctlLadderFontSizeEl) ctlLadderFontSizeEl.value = String(values.ladderFontSize);
-  if (ctlStartBtnWidthEl) ctlStartBtnWidthEl.value = String(values.startBtnWidth);
-  if (ctlStartBtnHeightEl) ctlStartBtnHeightEl.value = String(values.startBtnHeight);
-  if (ctlStartBtnYEl) ctlStartBtnYEl.value = String(values.startBtnY);
-  if (ctlCoinBarXEl) ctlCoinBarXEl.value = String(values.coinBarX);
-  if (ctlCoinBarYEl) ctlCoinBarYEl.value = String(values.coinBarY);
-  if (ctlCoinBarScaleEl) ctlCoinBarScaleEl.value = String(values.coinBarScale);
-  if (ctlCoinIconXEl) ctlCoinIconXEl.value = String(values.coinIconX);
-  if (ctlCoinIconYEl) ctlCoinIconYEl.value = String(values.coinIconY);
-  if (ctlCoinIconScaleEl) ctlCoinIconScaleEl.value = String(values.coinIconScale);
-  if (ctlCoinTextXEl) ctlCoinTextXEl.value = String(values.coinTextX);
-  if (ctlCoinTextYEl) ctlCoinTextYEl.value = String(values.coinTextY);
-  if (ctlCoinTextSizeEl) ctlCoinTextSizeEl.value = String(values.coinTextSize);
-  if (ctlPanelMarginTopEl) ctlPanelMarginTopEl.value = String(values.sliceTop);
-  if (ctlPanelMarginRightEl) ctlPanelMarginRightEl.value = String(values.sliceRight);
-  if (ctlPanelMarginBottomEl) ctlPanelMarginBottomEl.value = String(values.sliceBottom);
-  if (ctlPanelMarginLeftEl) ctlPanelMarginLeftEl.value = String(values.sliceLeft);
-  if (ctlFailResultWidthEl) ctlFailResultWidthEl.value = String(values.failResultWidth);
-  if (ctlFailResultHeightEl) ctlFailResultHeightEl.value = String(values.failResultHeight);
-  if (ctlFailResultYEl) ctlFailResultYEl.value = String(values.failResultY);
-  if (ctlFailActionsYEl) ctlFailActionsYEl.value = String(values.failActionsY);
-  if (ctlFailActionsScaleEl) ctlFailActionsScaleEl.value = String(values.failActionsScale);
-  if (ctlWinResultWidthEl) ctlWinResultWidthEl.value = String(values.winResultWidth);
-  if (ctlWinResultHeightEl) ctlWinResultHeightEl.value = String(values.winResultHeight);
-  if (ctlWinResultYEl) ctlWinResultYEl.value = String(values.winResultY);
-  if (ctlWinActionsYEl) ctlWinActionsYEl.value = String(values.winActionsY);
-  if (ctlWinActionsScaleEl) ctlWinActionsScaleEl.value = String(values.winActionsScale);
-  if (ctlWinCoinGainEl) ctlWinCoinGainEl.value = String(values.winCoinGain);
-  if (ctlWinCoinXEl) ctlWinCoinXEl.value = String(values.winCoinX);
-  if (ctlWinCoinYEl) ctlWinCoinYEl.value = String(values.winCoinY);
-  if (ctlWinCoinScaleEl) ctlWinCoinScaleEl.value = String(values.winCoinScale);
-  if (ctlWinGainXEl) ctlWinGainXEl.value = String(values.winGainX);
-  if (ctlWinGainYEl) ctlWinGainYEl.value = String(values.winGainY);
-  if (ctlWinGainSizeEl) ctlWinGainSizeEl.value = String(values.winGainSize);
-  if (ctlWinGainColorEl) ctlWinGainColorEl.value = String(values.winGainColor);
-  if (ctlResultMaskOpacityEl) ctlResultMaskOpacityEl.value = String(values.resultMaskOpacity);
-  if (ctlFailTitleEl) ctlFailTitleEl.value = values.failTitle;
-  if (ctlFailBodyEl) ctlFailBodyEl.value = values.failBody;
-  if (ctlWinTitleEl) ctlWinTitleEl.value = values.winTitle;
-}
-
-function applyControlValues(values) {
-  currentControlValues = { ...values };
-  if (trail) trail.width = values.trailWidth;
-  if (particles?.material) particles.material.size = values.particleSize;
-  scoring.perFruit = values.scorePerFruit;
-
-  const rootStyle = document.documentElement.style;
-  rootStyle.setProperty("--control-panel-x", `${values.controlPanelX}px`);
-  rootStyle.setProperty("--coin-bar-x", `${values.coinBarX}px`);
-  rootStyle.setProperty("--coin-bar-y", `${values.coinBarY}px`);
-  rootStyle.setProperty("--coin-bar-scale", String(values.coinBarScale));
-  rootStyle.setProperty("--coin-icon-x", `${values.coinIconX}px`);
-  rootStyle.setProperty("--coin-icon-y", `${values.coinIconY}px`);
-  rootStyle.setProperty("--coin-icon-scale", String(values.coinIconScale));
-  rootStyle.setProperty("--coin-text-x", `${values.coinTextX}px`);
-  rootStyle.setProperty("--coin-text-y", `${values.coinTextY}px`);
-  rootStyle.setProperty("--coin-text-size", `${values.coinTextSize}px`);
-  rootStyle.setProperty("--ladder-level-font-size", `${values.ladderFontSize}px`);
-  rootStyle.setProperty("--start-btn-width", `${values.startBtnWidth}px`);
-  rootStyle.setProperty("--start-btn-height", `${values.startBtnHeight}px`);
-  rootStyle.setProperty("--start-btn-y", `${values.startBtnY}px`);
-  rootStyle.setProperty("--panel-slice-top", String(values.sliceTop));
-  rootStyle.setProperty("--panel-slice-right", String(values.sliceRight));
-  rootStyle.setProperty("--panel-slice-bottom", String(values.sliceBottom));
-  rootStyle.setProperty("--panel-slice-left", String(values.sliceLeft));
-  rootStyle.setProperty("--result-coin-x", `${values.winCoinX}px`);
-  rootStyle.setProperty("--result-coin-y", `${values.winCoinY}px`);
-  rootStyle.setProperty("--result-coin-scale", String(values.winCoinScale));
-  rootStyle.setProperty("--result-gain-x", `${values.winGainX}px`);
-  rootStyle.setProperty("--result-gain-y", `${values.winGainY}px`);
-  rootStyle.setProperty("--result-gain-size", `${values.winGainSize}px`);
-  rootStyle.setProperty("--result-gain-color", String(values.winGainColor));
-  rootStyle.setProperty("--result-mask-opacity", String(values.resultMaskOpacity));
-  applyResultLayoutForOutcome(state.resultOutcome, values);
-
-  if (resultPageEl && !resultPageEl.classList.contains("hidden")) {
-    if (state.resultOutcome === "lose") {
-      if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.failTitle;
-      if (resultPageTextEl) resultPageTextEl.textContent = formatResultBody(values.failBody);
-    } else {
-      if (resultPageTitleTextEl) resultPageTitleTextEl.textContent = values.winTitle;
-    }
-  }
-
-  updateCoinStatus({ animate: false });
-}
-
-function updateCoinStatus(options = {}) {
-  if (!coinStatusTextEl) return;
-  const { animate = true, duration = 0.3 } = options;
-  const target = Math.max(0, Math.floor(state.coins || 0));
-
-  if (!animate) {
-    if (coinStatusCountUp) {
-      try {
-        coinStatusCountUp.reset();
-      } catch (_err) {
-        // ignore reset failures
-      }
-      coinStatusCountUp = null;
-    }
-    coinStatusTextEl.textContent = String(target);
+function setupLevelTestControls() {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn) {
     return;
   }
 
-  const currentShown = Math.max(0, Math.floor(Number(coinStatusTextEl.textContent) || 0));
-  if (currentShown === target) return;
-
-  if (coinStatusCountUp) {
-    try {
-      coinStatusCountUp.reset();
-    } catch (_err) {
-      // ignore reset failures
-    }
+  levelTestSelectEl.innerHTML = "";
+  for (let i = 0; i < LEVELS.length; i += 1) {
+    const level = LEVELS[i];
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = `第${i + 1}关 ${level.name}`;
+    levelTestSelectEl.appendChild(option);
   }
 
-  coinStatusCountUp = new CountUp(coinStatusTextEl, target, {
-    startVal: currentShown,
-    duration: Math.max(0.1, Number(duration) || 0.3),
-    decimalPlaces: 0,
-    useGrouping: false,
-    formattingFn: (value) => String(Math.floor(value)),
+  levelTestToggleBtn.addEventListener("click", () => {
+    levelTestPanelEl.classList.toggle("hidden");
   });
 
-  if (coinStatusCountUp.error) {
-    coinStatusTextEl.textContent = String(target);
-    coinStatusCountUp = null;
-    return;
-  }
-
-  coinStatusCountUp.start(() => {
-    coinStatusCountUp = null;
-    coinStatusTextEl.textContent = String(target);
+  levelTestJumpBtn.addEventListener("click", () => {
+    const targetIndex = Number(levelTestSelectEl.value);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= LEVELS.length) {
+      return;
+    }
+    jumpToLevelForTest(targetIndex);
   });
 }
 
-function addCoins(amount) {
-  const value = Math.max(0, Math.floor(amount || 0));
-  if (value <= 0) return;
-  state.coins = Math.max(0, Math.floor(state.coins || 0)) + value;
-  updateCoinStatus({ animate: true, duration: 0.28 });
-  writeGameSave();
+function setLevelTestSelection(index) {
+  if (!levelTestSelectEl) return;
+  levelTestSelectEl.value = String(index);
 }
 
-function maybeStartCoinFlyAnimation() {
-  if (coinFlyTriggered) return;
-  const total = Math.max(0, Math.floor(pendingCoinRewardTotal || 0));
-  const count = Math.max(0, Math.min(20, Math.floor(pendingCoinFlyCount || total || 0)));
-  if (count <= 0 || total <= 0) return;
-  coinFlyTriggered = true;
-  playCoinFlyAnimation(count, total);
-}
+function jumpToLevelForTest(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) return;
 
-function playCoinFlyAnimation(count, totalReward) {
-  const total = Math.max(0, Math.floor(totalReward || 0));
-  if (total <= 0 || count <= 0) return;
-
-  if (!coinFlyLayerEl || !phoneFrameEl || !coinStatusIconEl || !resultCoinIconEl) {
-    addCoins(total);
-    pendingCoinRewardTotal = 0;
-    resultCoinRewardEnabled = false;
-    return;
+  if (!state.started || state.gameOver) {
+    startGame();
   }
 
-  const baseReward = Math.floor(total / count);
-  const remainderReward = total - baseReward * count;
-
-  const frameRect = phoneFrameEl.getBoundingClientRect();
-  const fromRect = resultCoinIconEl.getBoundingClientRect();
-  const toRect = coinStatusIconEl.getBoundingClientRect();
-
-  const startX = fromRect.left + fromRect.width * 0.5 - frameRect.left;
-  const startY = fromRect.top + fromRect.height * 0.5 - frameRect.top;
-  const endX = toRect.left + toRect.width * 0.5 - frameRect.left;
-  const endY = toRect.top + toRect.height * 0.5 - frameRect.top;
-  const size = Math.max(1, fromRect.width || 72);
-  const half = size * 0.5;
-
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const revealDuration = 70;
-  const revealHold = 35;
-  const perCoinFlyDelay = 55;
-  const revealDelays = Array.from({ length: count }, () => Math.floor(Math.random() * 280));
-
-  for (let i = 0; i < count; i += 1) {
-    const icon = document.createElement("img");
-    icon.className = "coin-fly-item";
-    icon.src = "./assets/images/currency128_Coin.png";
-    icon.style.width = `${size}px`;
-    icon.style.height = `${size}px`;
-    icon.style.opacity = "0";
-
-    const jitterX = THREE.MathUtils.randFloatSpread(148);
-    const jitterY = THREE.MathUtils.randFloatSpread(92);
-    const arcX = dx * THREE.MathUtils.randFloat(0.4, 0.62) + THREE.MathUtils.randFloatSpread(42);
-    const arcY = dy * 0.48 - THREE.MathUtils.randFloat(40, 120);
-
-    const sx = startX + jitterX - half;
-    const sy = startY + jitterY - half;
-    const mx = startX + arcX - half;
-    const my = startY + arcY - half;
-    const ex = endX - half;
-    const ey = endY - half;
-
-    icon.style.transform = `translate(${sx}px, ${sy}px) scale(0.72)`;
-    coinFlyLayerEl.appendChild(icon);
-    const revealAnim = icon.animate(
-      [
-        { transform: `translate(${sx}px, ${sy}px) scale(0.72)`, opacity: 0 },
-        { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1 },
-      ],
-      {
-        duration: revealDuration,
-        delay: revealDelays[i],
-        easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
-        fill: "forwards",
-      }
-    );
-
-    const flyAnim = icon.animate(
-      [
-        { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1, offset: 0 },
-        { transform: `translate(${mx}px, ${my}px) scale(0.9)`, opacity: 1, offset: 0.62 },
-        { transform: `translate(${ex}px, ${ey}px) scale(0.36)`, opacity: 0.15, offset: 1 },
-      ],
-      {
-        duration: 640,
-        delay: revealDelays[i] + revealDuration + revealHold + perCoinFlyDelay,
-        easing: "cubic-bezier(0.2, 0.72, 0.28, 1)",
-        fill: "forwards",
-      }
-    );
-
-    revealAnim.onfinish = () => {
-      icon.style.opacity = "1";
-    };
-
-    flyAnim.onfinish = () => {
-      const reward = baseReward + (i === count - 1 ? remainderReward : 0);
-      addCoins(reward);
-      icon.remove();
-    };
-  }
-
-  pendingCoinRewardTotal = 0;
-  resultCoinRewardEnabled = false;
-}
-
-function applyResultLayoutForOutcome(outcome, values) {
-  const rootStyle = document.documentElement.style;
-  if (outcome === "win") {
-    rootStyle.setProperty("--result-card-width", `${values.winResultWidth}px`);
-    rootStyle.setProperty("--result-card-height", `${values.winResultHeight}px`);
-    rootStyle.setProperty("--result-card-y", `${values.winResultY}px`);
-    rootStyle.setProperty("--result-actions-y", `${values.winActionsY}px`);
-    rootStyle.setProperty("--result-actions-scale", String(values.winActionsScale));
-    return;
-  }
-
-  rootStyle.setProperty("--result-card-width", `${values.failResultWidth}px`);
-  rootStyle.setProperty("--result-card-height", `${values.failResultHeight}px`);
-  rootStyle.setProperty("--result-card-y", `${values.failResultY}px`);
-  rootStyle.setProperty("--result-actions-y", `${values.failActionsY}px`);
-  rootStyle.setProperty("--result-actions-scale", String(values.failActionsScale));
-}
-
-function formatResultBody(template, coinGain = 0) {
-  return template
-    .replaceAll("{score}", String(state.score))
-    .replaceAll("{level}", String(state.currentLevelIndex + 1))
-    .replaceAll("{coin}", String(coinGain))
-    .replaceAll("{}", String(coinGain));
-}
-
-function saveAndApplyControls() {
-  const values = collectControlValues();
-  applyControlValues(values);
-  controlPanelBaseline = { ...values };
-  syncControlPanelLabels();
-  try {
-    localStorage.setItem(CONTROL_SAVE_KEY, JSON.stringify(values));
-  } catch (_err) {
-    // ignore save errors
-  }
-  hideControlPanel();
-}
-
-function toggleControlPanel() {
-  if (!controlPanelEl) return;
-  const willOpen = controlPanelEl.classList.contains("hidden");
-  if (willOpen) {
-    controlPanelBaseline = currentControlValues ? { ...currentControlValues } : collectControlValues();
-    setControlInputs(controlPanelBaseline);
-    syncControlPanelLabels();
-    if (controlBlockerEl) controlBlockerEl.classList.remove("hidden");
-    controlPanelEl.classList.remove("hidden");
-    return;
-  }
-  if (controlBlockerEl) controlBlockerEl.classList.add("hidden");
-  controlPanelEl.classList.add("hidden");
-}
-
-function hideControlPanel() {
-  if (!controlPanelEl) return;
-  if (controlBlockerEl) controlBlockerEl.classList.add("hidden");
-  controlPanelEl.classList.add("hidden");
-}
-
-function discardAndHideControlPanel() {
-  if (controlPanelBaseline) {
-    applyControlValues(controlPanelBaseline);
-    setControlInputs(controlPanelBaseline);
-    syncControlPanelLabels();
-  }
-  hideControlPanel();
-}
-
-function showResultPage() {
-  if (!resultPageEl) return;
-  if (battleExitBtn) battleExitBtn.classList.add("hidden");
-  const isWin = state.resultOutcome === "win";
-  const controlValues = currentControlValues || collectControlValues();
-  applyResultLayoutForOutcome(state.resultOutcome, controlValues);
-  pendingCoinRewardTotal = isWin && resultCoinRewardEnabled ? Math.max(0, Math.floor(controlValues.winCoinGain || 0)) : 0;
-  pendingCoinFlyCount = pendingCoinRewardTotal;
-  coinFlyTriggered = false;
-
-  if (winCoinCountUp) {
-    try {
-      winCoinCountUp.reset();
-    } catch (_err) {
-      // ignore animation reset failures
-    }
-    winCoinCountUp = null;
-  }
-
-  if (resultPageTitleEl) {
-    resultPageTitleEl.classList.toggle("is-win", isWin);
-    resultPageTitleEl.classList.toggle("is-lose", !isWin);
-  }
-  resultPageEl.classList.toggle("is-win", isWin);
-  if (coinStatusEl) coinStatusEl.classList.toggle("on-result-win", isWin);
-  if (resultPageTitleTextEl) {
-    resultPageTitleTextEl.textContent = isWin ? controlValues.winTitle : controlValues.failTitle;
-  }
-  if (resultPageTextEl) {
-    if (isWin) {
-      const targetCoin = Math.max(0, Math.floor(controlValues.winCoinGain || 0));
-      resultPageTextEl.classList.add("hidden");
-      if (resultCoinGainEl) {
-        resultCoinGainEl.classList.remove("hidden");
-        resultCoinGainEl.textContent = "+0";
-      }
-
-      winCoinCountUp = new CountUp(resultCoinGainEl || resultPageTextEl, targetCoin, {
-        startVal: 0,
-        duration: 1.4,
-        decimalPlaces: 0,
-        useGrouping: false,
-        formattingFn: (value) => `+${Math.floor(value)}`,
-        onCompleteCallback: () => {
-          maybeStartCoinFlyAnimation();
-        },
-      });
-      if (winCoinCountUp.error) {
-        if (resultCoinGainEl) resultCoinGainEl.textContent = `+${targetCoin}`;
-        maybeStartCoinFlyAnimation();
-      }
-    } else {
-      resultPageTextEl.classList.remove("hidden");
-      resultPageTextEl.textContent = formatResultBody(controlValues.failBody);
-      if (resultCoinGainEl) resultCoinGainEl.classList.add("hidden");
-    }
-  }
-
-  if (resultCoinIconEl) resultCoinIconEl.classList.toggle("hidden", !isWin);
-
-  const hasNext = state.currentLevelIndex + 1 < LEVELS.length;
-  if (resultRetryBtn) resultRetryBtn.classList.toggle("hidden", isWin);
-  if (resultExitBtn) resultExitBtn.classList.remove("hidden");
-  if (resultNextBtn) resultNextBtn.classList.toggle("hidden", !isWin || !hasNext);
-
-  if (resultMaskEl) resultMaskEl.classList.remove("hidden");
-  resultPageEl.classList.remove("hidden");
-
-  if (isWin && winCoinCountUp && !winCoinCountUp.error) {
-    requestAnimationFrame(() => {
-      if (winCoinCountUp) winCoinCountUp.start();
-    });
-  }
-}
-
-function showFailResultPreview() {
-  state.resultOutcome = "lose";
-  resultCoinRewardEnabled = false;
-  showResultPage();
-}
-
-function showWinResultPreview() {
-  state.resultOutcome = "win";
-  resultCoinRewardEnabled = false;
-  showResultPage();
-}
-
-function passCurrentLevelAndShowWinResult() {
-  markLevelPassed(state.currentLevelIndex + 1);
-  state.resultOutcome = "win";
-  resultCoinRewardEnabled = true;
-  hideControlPanel();
-  showResultPage();
-}
-
-function hideResultPage() {
-  if (!resultPageEl) return;
-  if (state.resultOutcome === "win" && resultCoinRewardEnabled) maybeStartCoinFlyAnimation();
-  if (winCoinCountUp) {
-    try {
-      winCoinCountUp.reset();
-    } catch (_err) {
-      // ignore animation reset failures
-    }
-    winCoinCountUp = null;
-  }
-  resultPageEl.classList.add("hidden");
-  if (resultMaskEl) resultMaskEl.classList.add("hidden");
-  if (coinStatusEl) coinStatusEl.classList.remove("on-result-win");
-  if (resultCoinGainEl) resultCoinGainEl.classList.add("hidden");
-}
-
-function resetSliceSessionState() {
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  clearQueuedSelections();
-  state.sliceHitIds.clear();
-  state.sliceQueue.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-}
-
-function resetRoundVisualState() {
-  if (trail) trail.reset();
-  if (particles) particles.reset();
-}
-
-function prepareGameplayView() {
-  gameOverEl.classList.add("hidden");
-  startScreenEl.classList.add("hidden");
-  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
-}
-
-function clearLadderReturnDelayTimer() {
-  if (!ladderReturnDelayTimer) return;
-  clearTimeout(ladderReturnDelayTimer);
-  ladderReturnDelayTimer = 0;
-}
-
-function scheduleLadderReturnTransition() {
-  startButtonTransitionLocked = true;
-  renderLadderProgress(startScreenHistoryProgressLevel);
-  clearLadderReturnDelayTimer();
-  ladderReturnDelayTimer = window.setTimeout(() => {
-    animateLadderFromHistoryToCurrent();
-    ladderReturnDelayTimer = 0;
-  }, LADDER_RETURN_DELAY_MS);
-}
-
-function retryFromResultPage() {
-  hideResultPage();
-
-  state.started = true;
-  state.gameOver = false;
   state.levelTransitioning = false;
-  resetSliceSessionState();
-  resetRoundVisualState();
-  prepareGameplayView();
-
-  loadLevel(state.currentLevelIndex);
-}
-
-function exitToStartScreen() {
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  resetSliceSessionState();
-  resetRoundVisualState();
-  for (const fruit of fruits) {
-    scene.remove(fruit.group);
-  }
-  fruits.length = 0;
-
-  gameOverEl.classList.add("hidden");
-  startScreenEl.classList.remove("hidden");
-  if (battleExitBtn) battleExitBtn.classList.add("hidden");
-}
-
-function exitToStartFromBattle() {
-  if (!state.started || state.gameOver || state.levelTransitioning) return;
-  hideControlPanel();
-  exitToStartScreen();
-  scheduleLadderReturnTransition();
-}
-
-function exitToStartFromResultPage() {
-  hideResultPage();
-  exitToStartScreen();
-  scheduleLadderReturnTransition();
-}
-
-function goToNextLevelFromResultPage() {
-  const next = state.currentLevelIndex + 1;
-  if (next >= LEVELS.length) {
-    exitToStartFromResultPage();
-    return;
-  }
-
-  hideResultPage();
-
-  state.started = true;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  resetSliceSessionState();
-  resetRoundVisualState();
-  prepareGameplayView();
-
-  loadLevel(next);
+  loadLevel(index);
+  if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
+  gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
 }
 
 async function setupRenderer() {
   renderer = await createRenderer();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x000000, 0);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   appEl.appendChild(renderer.domElement);
   resize();
 
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
-  particles = new JuiceParticles(680);
   scene.add(trail.mesh);
-  scene.add(particles.points);
 
-  applyControlValues(collectControlValues());
-  syncControlPanelLabels();
+  if (state.inHome) {
+    renderHomeScreen();
+  }
 
   renderer.setAnimationLoop(tick);
 }
@@ -1228,9 +1115,9 @@ async function createRenderer() {
     throw new Error("WebGPU is not supported in this browser.");
   }
 
-  const webgpu = new THREE.WebGPURenderer({ antialias: true, alpha: true });
+  const webgpu = new THREE.WebGPURenderer({ antialias: true, forceWebGL: false });
   await webgpu.init();
-  if (titleEl) titleEl.textContent = "刀切水果 (WebGPU)";
+  if (titleEl) titleEl.textContent = "切泡泡 (WebGPU)";
   return webgpu;
 }
 
@@ -1247,66 +1134,97 @@ function showWebGpuUnsupported() {
 }
 
 function startGame() {
-  if (startButtonTransitionLocked) return;
-  clearLadderReturnDelayTimer();
-  readGameSave();
-  const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
-  if (Math.floor(state.maxPassedLevel) > totalLevels) {
-    showStartToast("已通关全部关卡", 1200);
-    return;
-  }
-  startScreenHistoryProgressLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
-  hideResultPage();
-  hideControlPanel();
+  gameAudio.ensureAudioUnlocked();
+  void gameAudio.preloadPopAudio();
+  gameAudio.resetSelectToneProgression();
+
+  const startIndex = clampLevelIndex(state.currentPlayableLevelIndex);
 
   state.started = true;
   state.gameOver = false;
+  state.inHome = false;
   state.levelTransitioning = false;
-  state.currentLevelIndex = Math.min(Math.max(state.maxPassedLevel - 1, 0), Math.max(LEVELS.length - 1, 0));
+  state.currentLevelIndex = startIndex;
   state.activeLevel = null;
-  state.resultOutcome = "lose";
-  state.score = 0;
-  resetSliceSessionState();
-  resetRoundVisualState();
+  state.pointerDown = false;
+  state.sliceColorId = null;
+  state.sliceBroken = false;
+  state.sliceCommitted = false;
+  clearQueuedSelections();
+  state.sliceHitIds.clear();
+  state.sliceQueue.length = 0;
+  state.pendingPops.length = 0;
+  state.lastPoint = null;
+  state.nowPoint = null;
+  state.stepLimit = 0;
+  state.stepsUsed = 0;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  levelFlow.reset();
+  burstSystem.clear();
+  victoryRainSystem.reset();
 
-  startScreenEl.classList.add("hidden");
-  gameOverEl.classList.add("hidden");
-  if (battleExitBtn) battleExitBtn.classList.remove("hidden");
+  trail.reset();
 
-  updateHud();
-  loadLevel(state.currentLevelIndex);
+  hideHomeScreen();
+  gameUI.hideGameOver();
+  gameUI.closeResult();
+
+  if (hasBubbleTuningOverride) {
+    gameUI.showCommentary("已应用调试页同步参数。", 1300);
+  }
+
+  const loaded = loadLevel(startIndex);
+  if (!loaded) {
+    state.started = false;
+    state.inHome = true;
+    showHomeScreen();
+    gameUI.showCommentary("关卡加载失败，请重试。", 1200);
+  }
 }
 
 function loadLevel(index) {
-  const baseLevel = LEVELS[index];
-  if (!baseLevel) return;
-  const level = normalizeLevelDefinition(baseLevel, index);
+  const level = levelRuntime.getNormalizedLevel(index);
+  if (!level) return false;
 
   state.currentLevelIndex = index;
+  state.selectedHomeLevelIndex = index;
   state.activeLevel = level;
   state.levelTransitioning = false;
   state.pointerDown = false;
   state.sliceColorId = null;
   state.sliceBroken = false;
   state.sliceCommitted = false;
+  gameAudio.resetSelectToneProgression();
   clearQueuedSelections();
+  state.pendingPops.length = 0;
   state.lastPoint = null;
   state.nowPoint = null;
+  state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
+  state.stepsUsed = 0;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  levelFlow.reset();
+  burstSystem.clear();
+  victoryRainSystem.reset();
+  setLevelTestSelection(index);
+  updateStepsHud();
 
   trail.reset();
-  particles.reset();
 
-  setSliceStatus(`状态: 第${index + 1}关`);
-  showCommentary(
-    `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount}（R随机/S保存/E导出）`,
-    2400,
-    true
+  gameUI.setSliceStatus(`状态: 第${index + 1}关`);
+  gameUI.showCommentary(
+    `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount} · 步数${state.stepLimit}`,
+    2400
   );
 
   resetFruits(level);
+  return true;
 }
 
 function resetFruits(level) {
+  burstSystem.clear();
+  state.pendingPops.length = 0;
   for (const fruit of fruits) scene.remove(fruit.group);
   fruits.length = 0;
 
@@ -1314,18 +1232,18 @@ function resetFruits(level) {
   for (let i = 0; i < defs.length; i += 1) {
     const def = defs[i];
     const colorIndex = THREE.MathUtils.clamp(def.colorId, 0, colors.length - 1);
-    const fruit = new FruitEntity({
+    const fruit = new BubbleEntity({
       id: i,
       colorId: colorIndex,
-      radius: THREE.MathUtils.clamp(def.radius ?? 0.42, 0.28, 0.62),
+      radius: THREE.MathUtils.clamp(def.radius ?? 0.42, 0.84, 1.86),
       vx: def.vx ?? 0,
       vy: def.vy ?? 0,
-      peel: new THREE.Color(colors[colorIndex].peel),
-      flesh: new THREE.Color(colors[colorIndex].flesh),
+      baseColor: new THREE.Color(colors[colorIndex].base),
     });
+    const spawnMargin = fruit.radius + 0.06;
     fruit.setPosition(
-      THREE.MathUtils.clamp(def.x, bounds.left + 0.45, bounds.right - 0.45),
-      THREE.MathUtils.clamp(def.y, bounds.bottom + 0.45, bounds.top - 0.45),
+      THREE.MathUtils.clamp(def.x, bounds.left + spawnMargin, bounds.right - spawnMargin),
+      THREE.MathUtils.clamp(def.y, bounds.bottom + spawnMargin, bounds.top - spawnMargin),
       0
     );
     fruits.push(fruit);
@@ -1333,373 +1251,16 @@ function resetFruits(level) {
   }
 }
 
-function onEditorHotkey(ev) {
-  if (!state.started || state.gameOver || state.levelTransitioning) return;
-  if (ev.repeat) return;
-
-  const key = ev.key.toLowerCase();
-  if (key === "r") {
-    ev.preventDefault();
-    randomizeCurrentLevelLayout();
-  } else if (key === "s") {
-    ev.preventDefault();
-    saveCurrentLevelLayout();
-  } else if (key === "e") {
-    ev.preventDefault();
-    void exportSavedLayouts();
-  }
-}
-
-function randomizeCurrentLevelLayout() {
-  if (!state.activeLevel) return;
-
-  const seed = nextEditorSeed();
-  const template = state.activeLevel;
-
-  const randomized = generateRandomFruits({
-    seed,
-    fruitCount: template.fruitCount,
-    colorCounts: template.colorCounts,
-    radiusMin: template.radiusRange.min,
-    radiusMax: template.radiusRange.max,
-    speedMin: template.speedRange.min,
-    speedMax: template.speedRange.max,
-  });
-
-  state.activeLevel = {
-    ...template,
-    seed,
-    name: `${template.name}·随机`,
-    fruits: randomized,
-  };
-
-  clearQueuedSelections();
-  trail.reset();
-  particles.reset();
-  state.pointerDown = false;
-  state.lastPoint = null;
-  state.nowPoint = null;
-
-  resetFruits(state.activeLevel);
-  showCommentary(`已生成随机布局 seed=${seed}（颜色${template.colorIds.length}种/数量${template.fruitCount}）按 S 保存`, 1900);
-}
-
-function saveCurrentLevelLayout() {
-  if (!state.activeLevel) return;
-
-  const candidateIndex = levelEditor.savedLayouts.length + 1;
-  const candidate = {
-    id: candidateIndex,
-    name: `L${state.currentLevelIndex + 1}-候选${candidateIndex}`,
-    targetScore: state.activeLevel.targetScore,
-    seed: state.activeLevel.seed,
-    fruitCount: state.activeLevel.fruitCount,
-    colorIds: [...state.activeLevel.colorIds],
-    colorCounts: state.activeLevel.colorCounts.map((item) => ({ colorId: item.colorId, count: item.count })),
-    radiusRange: [round3(state.activeLevel.radiusRange.min), round3(state.activeLevel.radiusRange.max)],
-    speedRange: [round3(state.activeLevel.speedRange.min), round3(state.activeLevel.speedRange.max)],
-    fruits: state.activeLevel.fruits.map(roundFruitDef),
-  };
-
-  levelEditor.savedLayouts.push(candidate);
-  window.__FRUIT_LEVEL_CANDIDATES__ = levelEditor.savedLayouts;
-  showCommentary(`已保存候选 ${candidateIndex}，按 E 导出数据`, 1600);
-}
-
-async function exportSavedLayouts() {
-  if (!levelEditor.savedLayouts.length) {
-    showCommentary("还没有已保存候选，先按 S 保存一个。", 1400);
+function onPointerDown(ev) {
+  if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+  if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
+    gameUI.showCommentary("本关步数已用尽。", 1000);
     return;
   }
 
-  const payload = JSON.stringify(levelEditor.savedLayouts, null, 2);
-  const filename = `level-candidates-${Date.now()}.json`;
-  let copied = false;
-
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(payload);
-      copied = true;
-    }
-  } catch (_err) {
-    // ignore clipboard failure; file download still works
-  }
-
-  const blob = new Blob([payload], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-
-  const copyTip = copied ? "并复制到剪贴板" : "请在下载文件中查看";
-  showCommentary(`已导出 ${levelEditor.savedLayouts.length} 份候选（${copyTip}）`, 1800);
-}
-
-function normalizeLevelDefinition(level, index) {
-  const fruitsDef = Array.isArray(level.fruits) ? level.fruits : [];
-  const parsedColorCounts = normalizeColorCounts(level.colorCounts);
-  const hasColorCounts = parsedColorCounts.length > 0;
-  const fruitCountFromCounts = hasColorCounts ? sumColorCounts(parsedColorCounts) : 0;
-  const fallbackFruitCount = fruitsDef.length > 0 ? fruitsDef.length : 20;
-  const fruitCount = hasColorCounts ? fruitCountFromCounts : Math.max(4, Math.floor(level.fruitCount ?? fallbackFruitCount));
-  const colorIds = hasColorCounts ? parsedColorCounts.map((item) => item.colorId) : normalizeColorIds(level.colorIds, fruitsDef);
-  const colorCounts = hasColorCounts ? parsedColorCounts : buildEvenColorCounts(colorIds, fruitCount);
-  const radiusRange = normalizeRange(level.radiusRange, inferRadiusRangeFromFruits(fruitsDef), 0.28, 0.62);
-  const speedRange = normalizeRange(level.speedRange, inferSpeedRangeFromFruits(fruitsDef, index), 0, 0.9);
-  const seed = Math.floor(level.seed ?? 1000 + (level.id ?? index + 1) * 137);
-
-  const fruits = fruitsDef.length
-    ? fruitsDef.map((f) => ({
-        x: f.x,
-        y: f.y,
-        colorId: f.colorId,
-        radius: f.radius,
-        vx: f.vx ?? 0,
-        vy: f.vy ?? 0,
-      }))
-    : generateRandomFruits({
-        seed,
-        fruitCount,
-        colorCounts,
-        radiusMin: radiusRange.min,
-        radiusMax: radiusRange.max,
-        speedMin: speedRange.min,
-        speedMax: speedRange.max,
-      });
-
-  return {
-    id: level.id,
-    name: level.name,
-    targetScore: level.targetScore,
-    seed,
-    fruitCount,
-    colorIds,
-    colorCounts,
-    radiusRange,
-    speedRange,
-    fruits,
-  };
-}
-
-function nextEditorSeed() {
-  levelEditor.lastSeed += 1;
-  return levelEditor.lastSeed;
-}
-
-function normalizeColorIds(colorIds, fruitsDef) {
-  if (Array.isArray(colorIds) && colorIds.length) {
-    const valid = [];
-    for (const id of colorIds) {
-      const v = Math.floor(id);
-      if (v >= 0 && v < colors.length && !valid.includes(v)) valid.push(v);
-    }
-    if (valid.length) return valid;
-  }
-
-  const set = new Set();
-  for (const def of fruitsDef) set.add(Math.floor(def.colorId));
-  const inferred = [];
-  for (const id of set) {
-    if (id >= 0 && id < colors.length) inferred.push(id);
-  }
-  if (inferred.length) return inferred;
-  return colors.map((_c, idx) => idx);
-}
-
-function normalizeColorCounts(colorCounts) {
-  if (!Array.isArray(colorCounts) || colorCounts.length === 0) return [];
-
-  const merged = new Map();
-  for (const item of colorCounts) {
-    if (!item) continue;
-    const colorId = Math.floor(item.colorId);
-    const count = Math.floor(item.count);
-    if (colorId < 0 || colorId >= colors.length || count <= 0) continue;
-    merged.set(colorId, (merged.get(colorId) ?? 0) + count);
-  }
-
-  const result = [];
-  for (const [colorId, count] of merged.entries()) {
-    result.push({ colorId, count });
-  }
-  result.sort((a, b) => a.colorId - b.colorId);
-  return result;
-}
-
-function sumColorCounts(colorCounts) {
-  let total = 0;
-  for (const item of colorCounts) total += item.count;
-  return total;
-}
-
-function buildEvenColorCounts(colorIds, fruitCount) {
-  const ids = Array.isArray(colorIds) && colorIds.length ? colorIds : colors.map((_c, idx) => idx);
-  const counts = ids.map((colorId) => ({ colorId, count: 0 }));
-  for (let i = 0; i < fruitCount; i += 1) {
-    const idx = i % counts.length;
-    counts[idx].count += 1;
-  }
-  return counts;
-}
-
-function inferRadiusRangeFromFruits(fruitsDef) {
-  let min = Infinity;
-  let max = -Infinity;
-  for (const def of fruitsDef) {
-    min = Math.min(min, def.radius ?? 0.4);
-    max = Math.max(max, def.radius ?? 0.4);
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return { min: 0.34, max: 0.44 };
-  }
-  const lo = Math.min(min, max);
-  const hi = Math.max(min, max);
-  return {
-    min: THREE.MathUtils.clamp(lo, 0.28, 0.58),
-    max: THREE.MathUtils.clamp(hi, 0.3, 0.62),
-  };
-}
-
-function inferSpeedRangeFromFruits(fruitsDef, levelIndex) {
-  let sum = 0;
-  let count = 0;
-  for (const def of fruitsDef) {
-    const vx = def.vx ?? 0;
-    const vy = def.vy ?? 0;
-    sum += Math.hypot(vx, vy);
-    count += 1;
-  }
-  const avg = count > 0 ? sum / count : 0;
-  const base = Math.max(avg + 0.08, 0.14 + levelIndex * 0.04);
-  return {
-    min: 0,
-    max: THREE.MathUtils.clamp(base, 0.12, 0.58),
-  };
-}
-
-function normalizeRange(inputRange, fallbackRange, clampMin, clampMax) {
-  const src = Array.isArray(inputRange) && inputRange.length >= 2 ? { min: inputRange[0], max: inputRange[1] } : fallbackRange;
-  const lo = THREE.MathUtils.clamp(Math.min(src.min, src.max), clampMin, clampMax);
-  const hi = THREE.MathUtils.clamp(Math.max(src.min, src.max), clampMin, clampMax);
-  return { min: lo, max: hi };
-}
-
-function generateRandomFruits({ seed, fruitCount, colorCounts, radiusMin, radiusMax, speedMin, speedMax }) {
-  const rng = createSeededRandom(seed);
-  const fruitsDef = [];
-  const colorBag = buildColorBag(colorCounts, fruitCount);
-  shuffleInPlace(colorBag, rng);
-
-  for (let i = 0; i < fruitCount; i += 1) {
-    const radius = lerp(radiusMin, radiusMax, rng());
-    const margin = radius + 0.06;
-
-    let x = 0;
-    let y = 0;
-    let placed = false;
-    for (let k = 0; k < 180; k += 1) {
-      x = lerp(bounds.left + margin, bounds.right - margin, rng());
-      y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
-
-      let overlap = false;
-      for (const p of fruitsDef) {
-        const minDist = Math.max(0.76, radius + p.radius + 0.08);
-        if (Math.hypot(x - p.x, y - p.y) < minDist) {
-          overlap = true;
-          break;
-        }
-      }
-      if (!overlap) {
-        placed = true;
-        break;
-      }
-    }
-
-    if (!placed) {
-      x = lerp(bounds.left + margin, bounds.right - margin, rng());
-      y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
-    }
-
-    const angle = rng() * Math.PI * 2;
-    const speed = lerp(speedMin, speedMax, rng());
-
-    fruitsDef.push({
-      x,
-      y,
-      colorId: colorBag[i],
-      radius,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-    });
-  }
-
-  return fruitsDef;
-}
-
-function buildColorBag(colorCounts, fruitCount) {
-  const normalized = normalizeColorCounts(colorCounts);
-  const bag = [];
-
-  for (const item of normalized) {
-    for (let i = 0; i < item.count; i += 1) bag.push(item.colorId);
-  }
-
-  if (bag.length === 0) {
-    for (let i = 0; i < fruitCount; i += 1) bag.push(i % colors.length);
-    return bag;
-  }
-
-  if (bag.length > fruitCount) return bag.slice(0, fruitCount);
-  if (bag.length < fruitCount) {
-    const fallbackColor = bag[bag.length - 1] ?? 0;
-    while (bag.length < fruitCount) bag.push(fallbackColor);
-  }
-  return bag;
-}
-
-function roundFruitDef(def) {
-  return {
-    x: round3(def.x),
-    y: round3(def.y),
-    colorId: def.colorId,
-    radius: round3(def.radius),
-    vx: round3(def.vx ?? 0),
-    vy: round3(def.vy ?? 0),
-  };
-}
-
-function round3(value) {
-  return Math.round(value * 1000) / 1000;
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-function shuffleInPlace(arr, rng) {
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
-
-function createSeededRandom(seed) {
-  let t = seed >>> 0;
-  return function rand() {
-    t += 0x6d2b79f5;
-    let r = t;
-    r = Math.imul(r ^ (r >>> 15), r | 1);
-    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function onPointerDown(ev) {
-  if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+  gameAudio.ensureAudioUnlocked();
+  void gameAudio.preloadPopAudio();
+  gameAudio.resetSelectToneProgression();
 
   const rect = renderer.domElement.getBoundingClientRect();
   if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
@@ -1719,7 +1280,7 @@ function onPointerDown(ev) {
 
   trail.reset();
   trail.push(world, state.lastMoveAt);
-  setSliceStatus("状态: 开刀");
+  gameUI.setSliceStatus("状态: 划线中");
 }
 
 function onPointerMove(ev) {
@@ -1731,7 +1292,18 @@ function onPointerMove(ev) {
   state.lastMoveAt = now;
 
   trail.push(state.nowPoint, now);
-  processSliceSegment(dt);
+  sliceSystem.processSliceSegment({
+    state,
+    fruits,
+    dt,
+    trail,
+    consumeStep,
+    settleQueuedSlices,
+    setSliceStatus: gameUI.setSliceStatus,
+    showCommentary: gameUI.showCommentary,
+    resetSelectToneProgression: gameAudio.resetSelectToneProgression,
+    playSelectTone: gameAudio.playSelectTone,
+  });
 }
 
 function onPointerUp() {
@@ -1739,14 +1311,15 @@ function onPointerUp() {
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
+  gameAudio.resetSelectToneProgression();
 
   settleQueuedSlices();
   if (state.keepFullTrailDuringDrag) trail.reset();
 
   if (state.gameOver) return;
-  if (state.sliceBroken) setSliceStatus("状态: 断刀");
-  else if (state.sliceColorId !== null) setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
-  else setSliceStatus("状态: 空挥");
+  if (state.sliceBroken) gameUI.setSliceStatus("状态: 断刀");
+  else if (state.sliceColorId !== null) gameUI.setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
+  else gameUI.setSliceStatus("状态: 空挥");
 
 }
 
@@ -1756,46 +1329,34 @@ function tick() {
   const now = performance.now();
 
   updateTrail(now);
+  processPendingPops(dt);
+  updateHomeBubbles(dt);
 
-  resolveFruitCollisions();
+  collisionSystem.resolve(fruits);
+  burstSystem.update(dt);
+  levelFlow.updateVictory(dt);
 
-  let alive = 0;
+  let remaining = 0;
   for (const fruit of fruits) {
     fruit.update(dt, bounds);
-    if (fruit.active) alive += 1;
+    if (fruit.active && !fruit.sliced) remaining += 1;
   }
 
-  particles.update(dt);
   renderer.render(scene, camera);
 
-  if (state.started && !state.gameOver && alive === 0) {
-    handleLevelCleared();
+  if (levelFlow.updateLevelClear(now, remaining)) return;
+
+  if (
+    state.started
+    && !state.gameOver
+    && state.stepLimit > 0
+    && state.stepsUsed >= state.stepLimit
+    && remaining > 0
+    && !state.pointerDown
+    && state.pendingPops.length === 0
+  ) {
+    endGame(`第${state.currentLevelIndex + 1}关失败：步数用尽`);
   }
-}
-
-function handleLevelCleared() {
-  if (state.gameOver || state.levelTransitioning) return;
-
-  const justCleared = state.currentLevelIndex;
-  markLevelPassed(justCleared + 1);
-  const next = justCleared + 1;
-  const lastLevel = next >= LEVELS.length;
-
-  if (lastLevel) {
-    endGame(`全部${LEVELS.length}关通关`);
-    return;
-  }
-
-  state.levelTransitioning = true;
-  state.pointerDown = false;
-  clearQueuedSelections();
-  trail.reset();
-
-  showCommentary(`第${justCleared + 1}关完成，准备进入第${next + 1}关`, 1200);
-  window.setTimeout(() => {
-    if (!state.started || state.gameOver) return;
-    loadLevel(next);
-  }, 860);
 }
 
 function updateTrail(now) {
@@ -1810,62 +1371,6 @@ function updateTrail(now) {
   if (!state.pointerDown && now - state.lastMoveAt > 320) trail.reset();
 }
 
-function processSliceSegment(dt) {
-  if (!state.pointerDown || state.gameOver || state.sliceBroken || !state.lastPoint || !state.nowPoint) return;
-
-  workA.copy(state.nowPoint).sub(state.lastPoint);
-  const len = workA.length();
-  if (len < rules.minSliceSegment) return;
-
-  const sliceDir = workA.multiplyScalar(1 / len);
-  const speed = Math.min(len / Math.max(dt, 0.001), 14);
-
-  // Follow 1.html style: top-most scan order and first hit wins.
-  const ax = state.lastPoint.x;
-  const ay = state.lastPoint.y;
-  const bx = state.nowPoint.x;
-  const by = state.nowPoint.y;
-  for (let i = fruits.length - 1; i >= 0; i -= 1) {
-    const fruit = fruits[i];
-    if (!fruit.active || fruit.sliced || state.sliceHitIds.has(fruit.id)) continue;
-
-    const dist = distSegmentToPointNumeric(ax, ay, bx, by, fruit.group.position.x, fruit.group.position.y);
-    if (dist > fruit.radius) continue;
-
-    if (state.sliceColorId === null) {
-      if (!state.sliceCommitted) {
-        state.sliceCommitted = true;
-      }
-      state.sliceColorId = fruit.colorId;
-      setSliceStatus(`状态: 锁定${colors[fruit.colorId].name}`);
-      showCommentary(`这刀只切${colors[fruit.colorId].name}。`, 1200);
-    }
-
-    if (fruit.colorId !== state.sliceColorId) {
-      fruit.flashWrongHit();
-      settleQueuedSlices();
-      if (state.keepFullTrailDuringDrag) trail.reset();
-      state.sliceBroken = true;
-      state.pointerDown = false;
-      state.lastPoint = null;
-      state.nowPoint = null;
-      setSliceStatus(`状态: 断刀（碰到${colors[fruit.colorId].name}，已结算）`);
-      showCommentary(`碰到${colors[fruit.colorId].name}，已结算已选水果。`, 1500);
-      return;
-    }
-
-    state.sliceHitIds.add(fruit.id);
-    state.sliceQueue.push({
-      fruit,
-      sliceDir: sliceDir.clone(),
-      speed,
-    });
-    fruit.setSelected(true);
-    setSliceStatus(`状态: 已选${state.sliceHitIds.size}个${colors[state.sliceColorId].name}`);
-    return;
-  }
-}
-
 function settleQueuedSlices() {
   if (!state.sliceQueue.length) return;
 
@@ -1876,17 +1381,34 @@ function settleQueuedSlices() {
     if (!fruit || !fruit.active || fruit.sliced) continue;
 
     fruit.setSelected(false);
-    fruit.slice(entry.sliceDir, entry.speed);
-    particles.spawnBurst(fruit.group.position, entry.sliceDir, fruit.peel);
+    state.pendingPops.push({
+      fruit,
+      sliceDir: entry.sliceDir,
+      speed: entry.speed,
+      delay: gain * slicePopStaggerStep,
+    });
     gain += 1;
   }
 
   clearQueuedSelections();
+}
 
-  if (gain > 0) {
-    const sliceScore = scoring.perFruit * gain + scoring.comboBonusFactor * gain * (gain - 1);
-    state.score += sliceScore;
-    updateHud();
+function processPendingPops(dt) {
+  if (!state.pendingPops.length) return;
+  for (let i = 0; i < state.pendingPops.length; ) {
+    const item = state.pendingPops[i];
+    item.delay -= dt;
+    if (item.delay > 0) {
+      i += 1;
+      continue;
+    }
+
+    const fruit = item.fruit;
+    if (fruit && fruit.active && !fruit.sliced) {
+      fruit.pop(item.sliceDir, item.speed);
+      gameAudio.playRandomPopAudio();
+    }
+    state.pendingPops.splice(i, 1);
   }
 }
 
@@ -1899,52 +1421,16 @@ function clearQueuedSelections() {
   state.sliceHitIds.clear();
 }
 
-function resolveFruitCollisions() {
-  for (let i = 0; i < fruits.length; i += 1) {
-    const d1 = fruits[i];
-    if (!d1.active || d1.sliced) continue;
-    for (let j = i + 1; j < fruits.length; j += 1) {
-      const d2 = fruits[j];
-      if (!d2.active || d2.sliced) continue;
+function consumeStep() {
+  if (state.stepLimit <= 0) return;
+  state.stepsUsed = Math.min(state.stepLimit, state.stepsUsed + 1);
+  updateStepsHud();
+}
 
-      const dx = d2.group.position.x - d1.group.position.x;
-      const dy = d2.group.position.y - d1.group.position.y;
-      let dist = Math.hypot(dx, dy);
-      const minDist = d1.radius + d2.radius;
-      if (dist >= minDist) continue;
-
-      let nx = dx;
-      let ny = dy;
-      if (dist === 0) {
-        nx = 1;
-        ny = 0;
-        dist = 1;
-      }
-
-      nx /= dist;
-      ny /= dist;
-      const overlap = minDist - dist;
-
-      const m1 = d1.radius * d1.radius;
-      const m2 = d2.radius * d2.radius;
-      const totalM = m1 + m2;
-      const r1 = m2 / totalM;
-      const r2 = m1 / totalM;
-
-      d1.group.position.x -= nx * overlap * r1;
-      d1.group.position.y -= ny * overlap * r1;
-      d2.group.position.x += nx * overlap * r2;
-      d2.group.position.y += ny * overlap * r2;
-
-      const kx = d1.vel.x - d2.vel.x;
-      const ky = d1.vel.y - d2.vel.y;
-      const p = (2.0 * (nx * kx + ny * ky)) / (m1 + m2);
-      d1.vel.x -= p * m2 * nx * 0.8;
-      d1.vel.y -= p * m2 * ny * 0.8;
-      d2.vel.x += p * m1 * nx * 0.8;
-      d2.vel.y += p * m1 * ny * 0.8;
-    }
-  }
+function updateStepsHud() {
+  if (!stepsEl) return;
+  const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
+  stepsEl.textContent = `步数: ${remaining}`;
 }
 
 function screenToWorld(clientX, clientY) {
@@ -1959,316 +1445,42 @@ function screenToWorld(clientX, clientY) {
   return workHit.clone();
 }
 
-function distSegmentToPointNumeric(ax, ay, bx, by, px, py) {
-  const abx = bx - ax;
-  const aby = by - ay;
-  const ab2 = abx * abx + aby * aby;
-  if (ab2 < 1e-6) return Math.hypot(px - ax, py - ay);
-
-  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / ab2));
-  const cx = ax + abx * t;
-  const cy = ay + aby * t;
-  return Math.hypot(px - cx, py - cy);
-}
-
 function resize() {
-  if (!renderer) return;
+  if (!renderer) {
+    return;
+  }
+  updatePhoneAspect();
   const rect = appEl.getBoundingClientRect();
   renderer.setSize(rect.width, rect.height, false);
 
   const aspect = rect.width / rect.height;
-  const worldHalfH = rules.worldHeight / 2;
-  const worldHalfW = worldHalfH * aspect;
-
-  camera.left = -worldHalfW;
-  camera.right = worldHalfW;
-  camera.top = worldHalfH;
-  camera.bottom = -worldHalfH;
-  camera.near = 0.1;
-  camera.far = 50;
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
 
-  bounds.left = camera.left + 0.5;
-  bounds.right = camera.right - 0.5;
-  bounds.top = camera.top - 0.5;
-  bounds.bottom = camera.bottom + 0.5;
-
+  const worldHalfH = rules.worldHeight / 2;
+  const worldHalfW = worldHalfH * aspect;
+  bounds.left = -worldHalfW + rules.playAreaInset;
+  bounds.right = worldHalfW - rules.playAreaInset;
+  bounds.top = worldHalfH - rules.playAreaInset;
+  bounds.bottom = -worldHalfH + rules.playAreaInset;
+  levelRuntime.clearCache();
 }
 
-function updateHud() {
-  if (scoreEl) scoreEl.textContent = `分数: ${state.score}`;
-}
+function updatePhoneAspect() {
+  if (!phoneFrameEl) return;
 
-function setSliceStatus(text) {
-  if (!sliceStateEl) return;
-  sliceStateEl.textContent = text;
-}
+  const visualViewport = window.visualViewport;
+  const viewportWidth = visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = visualViewport?.height ?? window.innerHeight;
+  if (!viewportWidth || !viewportHeight) return;
 
-function showCommentary(text, durationMs, useGoldenPosition = false) {
-  commentaryEl.classList.toggle("is-golden-position", !!useGoldenPosition);
-  commentaryEl.textContent = text;
-  commentaryEl.classList.add("show");
-  if (commentaryTimer) clearTimeout(commentaryTimer);
-  commentaryTimer = window.setTimeout(() => {
-    commentaryEl.classList.remove("show");
-    commentaryEl.classList.remove("is-golden-position");
-  }, durationMs);
-}
+  const rawAspect = viewportWidth / viewportHeight;
+  const shouldLockToIphonePreview = viewportWidth >= desktopAspectSwitchWidth;
+  const targetAspect = shouldLockToIphonePreview
+    ? iphoneAspectBase
+    : THREE.MathUtils.clamp(rawAspect, portraitAspectMin, portraitAspectMax);
 
-function showStartToast(text, durationMs) {
-  if (!startToastEl) return;
-  startToastEl.textContent = text;
-  startToastEl.classList.add("show");
-  if (startToastTimer) clearTimeout(startToastTimer);
-  startToastTimer = window.setTimeout(() => {
-    startToastEl.classList.remove("show");
-  }, durationMs);
-}
-
-function readGameSave() {
-  let parsed = null;
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) parsed = JSON.parse(raw);
-  } catch (_err) {
-    parsed = null;
-  }
-
-  const value = Number(parsed?.maxPassedLevel);
-  const coins = Number(parsed?.coins);
-  if (!Number.isFinite(value)) {
-    state.maxPassedLevel = 1;
-    state.coins = 16;
-    writeGameSave();
-    startScreenHistoryProgressLevel = 1;
-    renderLadderProgress();
-    updateCoinStatus({ animate: false });
-    return;
-  }
-  state.maxPassedLevel = THREE.MathUtils.clamp(Math.floor(value), 1, SAVE_TOTAL_LEVELS);
-  state.coins = Number.isFinite(coins) ? Math.max(0, Math.floor(coins)) : 16;
-  if (Number(parsed?.totalLevels) !== SAVE_TOTAL_LEVELS) writeGameSave();
-  startScreenHistoryProgressLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, getLadderTotalLevels());
-  renderLadderProgress();
-  updateCoinStatus({ animate: false });
-}
-
-function writeGameSave() {
-  try {
-    localStorage.setItem(
-      SAVE_KEY,
-      JSON.stringify({
-        totalLevels: SAVE_TOTAL_LEVELS,
-        maxPassedLevel: state.maxPassedLevel,
-        coins: Math.max(0, Math.floor(state.coins || 0)),
-      })
-    );
-  } catch (_err) {
-    // ignore save failures
-  }
-}
-
-function markLevelPassed(levelNo) {
-  if (!Number.isFinite(levelNo)) return;
-  const currentLevel = THREE.MathUtils.clamp(Math.floor(levelNo), 1, SAVE_TOTAL_LEVELS);
-  if (currentLevel !== state.maxPassedLevel) return;
-  if (currentLevel >= SAVE_TOTAL_LEVELS) return;
-  state.maxPassedLevel = currentLevel + 1;
-  writeGameSave();
-  renderLadderProgress();
-}
-
-function measureLadderStepDistance() {
-  if (!ladderNodes.length) return 0;
-  const visible = ladderNodes
-    .filter((node) => !node.classList.contains("hidden"))
-    .map((node) => node.getBoundingClientRect())
-    .sort((a, b) => a.top - b.top);
-
-  if (visible.length < 2) return 0;
-  return Math.max(0, Math.round(visible[1].top - visible[0].top));
-}
-
-function animateLadderFromHistoryToCurrent() {
-  const totalLevels = getLadderTotalLevels();
-  const fromProgress = THREE.MathUtils.clamp(Math.floor(startScreenHistoryProgressLevel || 1), 1, totalLevels);
-  const toProgress = Math.max(1, Math.floor(state.maxPassedLevel));
-
-  const finishLadderReturnTransition = () => {
-    startButtonTransitionLocked = false;
-    updateStartButtonState(totalLevels);
-  };
-
-  renderLadderProgress(fromProgress);
-
-  if (!ladderNodesEl || ladderReturnAnimating) {
-    renderLadderProgress();
-    finishLadderReturnTransition();
-    return;
-  }
-
-  const fromState = getLadderPresentation(fromProgress, totalLevels);
-  const toState = getLadderPresentation(toProgress, totalLevels);
-  const stepShift = toState.startLevel - fromState.startLevel;
-
-  if (stepShift === 0) {
-    renderLadderProgress();
-    finishLadderReturnTransition();
-    return;
-  }
-
-  const stepDistance = measureLadderStepDistance();
-  if (stepDistance <= 0) {
-    renderLadderProgress();
-    finishLadderReturnTransition();
-    return;
-  }
-
-  ladderReturnAnimating = true;
-  const deltaY = stepDistance * stepShift;
-  const anim = ladderNodesEl.animate(
-    [{ transform: "translateY(0px)" }, { transform: `translateY(${deltaY}px)` }],
-    {
-      duration: Math.min(420, 170 + Math.abs(stepShift) * 70),
-      easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
-      fill: "none",
-    }
-  );
-
-  anim.onfinish = () => {
-    renderLadderProgress();
-    ladderReturnAnimating = false;
-    finishLadderReturnTransition();
-  };
-  anim.oncancel = () => {
-    renderLadderProgress();
-    ladderReturnAnimating = false;
-    finishLadderReturnTransition();
-  };
-}
-
-function advanceStartScreenLevelFromControl() {
-  if (ladderAdvanceAnimating || ladderReturnAnimating) return;
-  const totalLevels = Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length));
-  const currentLevel = THREE.MathUtils.clamp(Math.floor(state.maxPassedLevel), 1, totalLevels);
-
-  if (currentLevel >= totalLevels) {
-    if (Math.floor(state.maxPassedLevel) <= totalLevels) {
-      state.maxPassedLevel = Math.min(SAVE_TOTAL_LEVELS, totalLevels + 1);
-      writeGameSave();
-      renderLadderProgress();
-    }
-    return;
-  }
-
-  const commitAdvance = () => {
-    markLevelPassed(currentLevel);
-  };
-
-  if (!startScreenEl || startScreenEl.classList.contains("hidden") || !ladderNodesEl) {
-    commitAdvance();
-    return;
-  }
-
-  if (currentLevel < 3 || currentLevel > totalLevels - 3) {
-    commitAdvance();
-    return;
-  }
-
-  const stepDistance = measureLadderStepDistance();
-  if (stepDistance <= 0) {
-    commitAdvance();
-    return;
-  }
-
-  ladderAdvanceAnimating = true;
-  const anim = ladderNodesEl.animate(
-    [
-      { transform: "translateY(0px)" },
-      { transform: `translateY(${stepDistance}px)` },
-    ],
-    {
-      duration: 220,
-      easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
-      fill: "none",
-    }
-  );
-
-  anim.onfinish = () => {
-    commitAdvance();
-    ladderAdvanceAnimating = false;
-  };
-  anim.oncancel = () => {
-    ladderAdvanceAnimating = false;
-  };
-}
-
-function updateStartButtonState(totalLevels) {
-  if (!startBtn) return;
-  const allCleared = Math.floor(state.maxPassedLevel) > totalLevels;
-  startBtn.classList.toggle("is-all-cleared", allCleared);
-  startBtn.textContent = allCleared ? "敬请期待" : "开始";
-  startBtn.disabled = startButtonTransitionLocked;
-  startBtn.setAttribute("aria-disabled", allCleared || startButtonTransitionLocked ? "true" : "false");
-}
-
-function getLadderTotalLevels() {
-  return Math.max(1, Math.min(SAVE_TOTAL_LEVELS, LEVELS.length, ladderNodes.length));
-}
-
-function getLadderPresentation(progressLevel, totalLevels) {
-  const normalizedProgress = Math.max(1, Math.floor(progressLevel || 1));
-  const visibleCount = Math.min(5, totalLevels);
-  const hasNextLevel = normalizedProgress <= totalLevels;
-  const nextLevel = hasNextLevel ? THREE.MathUtils.clamp(normalizedProgress, 1, totalLevels) : null;
-  const anchorLevel = hasNextLevel ? nextLevel : totalLevels;
-  const maxStartLevel = Math.max(1, totalLevels - visibleCount + 1);
-
-  let startLevel = 1;
-  if (anchorLevel < 3) {
-    startLevel = 1;
-  } else if (anchorLevel > totalLevels - 3) {
-    startLevel = maxStartLevel;
-  } else {
-    startLevel = anchorLevel - 2;
-  }
-
-  return {
-    visibleCount,
-    hasNextLevel,
-    nextLevel,
-    startLevel: THREE.MathUtils.clamp(startLevel, 1, maxStartLevel),
-  };
-}
-
-function renderLadderProgress(progressLevelOverride = null) {
-  if (!ladderNodes.length) return;
-  const totalLevels = getLadderTotalLevels();
-  const progressLevel = progressLevelOverride === null ? Math.floor(state.maxPassedLevel) : Math.floor(progressLevelOverride);
-  const { visibleCount, hasNextLevel, nextLevel, startLevel } = getLadderPresentation(progressLevel, totalLevels);
-
-  for (let i = 0; i < ladderNodes.length; i += 1) {
-    const node = ladderNodes[i];
-    const levelNo = startLevel + i;
-    const labelEl = node.querySelector("span");
-
-    node.classList.remove("is-passed", "is-current", "hidden");
-
-    if (i >= visibleCount || levelNo > totalLevels) {
-      node.classList.add("hidden");
-      continue;
-    }
-
-    if (labelEl) labelEl.textContent = String(levelNo);
-
-    if (!hasNextLevel || levelNo < nextLevel) {
-      node.classList.add("is-passed");
-    } else if (hasNextLevel && levelNo === nextLevel) {
-      node.classList.add("is-current");
-    }
-  }
-
-  updateStartButtonState(totalLevels);
+  document.documentElement.style.setProperty("--phone-aspect-live", `${targetAspect}`);
 }
 
 function endGame(reason) {
@@ -2276,103 +1488,175 @@ function endGame(reason) {
   state.gameOver = true;
   state.levelTransitioning = false;
   state.pointerDown = false;
+  levelFlow.reset();
+  burstSystem.clear();
   clearQueuedSelections();
+  state.pendingPops.length = 0;
+  victoryRainSystem.reset();
   trail.reset();
 
-  if (reason.startsWith("全部")) {
-    state.resultOutcome = "win";
-    resultCoinRewardEnabled = true;
-    if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `恭喜通关！总分 ${state.score}`;
-    else gameOverTitleEl.textContent = `恭喜通关！总分 ${state.score}`;
-  } else {
-    state.resultOutcome = "lose";
-    resultCoinRewardEnabled = false;
-    if (gameOverTitleTextEl) gameOverTitleTextEl.textContent = `本局结束！本局分数 ${state.score}`;
-    else gameOverTitleEl.textContent = `本局结束！本局分数 ${state.score}`;
-  }
-  gameOverEl.classList.add("hidden");
-  showResultPage();
-  setSliceStatus(`状态: ${reason}`);
+  gameUI.openResult("lose", {
+    level: state.currentLevelIndex + 1,
+    score: Math.max(0, state.stepLimit - state.stepsUsed),
+    reward: 0,
+    canNext: false,
+    isFinal: false,
+  });
+  gameUI.setSliceStatus(`状态: ${reason}`);
 }
 
-class FruitEntity {
-  constructor({ id, colorId, radius, vx = 0, vy = 0, peel, flesh }) {
+function createBubbleMaterial(baseColor) {
+  const accentColor = baseColor.clone().offsetHSL(0, -0.12, 0.26);
+  const springUniform = uniform(0);
+  const crackGlowUniform = uniform(0);
+  const contactDirUniform = uniform(new THREE.Vector3(1, 0, 0));
+  const contactStrengthUniform = uniform(0);
+  const tintUniform = uniform(baseColor.clone());
+  const accentUniform = uniform(accentColor.clone());
+
+  const flowSpeedUniform = uniform(bubbleTuning.flow);
+  const wobbleAmplitudeUniform = uniform(bubbleTuning.wobble);
+  const dyeContrastUniform = uniform(bubbleTuning.dye);
+  const edgeGlowUniform = uniform(bubbleTuning.edge);
+  const iridescenceUniform = uniform(bubbleTuning.iri);
+  const dyeEnabledUniform = uniform(bubbleTuning.toggleDye ? 1.0 : 0.0);
+  const edgeEnabledUniform = uniform(bubbleTuning.toggleEdge ? 1.0 : 0.0);
+  const iridescenceEnabledUniform = uniform(bubbleTuning.toggleIri ? 1.0 : 0.0);
+  const iridescenceBaseUniform = uniform(90.0);
+  const iridescenceSpanUniform = uniform(520.0);
+
+  const material = new THREE.MeshPhysicalNodeMaterial({
+    transmission: bubbleTuning.transmission,
+    thickness: 1.35,
+    roughness: bubbleTuning.roughness,
+    metalness: 0.0,
+    clearcoat: bubbleTuning.clearcoat,
+    clearcoatRoughness: 0.16,
+    ior: 1.2,
+    envMapIntensity: 0.72,
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  const flow = time.mul(flowSpeedUniform);
+  const rippleA = positionLocal.x.mul(2.9).add(flow).sin();
+  const rippleB = positionLocal.y.mul(3.2).add(flow.mul(1.18)).cos();
+  const rippleC = positionLocal.z.mul(2.5).add(flow.mul(0.86)).sin();
+  const wobble = rippleA.add(rippleB).add(rippleC).mul(wobbleAmplitudeUniform);
+
+  const dyeA = positionLocal.x.mul(3.6).add(flow.mul(0.66)).sin();
+  const dyeB = positionLocal.y.mul(4.1).add(flow.mul(0.93)).cos();
+  const dyeC = positionLocal.z.mul(3.1).add(flow.mul(0.53)).sin();
+  const dyeMix = dyeA.add(dyeB).add(dyeC).mul(0.34).add(0.5).clamp(0.0, 1.0);
+
+  const squishX = springUniform.mul(0.52).add(1.0);
+  const squishY = springUniform.mul(-1.02).add(1.0);
+  const squishZ = springUniform.mul(0.52).add(1.0);
+
+  const contactMask = normalLocal.dot(contactDirUniform).max(0.0);
+  const contactDent = contactDirUniform.mul(contactMask.mul(contactStrengthUniform).mul(-0.32));
+
+  material.positionNode = positionLocal
+    .add(normalLocal.mul(wobble))
+    .add(contactDent)
+    .mul(vec3(squishX, squishY, squishZ));
+
+  const dyeBlend = dyeMix.pow(dyeContrastUniform);
+  const dyeColor = tintUniform.mix(accentUniform, dyeBlend);
+  material.colorNode = tintUniform.mix(dyeColor, dyeEnabledUniform);
+
+  const viewDot = normalView.dot(positionViewDirection.negate()).abs().clamp(0.0, 1.0);
+  const edgeGlow = viewDot.mul(-1.0).add(1.0).pow(2.8);
+  material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform.add(crackGlowUniform)).mul(edgeEnabledUniform));
+
+  material.iridescenceNode = iridescenceUniform.mul(iridescenceEnabledUniform);
+  material.iridescenceIORNode = uniform(1.3);
+  material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iridescenceBaseUniform);
+
+  return {
+    material,
+    springUniform,
+    crackGlowUniform,
+    contactDirUniform,
+    contactStrengthUniform,
+    tintUniform,
+    accentUniform,
+  };
+}
+
+class BubbleEntity {
+  constructor({ id, colorId, radius, vx = 0, vy = 0, baseColor }) {
     this.id = id;
     this.colorId = colorId;
     this.radius = radius;
-    this.peel = peel;
-    this.flesh = flesh;
-
+    this.baseColor = baseColor.clone();
     this.active = true;
     this.sliced = false;
     this.life = 0;
     this.selected = false;
-    this.selectedPulse = 0;
     this.wrongFlash = 0;
     this.wrongShake = 0;
+    this.selectionScale = 1;
+    this.selectionTarget = 1;
+    this.selectionVel = 0;
 
     this.vel = new THREE.Vector3(vx, vy, 0);
-    this.velA = new THREE.Vector3();
-    this.velB = new THREE.Vector3();
+    this.springVal = 0;
+    this.springVel = 0;
+    this.springTension = bubbleTuning.springTension;
+    this.springDamping = bubbleTuning.springDamping;
+    this.contactStrength = 0;
+    this.contactDir = new THREE.Vector3(1, 0, 0);
 
     this.group = new THREE.Group();
-    this.whole = this.createWhole();
-    this.halfA = this.createHalf(0, Math.PI);
-    this.halfB = this.createHalf(Math.PI, Math.PI);
+
+    const nodeMaterialData = createBubbleMaterial(baseColor);
+    this.bubbleMaterial = nodeMaterialData.material;
+    this.springUniform = nodeMaterialData.springUniform;
+    this.crackGlowUniform = nodeMaterialData.crackGlowUniform;
+    this.contactDirUniform = nodeMaterialData.contactDirUniform;
+    this.contactStrengthUniform = nodeMaterialData.contactStrengthUniform;
+    this.tintUniform = nodeMaterialData.tintUniform;
+    this.accentUniform = nodeMaterialData.accentUniform;
+    this.baseScale = this.radius / bubbleBaseRadius;
+    this.baseOpacity = 0.9;
+
+    this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
+    this.bubble.scale.setScalar(this.baseScale);
+    this.bubble.userData.fruit = this;
     this.selectRing = this.createSelectRing();
-    this.halfA.visible = false;
-    this.halfB.visible = false;
-    this.group.add(this.whole, this.halfA, this.halfB, this.selectRing);
+
+    this.burstState = BubbleBurstState.IDLE;
+    this.stateElapsed = 0;
+    this.preBurstDuration = 0.09;
+    this.burstDuration = 0.18;
+    this.dissipateDuration = 1.6;
+    this.resetDelay = 0.2;
+    this.preBurstScaleMax = 1.08;
+    this.burstPointsVisible = false;
+
+    this.minBurstBubbleCount = 2;
+    this.maxBurstBubbleCount = 5;
+    this.activeBurstBubbleCount = 0;
+
+    this.group.add(this.bubble, this.selectRing);
+    this.resetBurstArtifacts();
+    this.setBaseColor(this.baseColor);
   }
 
-  createWhole() {
-    const g = new THREE.Group();
-    const peelDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius, 28),
-      new THREE.MeshStandardMaterial({ color: this.peel, roughness: 0.55, metalness: 0.02 })
-    );
-    const fleshDisk = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.78, 26),
-      new THREE.MeshStandardMaterial({ color: this.flesh, roughness: 0.74, metalness: 0.0 })
-    );
-    fleshDisk.position.z = 0.01;
-
-    const seed = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.08, 10),
-      new THREE.MeshBasicMaterial({ color: 0x3a2b1f })
-    );
-    seed.position.set(this.radius * 0.12, -this.radius * 0.1, 0.02);
-
-    const leaf = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.2, 14, 0, Math.PI),
-      new THREE.MeshBasicMaterial({ color: 0x4ca45f })
-    );
-    leaf.position.set(0, this.radius * 0.92, 0.02);
-
-    g.add(peelDisk, fleshDisk, seed, leaf);
-    return g;
-  }
-
-  createHalf(thetaStart, thetaLength) {
-    const g = new THREE.Group();
-    const peelHalf = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius, 24, thetaStart, thetaLength),
-      new THREE.MeshStandardMaterial({ color: this.peel, roughness: 0.55, metalness: 0.02 })
-    );
-    const fleshHalf = new THREE.Mesh(
-      new THREE.CircleGeometry(this.radius * 0.78, 22, thetaStart, thetaLength),
-      new THREE.MeshStandardMaterial({ color: this.flesh, roughness: 0.74, metalness: 0.0 })
-    );
-    fleshHalf.position.z = 0.01;
-    g.add(peelHalf, fleshHalf);
-    return g;
+  setBaseColor(color) {
+    if (!color) return;
+    this.baseColor.copy(color);
+    const accent = color.clone().offsetHSL(0, -0.12, 0.26);
+    if (this.tintUniform?.value) this.tintUniform.value.copy(color);
+    if (this.accentUniform?.value) this.accentUniform.value.copy(accent);
   }
 
   createSelectRing() {
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(this.radius * 1.03, this.radius * 1.22, 36),
+      new THREE.RingGeometry(1.06, 1.22, 42),
       new THREE.MeshBasicMaterial({
-        color: selectedRingColor,
+        color: 0xff5c5c,
         transparent: true,
         opacity: 0.0,
         depthWrite: false,
@@ -2381,7 +1665,8 @@ class FruitEntity {
       })
     );
     ring.visible = false;
-    ring.position.z = 0.03;
+    ring.scale.setScalar(this.radius);
+    ring.position.z = this.radius * 0.04;
     return ring;
   }
 
@@ -2389,63 +1674,77 @@ class FruitEntity {
     this.group.position.set(x, y, z);
   }
 
-  slice(sliceDir, speed) {
+  pop(sliceDir, speed) {
+    if (this.sliced) return;
     this.setSelected(false);
     this.sliced = true;
     this.life = 0;
-    this.whole.visible = false;
-    this.halfA.visible = true;
-    this.halfB.visible = true;
-    this.halfA.position.set(0, 0, 0);
-    this.halfB.position.set(0, 0, 0);
-
-    const angle = Math.atan2(sliceDir.y, sliceDir.x);
-    this.halfA.rotation.z = angle;
-    this.halfB.rotation.z = angle;
-
-    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
-    const force = THREE.MathUtils.clamp(speed * 0.26, 2.2, 5.5);
-    this.velA.copy(normal).multiplyScalar(force).add(new THREE.Vector3(0, 1.1, 0));
-    this.velB.copy(normal).multiplyScalar(-force).add(new THREE.Vector3(0, 1.1, 0));
+    this.wrongFlash = 0;
+    this.wrongShake = 0;
+    this.springVel -= THREE.MathUtils.clamp(speed * 0.05, 0.08, 0.2);
+    this.crackGlowUniform.value = 0.12;
+    this.bubble.visible = true;
+    this.bubble.scale.setScalar(this.baseScale);
+    this.bubbleMaterial.opacity = this.baseOpacity;
+    this.resetBurstArtifacts();
+    this.setBurstState(BubbleBurstState.PRE_BURST);
   }
 
   update(dt, worldBounds) {
     if (!this.active) return;
 
+    this.springVel += (0 - this.springVal) * this.springTension;
+    this.springVel *= this.springDamping;
+    this.springVal += this.springVel;
+    this.springUniform.value = this.springVal;
+    this.contactStrength = Math.max(0, this.contactStrength - dt * 3.2);
+    this.contactStrengthUniform.value = this.contactStrength;
+    this.contactDirUniform.value.copy(this.contactDir);
+
     if (!this.sliced) {
       this.group.position.addScaledVector(this.vel, dt);
 
-      if (this.group.position.x < worldBounds.left + this.radius) {
-        this.group.position.x = worldBounds.left + this.radius;
-        if (this.vel.x < 0) this.vel.x *= -0.5;
+      const leftLimit = worldBounds.left + this.radius;
+      if (this.group.position.x < leftLimit) {
+        const overlap = leftLimit - this.group.position.x;
+        this.group.position.x = leftLimit;
+        if (this.vel.x < 0) this.vel.x = 0;
+        this.vel.y *= wallSlideDamping;
+        this.applyWallContact(1, 0, overlap);
       }
-      if (this.group.position.x > worldBounds.right - this.radius) {
-        this.group.position.x = worldBounds.right - this.radius;
-        if (this.vel.x > 0) this.vel.x *= -0.5;
+
+      const rightLimit = worldBounds.right - this.radius;
+      if (this.group.position.x > rightLimit) {
+        const overlap = this.group.position.x - rightLimit;
+        this.group.position.x = rightLimit;
+        if (this.vel.x > 0) this.vel.x = 0;
+        this.vel.y *= wallSlideDamping;
+        this.applyWallContact(-1, 0, overlap);
       }
-      if (this.group.position.y < worldBounds.bottom + this.radius) {
-        this.group.position.y = worldBounds.bottom + this.radius;
-        if (this.vel.y < 0) this.vel.y *= -0.5;
+
+      const bottomLimit = worldBounds.bottom + this.radius;
+      if (this.group.position.y < bottomLimit) {
+        const overlap = bottomLimit - this.group.position.y;
+        this.group.position.y = bottomLimit;
+        if (this.vel.y < 0) this.vel.y = 0;
+        this.vel.x *= wallSlideDamping;
+        this.applyWallContact(0, 1, overlap);
       }
-      if (this.group.position.y > worldBounds.top - this.radius) {
-        this.group.position.y = worldBounds.top - this.radius;
-        if (this.vel.y > 0) this.vel.y *= -0.5;
+
+      const topLimit = worldBounds.top - this.radius;
+      if (this.group.position.y > topLimit) {
+        const overlap = this.group.position.y - topLimit;
+        this.group.position.y = topLimit;
+        if (this.vel.y > 0) this.vel.y = 0;
+        this.vel.x *= wallSlideDamping;
+        this.applyWallContact(0, -1, overlap);
       }
 
       this.vel.multiplyScalar(0.985);
-      this.whole.rotation.z += dt * 0.35;
+      this.updateSelectionScale(dt);
+      this.bubble.scale.setScalar(this.baseScale * this.selectionScale);
 
-      if (this.selected) {
-        this.selectedPulse += dt * 10;
-        const pulse = 1 + Math.sin(this.selectedPulse) * 0.07;
-        this.selectRing.visible = true;
-        this.selectRing.material.color.setHex(selectedRingColor);
-        this.selectRing.scale.set(pulse, pulse, 1);
-        this.selectRing.material.opacity = 0.52 + Math.sin(this.selectedPulse * 1.4) * 0.16;
-        this.whole.position.set(0, 0, 0);
-        this.selectRing.position.x = 0;
-        this.selectRing.position.y = 0;
-      } else if (this.wrongFlash > 0) {
+      if (this.wrongFlash > 0) {
         this.wrongFlash = Math.max(0, this.wrongFlash - dt);
         this.wrongShake = Math.max(0, this.wrongShake - dt);
         const t = this.wrongFlash / 0.22;
@@ -2457,51 +1756,96 @@ class FruitEntity {
 
         this.selectRing.visible = true;
         this.selectRing.material.color.setHex(0xff5c5c);
-        this.selectRing.scale.set(1.08 + (1 - t) * 0.1, 1.08 + (1 - t) * 0.1, 1);
+        this.selectRing.scale.setScalar(this.radius * (1.08 + (1 - t) * 0.1));
         this.selectRing.material.opacity = 0.28 + t * 0.68;
-        this.whole.position.set(shakeX, shakeY, 0);
-        this.selectRing.position.x = shakeX;
-        this.selectRing.position.y = shakeY;
+        this.bubble.position.set(shakeX, shakeY, 0);
       } else {
         this.selectRing.visible = false;
-        this.whole.position.set(0, 0, 0);
-        this.selectRing.position.x = 0;
-        this.selectRing.position.y = 0;
+        this.bubble.position.set(0, 0, 0);
       }
       return;
     }
 
-    this.life += dt;
-    this.velA.y -= 7 * dt;
-    this.velB.y -= 7 * dt;
-    this.halfA.position.addScaledVector(this.velA, dt);
-    this.halfB.position.addScaledVector(this.velB, dt);
-    this.halfA.rotation.z += dt * 0.8;
-    this.halfB.rotation.z -= dt * 0.8;
+    this.stateElapsed += dt;
 
-    if (this.life > 1.1) {
-      this.setSelected(false);
-      this.wrongFlash = 0;
-      this.active = false;
-      this.group.visible = false;
+    if (this.burstState === BubbleBurstState.PRE_BURST) {
+      const t = Math.min(this.stateElapsed / this.preBurstDuration, 1);
+      const smooth = t * t * (3 - 2 * t);
+      this.bubble.visible = true;
+      this.bubble.scale.setScalar(this.baseScale * (1 + (this.preBurstScaleMax - 1) * smooth));
+      this.crackGlowUniform.value = 0.12 * smooth;
+      this.bubbleMaterial.opacity = this.baseOpacity;
+
+      if (t >= 1) {
+        this.setBurstState(BubbleBurstState.BURST);
+        this.initBurstParticles();
+      }
+      return;
+    }
+
+    if (this.burstState === BubbleBurstState.BURST) {
+      const t = Math.min(this.stateElapsed / this.burstDuration, 1);
+      this.crackGlowUniform.value = (1 - t) * 0.12;
+      this.bubbleMaterial.opacity = Math.max(0, this.baseOpacity * (1 - t * 1.85));
+      this.bubble.scale.setScalar(this.baseScale * (this.preBurstScaleMax + t * 0.03));
+
+      if (t > 0.5) this.bubble.visible = false;
+
+      if (t >= 1) {
+        this.setBurstState(BubbleBurstState.DISSIPATE);
+        this.bubbleMaterial.opacity = 0;
+      }
+      return;
+    }
+
+    if (this.burstState === BubbleBurstState.DISSIPATE) {
+      this.crackGlowUniform.value = 0;
+      this.bubble.visible = false;
+
+      if (this.stateElapsed >= this.dissipateDuration && !this.burstPointsVisible) {
+        this.setBurstState(BubbleBurstState.RESET);
+      }
+      return;
+    }
+
+    if (this.burstState === BubbleBurstState.RESET) {
+      if (this.stateElapsed >= this.resetDelay) {
+        this.active = false;
+        this.group.visible = false;
+      }
+      return;
     }
   }
 
   setSelected(flag) {
     const next = Boolean(flag) && this.active && !this.sliced;
+    const changed = next !== this.selected;
     this.selected = next;
+    this.selectionTarget = next ? 1.05 : 1;
+
+    if (changed && next) {
+      this.selectionScale = Math.max(this.selectionScale, 1.1);
+      this.selectionVel = 0;
+    }
+
     if (!next) {
       this.selectRing.visible = false;
       this.selectRing.material.opacity = 0;
-      this.selectRing.scale.set(1, 1, 1);
-      this.whole.position.set(0, 0, 0);
-      this.selectRing.position.x = 0;
-      this.selectRing.position.y = 0;
-    } else {
-      this.selectedPulse = 0;
-      this.selectRing.material.color.setHex(selectedRingColor);
-      this.selectRing.visible = true;
-      this.selectRing.material.opacity = 0.62;
+      this.selectRing.scale.setScalar(this.radius);
+      this.bubble.position.set(0, 0, 0);
+    }
+  }
+
+  updateSelectionScale(dt) {
+    const spring = 120;
+    const damping = 9;
+    this.selectionVel += (this.selectionTarget - this.selectionScale) * spring * dt;
+    this.selectionVel *= Math.exp(-damping * dt);
+    this.selectionScale += this.selectionVel * dt;
+
+    if (Math.abs(this.selectionTarget - this.selectionScale) < 0.001 && Math.abs(this.selectionVel) < 0.001) {
+      this.selectionScale = this.selectionTarget;
+      this.selectionVel = 0;
     }
   }
 
@@ -2509,6 +1853,33 @@ class FruitEntity {
     if (!this.active || this.sliced) return;
     this.wrongFlash = 0.22;
     this.wrongShake = 0.22;
+  }
+
+  applyContact(nx, ny, overlap) {
+    if (!this.active || this.sliced) return;
+    const strength = THREE.MathUtils.clamp(overlap / Math.max(this.radius * 1.05, 0.001), 0, 0.65);
+    const boost = Math.max(this.contactStrength * 0.7, strength);
+    this.contactStrength = boost;
+    this.contactDir.set(nx, ny, 0).normalize();
+    this.springVel -= boost * 0.09;
+  }
+
+  applyWallContact(nx, ny, overlap) {
+    this.applyContact(nx, ny, overlap * wallContactGain);
+  }
+
+  setBurstState(nextState) {
+    this.burstState = nextState;
+    this.stateElapsed = 0;
+  }
+
+  resetBurstArtifacts() {
+    this.activeBurstBubbleCount = 0;
+    this.burstPointsVisible = false;
+  }
+
+  initBurstParticles() {
+    burstSystem.spawnForEntity(this);
   }
 }
 
@@ -2637,108 +2008,6 @@ class SliceTrail {
     this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
     this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
     this.geometry.setIndex(this.indices);
-    this.geometry.setDrawRange(0, 0);
-  }
-}
-
-function onTrailCompareToggleChange(ev) {
-  const enabled = ev?.target?.checked !== false;
-  state.keepFullTrailDuringDrag = enabled;
-  if (trail) trail.setKeepFullMode(enabled);
-  if (enabled && !state.pointerDown) trail?.reset();
-}
-
-class JuiceParticles {
-  constructor(capacity) {
-    this.capacity = capacity;
-    this.items = [];
-    this.positions = new Float32Array(capacity * 3);
-    this.colors = new Float32Array(capacity * 3);
-
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.setDrawRange(0, 0);
-
-    this.material = new THREE.PointsMaterial({
-      size: 0.09,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.9,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-
-    this.points = new THREE.Points(this.geometry, this.material);
-
-    for (let i = 0; i < capacity; i += 1) {
-      this.items.push({
-        active: false,
-        pos: new THREE.Vector3(),
-        vel: new THREE.Vector3(),
-        life: 0,
-        ttl: 0,
-        color: new THREE.Color(),
-      });
-    }
-  }
-
-  spawnBurst(origin, sliceDir, baseColor) {
-    const normal = new THREE.Vector3(-sliceDir.y, sliceDir.x, 0).normalize();
-    for (let i = 0; i < 22; i += 1) {
-      const p = this.alloc();
-      if (!p) return;
-
-      p.active = true;
-      p.life = 0;
-      p.ttl = THREE.MathUtils.randFloat(0.2, 0.45);
-      p.pos.copy(origin).add(new THREE.Vector3(THREE.MathUtils.randFloatSpread(0.2), THREE.MathUtils.randFloatSpread(0.2), 0));
-      p.vel.copy(normal).multiplyScalar(THREE.MathUtils.randFloat(1.2, 3.6));
-      p.vel.y += THREE.MathUtils.randFloat(0.2, 1.8);
-      p.vel.x += THREE.MathUtils.randFloatSpread(0.8);
-      p.color.copy(baseColor).offsetHSL(0.02, -0.12, 0.14);
-    }
-  }
-
-  alloc() {
-    for (let i = 0; i < this.capacity; i += 1) {
-      if (!this.items[i].active) return this.items[i];
-    }
-    return null;
-  }
-
-  update(dt) {
-    let count = 0;
-    for (let i = 0; i < this.capacity; i += 1) {
-      const p = this.items[i];
-      if (!p.active) continue;
-
-      p.life += dt;
-      if (p.life >= p.ttl) {
-        p.active = false;
-        continue;
-      }
-
-      p.vel.y -= 7 * dt;
-      p.pos.addScaledVector(p.vel, dt);
-
-      const o = count * 3;
-      this.positions[o] = p.pos.x;
-      this.positions[o + 1] = p.pos.y;
-      this.positions[o + 2] = p.pos.z;
-      this.colors[o] = p.color.r;
-      this.colors[o + 1] = p.color.g;
-      this.colors[o + 2] = p.color.b;
-      count += 1;
-    }
-
-    this.geometry.attributes.position.needsUpdate = true;
-    this.geometry.attributes.color.needsUpdate = true;
-    this.geometry.setDrawRange(0, count);
-  }
-
-  reset() {
-    for (let i = 0; i < this.capacity; i += 1) this.items[i].active = false;
     this.geometry.setDrawRange(0, 0);
   }
 }

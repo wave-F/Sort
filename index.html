@@ -2,14 +2,16 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>刀切水果 - three.js WebGPU</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link rel="icon" href="data:," />
+    <title>切泡泡 - three.js WebGPU</title>
     <link rel="stylesheet" href="./src/styles.css" />
     <script type="importmap">
       {
         "imports": {
           "three": "./node_modules/three/build/three.module.js",
           "three/webgpu": "./node_modules/three/build/three.webgpu.js",
+          "three/tsl": "./node_modules/three/build/three.tsl.js",
           "countup.js": "./node_modules/countup.js/dist/countUp.min.js"
         }
       }
@@ -17,355 +19,106 @@
   </head>
   <body>
     <div id="phone-frame">
-      <div id="bg-art" aria-hidden="true">
-        <div class="bg-sky"></div>
-        <div class="bg-hills"></div>
-        <div class="bg-forest"></div>
+      <div id="coin-status">
+        <img class="coin-icon" src="./assets/images/currency128_Coin.png" alt="金币" />
+        <span id="coin-status-text">0</span>
+      </div>
+      <div id="coin-fly-layer" class="hidden" aria-hidden="true"></div>
+
+      <div id="hud">
+        <div id="score">步数: -</div>
       </div>
 
-      <button id="battle-exit-btn" type="button" class="hidden" aria-label="退出到开始页"></button>
-      <button id="control-btn" type="button" aria-label="打开控制面板">控制</button>
-      <div id="control-blocker" class="hidden" aria-hidden="true"></div>
-
-      <div id="coin-status" aria-label="金币状态栏">
-        <img id="coin-status-icon" src="./assets/images/currency128_Coin.png" alt="金币" />
-        <span id="coin-status-text">16</span>
-      </div>
-      <div id="coin-fly-layer" aria-hidden="true"></div>
-
-      <div id="control-panel" class="panel-light hidden" role="dialog" aria-label="控制面板">
-        <label class="control-row">
-          <span>面板X</span>
-          <input id="ctl-control-panel-x" type="range" min="-220" max="420" step="1" value="0" />
-          <em id="ctl-control-panel-x-value">0</em>
-        </label>
-
-        <label class="control-row">
-          <span>刀光宽度</span>
-          <input id="ctl-trail-width" type="range" min="0.06" max="0.22" step="0.01" value="0.12" />
-          <em id="ctl-trail-width-value">0.12</em>
-        </label>
-
-        <label class="control-row">
-          <span>水花尺寸</span>
-          <input id="ctl-particle-size" type="range" min="0.04" max="0.22" step="0.01" value="0.09" />
-          <em id="ctl-particle-size-value">0.09</em>
-        </label>
-
-        <label class="control-row">
-          <span>单果分数</span>
-          <input id="ctl-score-fruit" type="range" min="1" max="15" step="1" value="5" />
-          <em id="ctl-score-fruit-value">5</em>
-        </label>
-
-        <fieldset class="control-group">
-          <legend>九宫格切片边界</legend>
-
-          <label class="control-row">
-            <span>切片上</span>
-            <input id="ctl-panel-margin-top" type="range" min="8" max="200" step="1" value="28" />
-            <em id="ctl-panel-margin-top-value">28</em>
-          </label>
-
-          <label class="control-row">
-            <span>切片右</span>
-            <input id="ctl-panel-margin-right" type="range" min="8" max="200" step="1" value="28" />
-            <em id="ctl-panel-margin-right-value">28</em>
-          </label>
-
-          <label class="control-row">
-            <span>切片下</span>
-            <input id="ctl-panel-margin-bottom" type="range" min="8" max="200" step="1" value="28" />
-            <em id="ctl-panel-margin-bottom-value">28</em>
-          </label>
-
-          <label class="control-row">
-            <span>切片左</span>
-            <input id="ctl-panel-margin-left" type="range" min="8" max="200" step="1" value="28" />
-            <em id="ctl-panel-margin-left-value">28</em>
-          </label>
-        </fieldset>
-
-        <fieldset class="control-group">
-          <legend>金币状态栏</legend>
-
-          <label class="control-row">
-            <span>底图X</span>
-            <input id="ctl-coin-bar-x" type="range" min="-260" max="260" step="1" value="0" />
-            <em id="ctl-coin-bar-x-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>底图Y</span>
-            <input id="ctl-coin-bar-y" type="range" min="-260" max="260" step="1" value="0" />
-            <em id="ctl-coin-bar-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>底图缩放</span>
-            <input id="ctl-coin-bar-scale" type="range" min="0.2" max="2" step="0.01" value="1" />
-            <em id="ctl-coin-bar-scale-value">1.00</em>
-          </label>
-
-          <label class="control-row">
-            <span>金币X</span>
-            <input id="ctl-coin-icon-x" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-coin-icon-x-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>金币Y</span>
-            <input id="ctl-coin-icon-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-coin-icon-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>金币缩放</span>
-            <input id="ctl-coin-icon-scale" type="range" min="0.2" max="2" step="0.01" value="1" />
-            <em id="ctl-coin-icon-scale-value">1.00</em>
-          </label>
-
-          <label class="control-row">
-            <span>文本X</span>
-            <input id="ctl-coin-text-x" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-coin-text-x-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>文本Y</span>
-            <input id="ctl-coin-text-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-coin-text-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>文本字号</span>
-            <input id="ctl-coin-text-size" type="range" min="12" max="64" step="1" value="34" />
-            <em id="ctl-coin-text-size-value">34</em>
-          </label>
-        </fieldset>
-
-        <fieldset class="control-group">
-          <legend>开始页</legend>
-
-          <label class="control-row">
-            <span>关卡字号</span>
-            <input id="ctl-ladder-font-size" type="range" min="20" max="72" step="1" value="46" />
-            <em id="ctl-ladder-font-size-value">46</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮宽度</span>
-            <input id="ctl-start-btn-width" type="range" min="140" max="320" step="1" value="220" />
-            <em id="ctl-start-btn-width-value">220</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮高度</span>
-            <input id="ctl-start-btn-height" type="range" min="44" max="120" step="1" value="72" />
-            <em id="ctl-start-btn-height-value">72</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮Y</span>
-            <input id="ctl-start-btn-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-start-btn-y-value">0</em>
-          </label>
-
-          <div class="control-group-actions">
-            <button id="advance-start-level-btn" type="button">下一关</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="control-group">
-          <legend>失败结果页</legend>
-
-          <label class="control-row">
-            <span>结果宽度</span>
-            <input id="ctl-fail-result-width" type="range" min="220" max="420" step="1" value="320" />
-            <em id="ctl-fail-result-width-value">320</em>
-          </label>
-
-          <label class="control-row">
-            <span>结果高度</span>
-            <input id="ctl-fail-result-height" type="range" min="160" max="560" step="1" value="260" />
-            <em id="ctl-fail-result-height-value">260</em>
-          </label>
-
-          <label class="control-row">
-            <span>结果Y</span>
-            <input id="ctl-fail-result-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-fail-result-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮Y</span>
-            <input id="ctl-fail-actions-y" type="range" min="-180" max="180" step="1" value="0" />
-            <em id="ctl-fail-actions-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮缩放</span>
-            <input id="ctl-fail-actions-scale" type="range" min="0.1" max="1.6" step="0.01" value="1" />
-            <em id="ctl-fail-actions-scale-value">1.00</em>
-          </label>
-
-          <label class="control-text-row">
-            <span>标题</span>
-            <input id="ctl-fail-title" type="text" value="失败" />
-          </label>
-
-          <label class="control-text-row">
-            <span>内容</span>
-            <input id="ctl-fail-body" type="text" value="当前分数 {score} · 当前关卡 {level}" />
-          </label>
-
-          <div class="control-group-actions">
-            <button id="show-fail-result-btn" type="button">失败结果页</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="control-group">
-          <legend>成功结果页</legend>
-
-          <label class="control-row">
-            <span>结果宽度</span>
-            <input id="ctl-win-result-width" type="range" min="220" max="420" step="1" value="320" />
-            <em id="ctl-win-result-width-value">320</em>
-          </label>
-
-          <label class="control-row">
-            <span>结果高度</span>
-            <input id="ctl-win-result-height" type="range" min="160" max="560" step="1" value="260" />
-            <em id="ctl-win-result-height-value">260</em>
-          </label>
-
-          <label class="control-row">
-            <span>结果Y</span>
-            <input id="ctl-win-result-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-result-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮Y</span>
-            <input id="ctl-win-actions-y" type="range" min="-180" max="180" step="1" value="0" />
-            <em id="ctl-win-actions-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>按钮缩放</span>
-            <input id="ctl-win-actions-scale" type="range" min="0.1" max="1.6" step="0.01" value="1" />
-            <em id="ctl-win-actions-scale-value">1.00</em>
-          </label>
-
-          <label class="control-text-row">
-            <span>标题</span>
-            <input id="ctl-win-title" type="text" value="胜利" />
-          </label>
-
-          <label class="control-row">
-            <span>数字X</span>
-            <input id="ctl-win-gain-x" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-gain-x-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>数字Y</span>
-            <input id="ctl-win-gain-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-gain-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>数字字号</span>
-            <input id="ctl-win-gain-size" type="range" min="18" max="96" step="1" value="44" />
-            <em id="ctl-win-gain-size-value">44</em>
-          </label>
-
-          <label class="control-text-row">
-            <span>数字颜色</span>
-            <input id="ctl-win-gain-color" type="color" value="#ffd95f" />
-          </label>
-
-          <label class="control-text-row">
-            <span>加金币数</span>
-            <input id="ctl-win-coin-gain" type="number" min="0" max="99999" step="1" value="20" />
-          </label>
-
-          <label class="control-row">
-            <span>金币X</span>
-            <input id="ctl-win-coin-x" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-coin-x-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>金币Y</span>
-            <input id="ctl-win-coin-y" type="range" min="-220" max="220" step="1" value="0" />
-            <em id="ctl-win-coin-y-value">0</em>
-          </label>
-
-          <label class="control-row">
-            <span>金币缩放</span>
-            <input id="ctl-win-coin-scale" type="range" min="0.1" max="3" step="0.01" value="1" />
-            <em id="ctl-win-coin-scale-value">1.00</em>
-          </label>
-
-          <div class="control-group-actions">
-            <button id="pass-win-result-btn" type="button">过关</button>
-            <button id="show-win-result-btn" type="button">成功结果页</button>
-          </div>
-        </fieldset>
-
-        <fieldset class="control-group">
-          <legend>结果蒙版</legend>
-
-          <label class="control-row">
-            <span>透明度</span>
-            <input id="ctl-result-mask-opacity" type="range" min="0" max="0.9" step="0.01" value="0.38" />
-            <em id="ctl-result-mask-opacity-value">0.38</em>
-          </label>
-        </fieldset>
-
-        <div class="control-actions">
-          <button id="control-save-btn" type="button">保存</button>
-          <button id="control-close-btn" type="button">关闭</button>
+      <div id="level-test">
+        <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
+        <div id="level-test-panel" class="hidden">
+          <label for="level-test-select">选择关卡</label>
+          <select id="level-test-select"></select>
+          <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
         </div>
       </div>
 
-      <div id="commentary">开始后，先锁定一种颜色再连切。</div>
-      <div id="start-toast" aria-live="polite"></div>
+      <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
 
-      <div id="start-screen" class="layer">
-        <div class="ladder-stage">
-          <div class="ladder-rail" aria-label="关卡天梯">
-            <div class="ladder-rail-shine"></div>
-            <div class="ladder-nodes">
-              <div class="ladder-node"><span>1</span></div>
-              <div class="ladder-node"><span>2</span></div>
-              <div class="ladder-node"><span>3</span></div>
-              <div class="ladder-node"><span>4</span></div>
-              <div class="ladder-node"><span>5</span></div>
-              <div class="ladder-node"><span>6</span></div>
-              <div class="ladder-node"><span>7</span></div>
-              <div class="ladder-node"><span>8</span></div>
-              <div class="ladder-node"><span>9</span></div>
-              <div class="ladder-node"><span>10</span></div>
-            </div>
+      <div id="home-screen" class="layer">
+        <div id="home-topbar">
+          <div class="home-status home-status-energy" aria-label="体力状态">
+            <span class="home-status-badge" aria-hidden="true">❤</span>
+            <span id="home-energy-text" class="home-status-value">FULL</span>
           </div>
 
-          <button id="start-btn">开始</button>
+          <div class="home-status home-status-coin" aria-label="金币数量">
+            <img class="home-status-badge coin" src="./assets/images/currency128_Coin.png" alt="金币" />
+            <span id="home-coin" class="home-status-value">0</span>
+          </div>
+
+          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
         </div>
+
+        <div id="home-ui-panel" class="hidden" aria-label="主界面样式调控">
+          <label class="home-ui-row" for="home-ui-energy-size">
+            <span>体力字大小</span>
+            <input id="home-ui-energy-size" type="range" min="14" max="42" step="1" value="22" />
+            <em id="home-ui-energy-size-value">22</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-energy-x">
+            <span>体力字X</span>
+            <input id="home-ui-energy-x" type="range" min="-80" max="80" step="1" value="0" />
+            <em id="home-ui-energy-x-value">0</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-energy-y">
+            <span>体力字Y</span>
+            <input id="home-ui-energy-y" type="range" min="-40" max="40" step="1" value="0" />
+            <em id="home-ui-energy-y-value">0</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-coin-size">
+            <span>金币字大小</span>
+            <input id="home-ui-coin-size" type="range" min="14" max="42" step="1" value="24" />
+            <em id="home-ui-coin-size-value">24</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-coin-icon-x">
+            <span>金币图标X</span>
+            <input id="home-ui-coin-icon-x" type="range" min="-30" max="40" step="1" value="0" />
+            <em id="home-ui-coin-icon-x-value">0</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-coin-icon-y">
+            <span>金币图标Y</span>
+            <input id="home-ui-coin-icon-y" type="range" min="-30" max="30" step="1" value="0" />
+            <em id="home-ui-coin-icon-y-value">0</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-coin-x">
+            <span>金币字X</span>
+            <input id="home-ui-coin-x" type="range" min="-80" max="80" step="1" value="0" />
+            <em id="home-ui-coin-x-value">0</em>
+          </label>
+          <label class="home-ui-row" for="home-ui-coin-y">
+            <span>金币字Y</span>
+            <input id="home-ui-coin-y" type="range" min="-40" max="40" step="1" value="0" />
+            <em id="home-ui-coin-y-value">0</em>
+          </label>
+
+          <div class="home-ui-actions">
+            <button id="home-ui-reset-btn" class="tool-btn" type="button">重置</button>
+            <button id="home-ui-save-btn" class="tool-btn" type="button">保存</button>
+            <button id="home-ui-close-btn" class="tool-btn" type="button">关闭</button>
+          </div>
+        </div>
+
+        <div id="home-main">
+          <div id="home-level-strip" aria-label="最近关卡">
+            <button id="home-level-prev" class="home-level-bubble" type="button"></button>
+            <button id="home-level-current" class="home-level-bubble" type="button"></button>
+            <button id="home-level-next" class="home-level-bubble" type="button"></button>
+          </div>
+
+          <button id="start-btn" class="home-play-btn" type="button">PLAY</button>
+        </div>
+
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
 
-      <div id="game-over" class="layer hidden">
-        <div class="game-over-card panel-light">
-          <h2 id="game-over-title" class="panel-title-ribbon is-red"><span id="game-over-title-text">本局结束</span></h2>
-          <button id="restart-btn">再来一局</button>
-        </div>
-      </div>
-
       <div id="result-mask" class="hidden" aria-hidden="true"></div>
-
       <div id="result-page" class="layer hidden">
         <div class="result-card panel-light">
           <h2 id="result-page-title" class="result-title panel-title-ribbon is-lose"><span id="result-page-title-text">结果页</span></h2>
@@ -380,9 +133,20 @@
         </div>
       </div>
 
+      <div id="level-win" class="layer hidden">
+        <h2 id="level-win-title">关卡胜利！</h2>
+        <p id="level-win-desc">泡泡雨已放送，准备下一关。</p>
+        <button id="level-win-next-btn">下一关</button>
+      </div>
+
+      <div id="game-over" class="layer hidden">
+        <h2 id="game-over-title">本局结束</h2>
+        <button id="restart-btn">再来一局</button>
+      </div>
+
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=75"></script>
+    <script type="module" src="./src/main.js?v=31"></script>
   </body>
 </html>
