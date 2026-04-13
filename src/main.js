@@ -1412,6 +1412,78 @@ function getHexLabelMaterial(label) {
   return material;
 }
 
+function drawHexOverlay(centers, radius) {
+  const count = centers.length;
+  if (!count) {
+    return { mesh: null, borderMesh: null, labelGroup: null };
+  }
+
+  const fillGeometry = new THREE.CircleGeometry(radius, 6);
+  const fillMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: hexOverlayOpacity,
+    vertexColors: true,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.InstancedMesh(fillGeometry, fillMaterial, count);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.renderOrder = 60;
+
+  const matrix = new THREE.Matrix4();
+  for (let i = 0; i < count; i += 1) {
+    const center = centers[i];
+    matrix.makeTranslation(center.x, center.y, 0.8);
+    mesh.setMatrixAt(i, matrix);
+    mesh.setColorAt(i, hexOverlayDefaultColor);
+    hexOverlayTopColorIds[i] = -1;
+    hexOverlayTopZValues[i] = Number.NEGATIVE_INFINITY;
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.userData.topColorIds = hexOverlayTopColorIds;
+  mesh.userData.topZValues = hexOverlayTopZValues;
+
+  const borderGeometry = createHexRingGeometry(radius, hexOverlayBorderWidth);
+  const borderMaterial = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: hexOverlayBorderOpacity,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+  });
+  const borderMesh = new THREE.InstancedMesh(borderGeometry, borderMaterial, count);
+  borderMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  borderMesh.renderOrder = 61;
+  for (let i = 0; i < count; i += 1) {
+    const center = centers[i];
+    matrix.makeTranslation(center.x, center.y, 0.801);
+    borderMesh.setMatrixAt(i, matrix);
+  }
+  borderMesh.instanceMatrix.needsUpdate = true;
+
+  const labelGroup = new THREE.Group();
+  labelGroup.renderOrder = 62;
+  const labelScale = radius * 1.15;
+  const defaultLabelMaterial = getHexLabelMaterial("-1");
+  for (let i = 0; i < count; i += 1) {
+    const center = centers[i];
+    const sprite = new THREE.Sprite(defaultLabelMaterial);
+    sprite.position.set(center.x, center.y, 0.802);
+    sprite.scale.set(labelScale, labelScale, 1);
+    sprite.renderOrder = 62;
+    sprite.userData.label = "-1";
+    hexOverlayLabelSprites.push(sprite);
+    labelGroup.add(sprite);
+  }
+
+  return { mesh, borderMesh, labelGroup };
+}
+
 function rebuildHexOverlay() {
   if (hexOverlayMesh) {
     scene.remove(hexOverlayMesh);
@@ -1451,80 +1523,13 @@ function rebuildHexOverlay() {
     }
   }
 
-  const count = hexOverlayCenters.length;
-  if (!count) return;
-
-  const geometry = new THREE.CircleGeometry(r, 6);
-  const material = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: hexOverlayOpacity,
-    vertexColors: true,
-    depthWrite: false,
-    depthTest: false,
-    side: THREE.DoubleSide,
-  });
-
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.renderOrder = 60;
-
-  const matrix = new THREE.Matrix4();
-  for (let i = 0; i < count; i += 1) {
-    const center = hexOverlayCenters[i];
-    matrix.makeTranslation(center.x, center.y, 0.8);
-    mesh.setMatrixAt(i, matrix);
-    mesh.setColorAt(i, hexOverlayDefaultColor);
-    hexOverlayTopColorIds[i] = -1;
-    hexOverlayTopZValues[i] = Number.NEGATIVE_INFINITY;
-  }
-
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  mesh.userData.topColorIds = hexOverlayTopColorIds;
-  mesh.userData.topZValues = hexOverlayTopZValues;
-  hexOverlayMesh = mesh;
-  scene.add(hexOverlayMesh);
-
-  const borderGeometry = createHexRingGeometry(r, hexOverlayBorderWidth);
-  const borderMaterial = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: hexOverlayBorderOpacity,
-    depthWrite: false,
-    depthTest: false,
-    side: THREE.DoubleSide,
-  });
-  const borderMesh = new THREE.InstancedMesh(borderGeometry, borderMaterial, count);
-  borderMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  borderMesh.renderOrder = 61;
-
-  for (let i = 0; i < count; i += 1) {
-    const center = hexOverlayCenters[i];
-    matrix.makeTranslation(center.x, center.y, 0.801);
-    borderMesh.setMatrixAt(i, matrix);
-  }
-
-  borderMesh.instanceMatrix.needsUpdate = true;
-  hexOverlayBorderMesh = borderMesh;
-  scene.add(hexOverlayBorderMesh);
-
-  const labelGroup = new THREE.Group();
-  labelGroup.renderOrder = 62;
-  const labelScale = r * 1.15;
-  const defaultLabelMaterial = getHexLabelMaterial("-1");
-  for (let i = 0; i < count; i += 1) {
-    const center = hexOverlayCenters[i];
-    const sprite = new THREE.Sprite(defaultLabelMaterial);
-    sprite.position.set(center.x, center.y, 0.802);
-    sprite.scale.set(labelScale, labelScale, 1);
-    sprite.renderOrder = 62;
-    sprite.userData.label = "-1";
-    hexOverlayLabelSprites.push(sprite);
-    labelGroup.add(sprite);
-  }
-  hexOverlayLabelGroup = labelGroup;
-  scene.add(hexOverlayLabelGroup);
+  const overlay = drawHexOverlay(hexOverlayCenters, r);
+  hexOverlayMesh = overlay.mesh;
+  hexOverlayBorderMesh = overlay.borderMesh;
+  hexOverlayLabelGroup = overlay.labelGroup;
+  if (hexOverlayMesh) scene.add(hexOverlayMesh);
+  if (hexOverlayBorderMesh) scene.add(hexOverlayBorderMesh);
+  if (hexOverlayLabelGroup) scene.add(hexOverlayLabelGroup);
 }
 
 function updateHexOverlayColors() {
