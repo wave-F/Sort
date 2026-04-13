@@ -1549,7 +1549,7 @@ function updateHexOverlayColors() {
       const dx = center.x - fruit.group.position.x;
       const dy = center.y - fruit.group.position.y;
       const distSq = dx * dx + dy * dy;
-      const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+      const hitRadius = fruit.radius;
       const hitRadiusSq = hitRadius * hitRadius;
       if (distSq > hitRadiusSq) continue;
 
