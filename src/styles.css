@@ -196,6 +196,19 @@ body {
   width: 100%;
 }
 
+.level-test-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cae9ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.level-test-switch input {
+  margin: 0;
+}
+
 #title {
   font-size: 14px;
   letter-spacing: 0.08em;

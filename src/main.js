@@ -77,6 +77,7 @@ const levelTestRootEl = document.getElementById("level-test");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
+const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 
 function setupHomeFloatBubbles() {
   if (!homeScreenEl) return;
@@ -224,6 +225,7 @@ const state = {
   coins: 0,
   pendingWinReward: 0,
   rewardAppliedThisRound: false,
+  showHexOverlay: true,
 };
 
 const scene = new THREE.Scene();
@@ -240,6 +242,16 @@ const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
 const homeBubbles = [];
 const homeBubbleBounds = { left: -999, right: 999, top: 999, bottom: -999 };
+const hexOverlayRadius = 0.2;
+const hexOverlayOpacity = 0.38;
+const hexOverlayBorderOpacity = 0.72;
+const hexOverlayBorderWidth = 0.02;
+
+let hexOverlayMesh = null;
+let hexOverlayBorderMesh = null;
+let hexOverlayCenters = [];
+const hexOverlayDefaultColor = new THREE.Color(0x000000);
+const hexOverlayWorkColor = new THREE.Color();
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -1046,9 +1058,11 @@ function init() {
 }
 
 function setupLevelTestControls() {
-  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn) {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn || !levelTestHexToggleEl) {
     return;
   }
+
+  levelTestHexToggleEl.checked = state.showHexOverlay;
 
   levelTestSelectEl.innerHTML = "";
   for (let i = 0; i < LEVELS.length; i += 1) {
@@ -1069,6 +1083,11 @@ function setupLevelTestControls() {
       return;
     }
     jumpToLevelForTest(targetIndex);
+  });
+
+  levelTestHexToggleEl.addEventListener("change", () => {
+    state.showHexOverlay = levelTestHexToggleEl.checked;
+    updateHexOverlayColors();
   });
 }
 
@@ -1322,6 +1341,160 @@ function onPointerUp() {
 
 }
 
+function createHexRingGeometry(radius, borderWidth) {
+  const innerRadius = Math.max(0.001, radius - Math.max(0.001, borderWidth));
+  const shape = new THREE.Shape();
+  const hole = new THREE.Path();
+
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (Math.PI / 3) * i;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+
+  for (let i = 5; i >= 0; i -= 1) {
+    const angle = (Math.PI / 3) * i;
+    const x = Math.cos(angle) * innerRadius;
+    const y = Math.sin(angle) * innerRadius;
+    if (i === 5) hole.moveTo(x, y);
+    else hole.lineTo(x, y);
+  }
+  hole.closePath();
+  shape.holes.push(hole);
+
+  return new THREE.ShapeGeometry(shape);
+}
+
+function rebuildHexOverlay() {
+  if (hexOverlayMesh) {
+    scene.remove(hexOverlayMesh);
+    hexOverlayMesh.geometry.dispose();
+    hexOverlayMesh.material.dispose();
+    hexOverlayMesh = null;
+  }
+  if (hexOverlayBorderMesh) {
+    scene.remove(hexOverlayBorderMesh);
+    hexOverlayBorderMesh.geometry.dispose();
+    hexOverlayBorderMesh.material.dispose();
+    hexOverlayBorderMesh = null;
+  }
+
+  hexOverlayCenters = [];
+  const r = hexOverlayRadius;
+  const stepX = r * 1.5;
+  const stepY = Math.sqrt(3) * r;
+  const minX = bounds.left - r;
+  const maxX = bounds.right + r;
+  const minY = bounds.bottom - r;
+  const maxY = bounds.top + r;
+
+  let col = 0;
+  for (let x = minX; x <= maxX + stepX; x += stepX, col += 1) {
+    const offsetY = col % 2 === 0 ? 0 : stepY * 0.5;
+    for (let y = minY + offsetY; y <= maxY + stepY; y += stepY) {
+      hexOverlayCenters.push({ x, y });
+    }
+  }
+
+  const count = hexOverlayCenters.length;
+  if (!count) return;
+
+  const geometry = new THREE.CircleGeometry(r, 6);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: hexOverlayOpacity,
+    vertexColors: true,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.renderOrder = 60;
+
+  const matrix = new THREE.Matrix4();
+  for (let i = 0; i < count; i += 1) {
+    const center = hexOverlayCenters[i];
+    matrix.makeTranslation(center.x, center.y, 0.8);
+    mesh.setMatrixAt(i, matrix);
+    mesh.setColorAt(i, hexOverlayDefaultColor);
+  }
+
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  hexOverlayMesh = mesh;
+  scene.add(hexOverlayMesh);
+
+  const borderGeometry = createHexRingGeometry(r, hexOverlayBorderWidth);
+  const borderMaterial = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: hexOverlayBorderOpacity,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+  });
+  const borderMesh = new THREE.InstancedMesh(borderGeometry, borderMaterial, count);
+  borderMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  borderMesh.renderOrder = 61;
+
+  for (let i = 0; i < count; i += 1) {
+    const center = hexOverlayCenters[i];
+    matrix.makeTranslation(center.x, center.y, 0.801);
+    borderMesh.setMatrixAt(i, matrix);
+  }
+
+  borderMesh.instanceMatrix.needsUpdate = true;
+  hexOverlayBorderMesh = borderMesh;
+  scene.add(hexOverlayBorderMesh);
+}
+
+function updateHexOverlayColors() {
+  if (!hexOverlayMesh) return;
+  hexOverlayMesh.visible = state.started && !state.inHome && state.showHexOverlay;
+  if (hexOverlayBorderMesh) hexOverlayBorderMesh.visible = hexOverlayMesh.visible;
+  if (!hexOverlayMesh.visible) return;
+
+  for (let i = 0; i < hexOverlayCenters.length; i += 1) {
+    const center = hexOverlayCenters[i];
+    let bestLayerY = -Infinity;
+    let bestDistSq = Infinity;
+    let pickedColorHex = null;
+
+    for (let j = 0; j < fruits.length; j += 1) {
+      const fruit = fruits[j];
+      if (!fruit?.active || fruit.sliced || !fruit.bubble.visible) continue;
+
+      const dx = center.x - fruit.group.position.x;
+      const dy = center.y - fruit.group.position.y;
+      const distSq = dx * dx + dy * dy;
+      const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+      if (distSq > hitRadius * hitRadius) continue;
+
+      const layerY = fruit.group.position.y;
+      if (layerY > bestLayerY || (layerY === bestLayerY && distSq < bestDistSq)) {
+        bestLayerY = layerY;
+        bestDistSq = distSq;
+        pickedColorHex = colors[fruit.colorId]?.base ?? null;
+      }
+    }
+
+    if (pickedColorHex === null) {
+      hexOverlayMesh.setColorAt(i, hexOverlayDefaultColor);
+    } else {
+      hexOverlayWorkColor.setHex(pickedColorHex);
+      hexOverlayMesh.setColorAt(i, hexOverlayWorkColor);
+    }
+  }
+
+  if (hexOverlayMesh.instanceColor) hexOverlayMesh.instanceColor.needsUpdate = true;
+}
+
 function tick() {
   if (!renderer) return;
   const dt = Math.min(clock.getDelta(), 1 / 30);
@@ -1340,6 +1513,8 @@ function tick() {
     fruit.update(dt, bounds);
     if (fruit.active && !fruit.sliced) remaining += 1;
   }
+
+  updateHexOverlayColors();
 
   renderer.render(scene, camera);
 
@@ -1463,6 +1638,7 @@ function resize() {
   bounds.top = worldHalfH - rules.playAreaInset;
   bounds.bottom = -worldHalfH + rules.playAreaInset;
   levelRuntime.clearCache();
+  rebuildHexOverlay();
 }
 
 function updatePhoneAspect() {
