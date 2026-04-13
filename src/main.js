@@ -21,6 +21,7 @@ import { clampNumber, createLevelIndexClamper, createPersistenceController } fro
 import { readGameSettings, createSettingsUiController } from "./game/settings-ui.js";
 import { createRewardFlow } from "./game/reward-flow.js";
 import { createHomeScreenController } from "./game/home-screen.js";
+import { createSessionFlowController } from "./game/session-flow.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
@@ -392,6 +393,45 @@ const homeScreenController = createHomeScreenController({
   bubbleBaseRadius,
   onPlayUiClick: () => gameAudio.playUiClickAudio(),
   onShowCommentary: (text, durationMs) => gameUI.showCommentary(text, durationMs),
+});
+
+const sessionFlow = createSessionFlowController({
+  state,
+  fruits,
+  colors,
+  bounds,
+  scene,
+  levelRuntime,
+  levelFlow,
+  gameAudio,
+  gameUI,
+  burstSystem,
+  victoryRainSystem,
+  trail,
+  clampLevelIndex,
+  hasBubbleTuningOverride,
+  onHideOutOfMovesBanner: hideOutOfMovesBanner,
+  onTryConsumeStaminaForLevelEntry: tryConsumeStaminaForLevelEntry,
+  onSettlePendingWinReward: settlePendingWinReward,
+  onRestoreStaminaAfterFailedEntry: restoreStaminaAfterFailedEntry,
+  onShowHomeScreen: showHomeScreen,
+  onHideHomeScreen: hideHomeScreen,
+  onShowHomeCenterTip: showHomeCenterTip,
+  onSetLevelTestSelection: setLevelTestSelection,
+  onUpdateStepsHud: updateStepsHud,
+  onClearQueuedSelections: clearQueuedSelections,
+  onPlayOutOfMovesBanner: playOutOfMovesBanner,
+  onClearBoardEntities: clearBoardEntities,
+  onPersistLevelProgress: persistLevelProgress,
+  onBackHomeFromResult: backHomeFromResult,
+  createBubbleEntity: ({ id, colorId, radius, vx, vy, baseColor }) => new BubbleEntity({
+    id,
+    colorId,
+    radius,
+    vx,
+    vy,
+    baseColor,
+  }),
 });
 
 init();
@@ -1096,74 +1136,19 @@ function clearBoardEntities() {
 }
 
 function grantLevelWinProgress(nextLevelIndex) {
-  const justCleared = state.currentLevelIndex;
-  state.highestPassedLevelIndex = Math.max(state.highestPassedLevelIndex, justCleared);
-  state.currentPlayableLevelIndex = clampLevelIndex(nextLevelIndex);
-  state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
-  persistLevelProgress();
+  sessionFlow.grantLevelWinProgress(nextLevelIndex);
 }
 
 function retryCurrentLevelFromResult() {
-  if (!state.started) return;
-  hideOutOfMovesBanner();
-  if (!tryConsumeStaminaForLevelEntry()) {
-    gameUI.closeResult();
-    state.started = false;
-    state.gameOver = false;
-    state.levelTransitioning = false;
-    state.pointerDown = false;
-    state.pendingWinReward = 0;
-    state.rewardAppliedThisRound = true;
-    clearBoardEntities();
-    showHomeScreen();
-    showHomeCenterTip("体力不足", 1200);
-    return;
-  }
-  gameUI.closeResult();
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  const loaded = loadLevel(state.currentLevelIndex);
-  if (!loaded) {
-    restoreStaminaAfterFailedEntry();
-    state.started = false;
-    showHomeScreen();
-  }
+  sessionFlow.retryCurrentLevelFromResult();
 }
 
 function backHomeFromResult() {
-  hideOutOfMovesBanner();
-  settlePendingWinReward(false);
-  gameUI.closeResult();
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  clearBoardEntities();
-  showHomeScreen();
+  sessionFlow.backHomeFromResult();
 }
 
 function startNextLevel(nextLevelIndex) {
-  hideOutOfMovesBanner();
-  if (!tryConsumeStaminaForLevelEntry()) return;
-  settlePendingWinReward(false);
-  gameUI.closeResult();
-  const next = clampLevelIndex(nextLevelIndex);
-  state.started = true;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  const loaded = loadLevel(next);
-  if (!loaded) {
-    restoreStaminaAfterFailedEntry();
-    backHomeFromResult();
-  }
+  sessionFlow.startNextLevel(nextLevelIndex);
 }
 
 function init() {
@@ -1300,118 +1285,15 @@ function showWebGpuUnsupported() {
 }
 
 function startGame() {
-  hideOutOfMovesBanner();
-  if (!tryConsumeStaminaForLevelEntry()) return;
-  gameAudio.ensureAudioUnlocked();
-  void gameAudio.preloadPopAudio();
-  gameAudio.resetSelectToneProgression();
-
-  const startIndex = clampLevelIndex(state.currentPlayableLevelIndex);
-
-  state.started = true;
-  state.gameOver = false;
-  state.inHome = false;
-  state.levelTransitioning = false;
-  state.currentLevelIndex = startIndex;
-  state.activeLevel = null;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  clearQueuedSelections();
-  state.sliceHitIds.clear();
-  state.sliceQueue.length = 0;
-  state.pendingPops.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-  state.stepLimit = 0;
-  state.stepsUsed = 0;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  levelFlow.reset();
-  burstSystem.clear();
-  victoryRainSystem.reset();
-
-  trail.reset();
-
-  hideHomeScreen();
-  gameUI.hideGameOver();
-  gameUI.closeResult();
-
-  if (hasBubbleTuningOverride) {
-    gameUI.showCommentary("已应用调试页同步参数。", 1300);
-  }
-
-  const loaded = loadLevel(startIndex);
-  if (!loaded) {
-    restoreStaminaAfterFailedEntry();
-    state.started = false;
-    state.inHome = true;
-    showHomeScreen();
-    gameUI.showCommentary("关卡加载失败，请重试。", 1200);
-  }
+  sessionFlow.startGame();
 }
 
 function loadLevel(index) {
-  const level = levelRuntime.getNormalizedLevel(index);
-  if (!level) return false;
-
-  state.currentLevelIndex = index;
-  state.selectedHomeLevelIndex = index;
-  state.activeLevel = level;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  gameAudio.resetSelectToneProgression();
-  clearQueuedSelections();
-  state.pendingPops.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-  state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
-  state.stepsUsed = 0;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  levelFlow.reset();
-  burstSystem.clear();
-  victoryRainSystem.reset();
-  setLevelTestSelection(index);
-  updateStepsHud();
-
-  trail.reset();
-
-  resetFruits(level);
-  return true;
+  return sessionFlow.loadLevel(index);
 }
 
 function resetFruits(level) {
-  burstSystem.clear();
-  state.pendingPops.length = 0;
-  for (const fruit of fruits) scene.remove(fruit.group);
-  fruits.length = 0;
-
-  const defs = level?.fruits ?? [];
-  for (let i = 0; i < defs.length; i += 1) {
-    const def = defs[i];
-    const colorIndex = THREE.MathUtils.clamp(def.colorId, 0, colors.length - 1);
-    const fruit = new BubbleEntity({
-      id: i,
-      colorId: colorIndex,
-      radius: THREE.MathUtils.clamp(def.radius ?? 0.42, 0.84, 1.86),
-      vx: def.vx ?? 0,
-      vy: def.vy ?? 0,
-      baseColor: new THREE.Color(colors[colorIndex].base),
-    });
-    const spawnMargin = fruit.radius + 0.06;
-    fruit.setPosition(
-      THREE.MathUtils.clamp(def.x, bounds.left + spawnMargin, bounds.right - spawnMargin),
-      THREE.MathUtils.clamp(def.y, bounds.bottom + spawnMargin, bounds.top - spawnMargin),
-      0
-    );
-    fruits.push(fruit);
-    scene.add(fruit.group);
-  }
+  sessionFlow.resetFruits(level);
 }
 
 function onPointerDown(ev) {
@@ -1683,33 +1565,7 @@ function updatePhoneAspect() {
 }
 
 function endGame(reason, options = {}) {
-  if (state.gameOver) return;
-  state.gameOver = true;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  levelFlow.reset();
-  burstSystem.clear();
-  clearQueuedSelections();
-  state.pendingPops.length = 0;
-  victoryRainSystem.reset();
-  trail.reset();
-
-  const openLoseResult = () => {
-    gameUI.openResult("lose", {
-      level: state.currentLevelIndex + 1,
-      score: Math.max(0, state.stepLimit - state.stepsUsed),
-      reward: 0,
-      canNext: false,
-      isFinal: false,
-    });
-  };
-
-  if (options.showOutOfMovesBanner === true) {
-    playOutOfMovesBanner(openLoseResult);
-    return;
-  }
-
-  openLoseResult();
+  sessionFlow.endGame(reason, options);
 }
 
 function createBubbleMaterial(baseColor) {

@@ -212,7 +212,7 @@ export function createHomeScreenController({
     if (level.difficulty === "medium" || level.difficulty === "hard") {
       const tag = document.createElement("span");
       tag.className = `home-level-tag ${level.difficulty}`;
-      tag.textContent = level.difficulty === "hard" ? "HARD" : "MED";
+      tag.textContent = level.difficulty === "hard" ? "VERY HARD" : "HARD";
       button.appendChild(tag);
     }
   }
