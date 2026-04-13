@@ -26,9 +26,9 @@
   --hud-height: clamp(38px, calc(46px * var(--ui-scale)), 54px);
   --coin-status-width: clamp(168px, calc(208px * var(--ui-scale)), 222px);
   --coin-status-height: clamp(46px, calc(56px * var(--ui-scale)), 60px);
-  --home-level-size: clamp(76px, calc(90px * var(--ui-scale)), 100px);
-  --home-level-size-current: clamp(100px, calc(118px * var(--ui-scale)), 126px);
-  --home-level-gap: clamp(12px, calc(18px * var(--ui-scale)), 22px);
+  --home-level-size: clamp(114px, calc(135px * var(--ui-scale)), 150px);
+  --home-level-size-current: clamp(150px, calc(177px * var(--ui-scale)), 189px);
+  --home-level-gap: clamp(16px, calc(24px * var(--ui-scale)), 30px);
   --home-level-strip-min-h: clamp(260px, calc(322px * var(--ui-scale)), 344px);
   --home-play-font: clamp(30px, calc(42px * var(--ui-scale)), 44px);
   --home-play-pad-y: clamp(12px, calc(16px * var(--ui-scale)), 18px);
@@ -158,15 +158,92 @@ body {
   padding: 0;
 }
 
-#level-test {
+#gameplay-settings-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 17;
+  background: rgba(8, 12, 20, 0.36);
+  backdrop-filter: blur(1px);
+}
+
+#gameplay-settings {
   position: absolute;
   top: calc(12px + var(--safe-top));
   right: calc(12px + var(--safe-right));
-  z-index: 13;
+  z-index: 18;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
+}
+
+.gp-settings-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 2px solid rgba(93, 62, 25, 0.42);
+  background: linear-gradient(180deg, #ffd7af, #f0b37f);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 0 #b9794d, 0 10px 18px rgba(78, 45, 17, 0.34);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.gp-main-btn {
+  width: 46px;
+  font-size: 22px;
+}
+
+.gp-settings-icon {
+  transform: translateY(-1px);
+  line-height: 1;
+}
+
+.gp-settings-item {
+  opacity: 0;
+  transform: translateY(10px) scale(0.94);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.2s ease;
+}
+
+#gameplay-settings.open .gp-settings-item {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+#gameplay-settings.open .gp-settings-item:nth-of-type(2) {
+  transition-delay: 0ms;
+}
+
+#gameplay-settings.open .gp-settings-item:nth-of-type(3) {
+  transition-delay: 70ms;
+}
+
+#gameplay-settings.open .gp-settings-item:nth-of-type(4) {
+  transition-delay: 140ms;
+}
+
+.gp-settings-btn.is-off {
+  background: linear-gradient(180deg, #cfc2b4, #a39281);
+  color: rgba(255, 255, 255, 0.72);
+  border-color: rgba(102, 84, 66, 0.42);
+  box-shadow: 0 6px 0 #7b6756, 0 10px 18px rgba(70, 52, 36, 0.3);
+}
+
+.gp-exit-btn {
+  background: linear-gradient(180deg, #ff9898, #eb5a5a);
+  border-color: rgba(169, 36, 36, 0.56);
+  box-shadow: 0 7px 0 rgba(125, 35, 35, 0.62), 0 10px 20px rgba(94, 26, 26, 0.35);
+}
+
+#level-test {
+  display: none !important;
 }
 
 .tool-btn {
@@ -614,7 +691,7 @@ body {
   flex-direction: column-reverse;
   align-items: center;
   gap: var(--home-level-gap);
-  margin-top: 0;
+  margin-top: clamp(14px, calc(26px * var(--ui-scale)), 34px);
   min-height: var(--home-level-strip-min-h);
 }
 
@@ -732,18 +809,30 @@ body {
 
 @media (max-height: 760px) {
   :root {
-    --home-level-gap: clamp(10px, calc(14px * var(--ui-scale)), 18px);
-    --home-level-strip-min-h: clamp(232px, calc(280px * var(--ui-scale)), 310px);
+    --home-level-size: clamp(92px, calc(108px * var(--ui-scale)), 124px);
+    --home-level-size-current: clamp(120px, calc(142px * var(--ui-scale)), 156px);
+    --home-level-gap: clamp(8px, calc(12px * var(--ui-scale)), 16px);
+    --home-level-strip-min-h: clamp(220px, calc(262px * var(--ui-scale)), 300px);
     --home-play-margin-top: clamp(8px, calc(12px * var(--ui-scale)), 14px);
+  }
+
+  #home-level-strip {
+    margin-top: clamp(6px, calc(10px * var(--ui-scale)), 14px);
   }
 }
 
 @media (max-height: 700px) {
   :root {
-    --home-level-size: clamp(68px, calc(82px * var(--ui-scale)), 92px);
-    --home-level-size-current: clamp(90px, calc(106px * var(--ui-scale)), 114px);
-    --home-level-strip-min-h: clamp(208px, calc(248px * var(--ui-scale)), 276px);
+    --home-level-size: clamp(78px, calc(90px * var(--ui-scale)), 102px);
+    --home-level-size-current: clamp(102px, calc(118px * var(--ui-scale)), 126px);
+    --home-level-gap: clamp(6px, calc(9px * var(--ui-scale)), 12px);
+    --home-level-strip-min-h: clamp(192px, calc(228px * var(--ui-scale)), 258px);
     --home-play-font: clamp(26px, calc(34px * var(--ui-scale)), 36px);
+    --home-play-margin-top: clamp(4px, calc(8px * var(--ui-scale)), 10px);
+  }
+
+  #home-level-strip {
+    margin-top: 0;
   }
 }
 

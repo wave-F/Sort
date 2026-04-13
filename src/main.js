@@ -39,6 +39,12 @@ const homeCoinEl = document.getElementById("home-coin");
 const coinStatusEl = document.getElementById("coin-status");
 const coinStatusTextEl = document.getElementById("coin-status-text");
 const coinFlyLayerEl = document.getElementById("coin-fly-layer");
+const gameplaySettingsMaskEl = document.getElementById("gameplay-settings-mask");
+const gameplaySettingsRootEl = document.getElementById("gameplay-settings");
+const gameplaySettingsToggleEl = document.getElementById("gameplay-settings-toggle");
+const gameplaySettingsMusicEl = document.getElementById("gameplay-settings-music");
+const gameplaySettingsSfxEl = document.getElementById("gameplay-settings-sfx");
+const gameplaySettingsExitEl = document.getElementById("gameplay-settings-exit");
 const resultMaskEl = document.getElementById("result-mask");
 const resultPageEl = document.getElementById("result-page");
 const resultPageTitleEl = document.getElementById("result-page-title");
@@ -583,6 +589,93 @@ function hideHomeSettingsModal() {
   homeSettingsModalEl?.classList.add("hidden");
 }
 
+function setGameplaySettingsMenuOpen(open) {
+  if (!gameplaySettingsRootEl) return;
+  const isOpen = Boolean(open);
+  gameplaySettingsRootEl.classList.toggle("open", isOpen);
+  gameplaySettingsMaskEl?.classList.toggle("hidden", !isOpen);
+}
+
+function hideGameplaySettingsMenu() {
+  setGameplaySettingsMenuOpen(false);
+}
+
+function syncGameplaySettingsButtons() {
+  if (gameplaySettingsMusicEl) {
+    gameplaySettingsMusicEl.classList.toggle("is-off", !gameSettings.musicEnabled);
+    gameplaySettingsMusicEl.setAttribute("aria-label", gameSettings.musicEnabled ? "音乐已开启" : "音乐已关闭");
+  }
+  if (gameplaySettingsSfxEl) {
+    gameplaySettingsSfxEl.classList.toggle("is-off", !gameSettings.sfxEnabled);
+    gameplaySettingsSfxEl.setAttribute("aria-label", gameSettings.sfxEnabled ? "音效已开启" : "音效已关闭");
+  }
+}
+
+function exitGameplayToHome() {
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  clearQueuedSelections();
+  gameUI.closeResult();
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function bindGameplaySettingsMenu() {
+  if (!gameplaySettingsRootEl || !gameplaySettingsToggleEl) return;
+
+  syncGameplaySettingsButtons();
+  gameplaySettingsToggleEl.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    gameAudio.playUiClickAudio();
+    const isOpen = gameplaySettingsRootEl.classList.contains("open");
+    setGameplaySettingsMenuOpen(!isOpen);
+  });
+
+  gameplaySettingsMusicEl?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    gameAudio.playUiClickAudio();
+    gameSettings.musicEnabled = !gameSettings.musicEnabled;
+    saveGameSettings();
+    applyGameSettings();
+    syncSettingsUi();
+    syncGameplaySettingsButtons();
+  });
+
+  gameplaySettingsSfxEl?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    gameAudio.playUiClickAudio();
+    gameSettings.sfxEnabled = !gameSettings.sfxEnabled;
+    saveGameSettings();
+    applyGameSettings();
+    syncSettingsUi();
+    syncGameplaySettingsButtons();
+  });
+
+  gameplaySettingsExitEl?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    gameAudio.playUiClickAudio();
+    const ok = typeof window !== "undefined" ? window.confirm("确认退出当前关卡并返回主页吗？") : true;
+    if (!ok) return;
+    hideGameplaySettingsMenu();
+    exitGameplayToHome();
+  });
+
+  gameplaySettingsMaskEl?.addEventListener("click", () => {
+    hideGameplaySettingsMenu();
+  });
+
+  window.addEventListener("pointerdown", (ev) => {
+    if (!gameplaySettingsRootEl.classList.contains("open")) return;
+    const target = ev.target;
+    if (target instanceof Node && (gameplaySettingsRootEl.contains(target) || gameplaySettingsMaskEl?.contains(target))) return;
+    hideGameplaySettingsMenu();
+  });
+}
+
 function clearGameplayDataOnly() {
   if (typeof window !== "undefined" && window.localStorage) {
     window.localStorage.removeItem(levelProgressStorageKey);
@@ -596,6 +689,7 @@ function clearGameplayDataOnly() {
   gameSettings.sfxEnabled = defaultGameSettings.sfxEnabled;
   applyGameSettings();
   syncSettingsUi();
+  syncGameplaySettingsButtons();
   syncCoinUi();
 
   state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
@@ -631,6 +725,7 @@ function bindHomeSettingsModal() {
     gameSettings.musicEnabled = Boolean(settingMusicToggleEl.checked);
     saveGameSettings();
     applyGameSettings();
+    syncGameplaySettingsButtons();
     gameUI.showCommentary("音乐开关已保存", 1000);
   });
 
@@ -638,6 +733,7 @@ function bindHomeSettingsModal() {
     gameSettings.sfxEnabled = Boolean(settingSfxToggleEl.checked);
     saveGameSettings();
     applyGameSettings();
+    syncGameplaySettingsButtons();
   });
 
   homeClearDataBtn?.addEventListener("click", () => {
@@ -931,7 +1027,12 @@ function setGameHudVisible(visible) {
   hudEl?.classList.toggle("hidden", hidden);
   coinStatusEl?.classList.toggle("hidden", hidden);
   coinStatusEl?.classList.toggle("is-hidden-in-gameplay", visible);
-  levelTestRootEl?.classList.toggle("hidden", hidden);
+  levelTestRootEl?.classList.add("hidden");
+  gameplaySettingsRootEl?.classList.toggle("hidden", hidden);
+  gameplaySettingsMaskEl?.classList.toggle("hidden", true);
+  if (hidden) {
+    hideGameplaySettingsMenu();
+  }
   commentaryEl?.classList.add("hidden");
   sliceStateEl?.classList.add("hidden");
   if (hidden) {
@@ -1052,6 +1153,7 @@ function init() {
   });
   bindHomeLevelButtons();
   bindHomeSettingsModal();
+  bindGameplaySettingsMenu();
   gameUI.closeResult();
   setupLevelTestControls();
 
