@@ -23,6 +23,7 @@ const phoneFrameEl = document.getElementById("phone-frame");
 const titleEl = document.getElementById("title");
 const hudEl = document.getElementById("hud");
 const stepsEl = document.getElementById("score");
+const hudLevelEl = document.getElementById("hud-level");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
 const homeScreenEl = document.getElementById("home-screen");
@@ -72,13 +73,6 @@ const gameOverTitleEl = document.getElementById("game-over-title");
 const levelWinEl = document.getElementById("level-win");
 const levelWinTitleEl = document.getElementById("level-win-title");
 const levelWinDescEl = document.getElementById("level-win-desc");
-const uiDebugPanelEl = document.getElementById("ui-debug-panel");
-const uiDebugToggleEl = document.getElementById("ui-debug-toggle");
-const uiDebugBodyEl = document.getElementById("ui-debug-body");
-const uiDebugControlsEl = document.getElementById("ui-debug-controls");
-const uiDebugPreviewEl = document.getElementById("ui-debug-preview");
-const uiDebugSaveEl = document.getElementById("ui-debug-save");
-const uiDebugResetEl = document.getElementById("ui-debug-reset");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
 const levelWinNextBtn = document.getElementById("level-win-next-btn");
@@ -146,6 +140,7 @@ const staminaStorageKey = "fruit_stamina_v1";
 const homeUiTuningStorageKey = "fruit_home_ui_tuning_v1";
 const gameSettingsStorageKey = "fruit_game_settings_v1";
 const uiLayoutDebugStorageKey = "fruit_ui_layout_debug_v1";
+const hudDebugStorageKey = "fruit_hud_debug_v1";
 const staminaMax = 5;
 const staminaRecoverIntervalMs = 25 * 60 * 1000;
 const outOfMovesBannerDurationMs = 1800;
@@ -236,29 +231,16 @@ const defaultUiLayoutDebugTuning = {
   continueScale: 1,
 };
 
-const uiDebugControlDefs = [
-  { key: "winWidth", label: "Panel W", min: -80, max: 180, step: 1, unit: "px" },
-  { key: "winHeight", label: "Panel H", min: -120, max: 220, step: 1, unit: "px" },
-  { key: "winX", label: "Win X", min: -140, max: 140, step: 1, unit: "px" },
-  { key: "winY", label: "Win Y", min: -140, max: 140, step: 1, unit: "px" },
-  { key: "winScale", label: "Win Scale", min: 0.7, max: 1.35, step: 0.01, unit: "" },
-  { key: "titleY", label: "Title Y", min: -80, max: 100, step: 1, unit: "px" },
-  { key: "titleScale", label: "Title S", min: 0.7, max: 1.5, step: 0.01, unit: "" },
-  { key: "perfectY", label: "Perfect Y", min: -100, max: 100, step: 1, unit: "px" },
-  { key: "perfectScale", label: "Perfect S", min: 0.6, max: 1.4, step: 0.01, unit: "" },
-  { key: "rewardY", label: "Reward Y", min: -100, max: 100, step: 1, unit: "px" },
-  { key: "rewardScale", label: "Reward S", min: 0.6, max: 1.5, step: 0.01, unit: "" },
-  { key: "coinNumX", label: "CoinNum X", min: -120, max: 120, step: 1, unit: "px" },
-  { key: "coinNumY", label: "CoinNum Y", min: -120, max: 120, step: 1, unit: "px" },
-  { key: "actionsY", label: "Actions Y", min: -100, max: 120, step: 1, unit: "px" },
-  { key: "continueScale", label: "Continue S", min: 0.75, max: 1.45, step: 0.01, unit: "" },
-];
+const defaultHudDebugTuning = {
+  hudLevelOffsetX: 0,
+};
 
 const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 const gameSettings = readGameSettings();
 const uiLayoutDebugTuning = readUiLayoutDebugTuning();
+const hudDebugTuning = readHudDebugTuning();
 
 const state = {
   started: false,
@@ -291,6 +273,7 @@ const state = {
   rewardAppliedThisRound: false,
   staminaTipHideTimer: 0,
   staminaTipTickTimer: 0,
+  homeCenterTipTimer: 0,
   outOfMovesBannerTimer: 0,
   outOfMovesBannerAnimation: null,
 };
@@ -707,98 +690,24 @@ function applyUiLayoutDebugTuning(values) {
   }
 }
 
-function persistUiLayoutDebugTuning() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(uiLayoutDebugStorageKey, JSON.stringify(uiLayoutDebugTuning));
+function readHudDebugTuning() {
+  const fallback = { ...defaultHudDebugTuning };
+  if (typeof window === "undefined" || !window.localStorage) return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(hudDebugStorageKey);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return {
+      hudLevelOffsetX: clampNumber(parsed.hudLevelOffsetX, -40, 40, fallback.hudLevelOffsetX),
+    };
+  } catch (_err) {
+    return fallback;
+  }
 }
 
-function bindUiDebugPanel() {
-  if (!uiDebugPanelEl || !uiDebugToggleEl || !uiDebugBodyEl || !uiDebugControlsEl || !uiDebugPreviewEl || !uiDebugSaveEl || !uiDebugResetEl) {
-    return;
-  }
-
-  const inputMap = new Map();
-  const valueMap = new Map();
-
-  const formatValue = (def, value) => {
-    const fixed = def.step >= 1 ? Math.round(value) : Number(value).toFixed(2);
-    return `${fixed}${def.unit}`;
-  };
-
-  const refreshValues = () => {
-    for (const def of uiDebugControlDefs) {
-      const input = inputMap.get(def.key);
-      const valueEl = valueMap.get(def.key);
-      const value = Number(uiLayoutDebugTuning[def.key] ?? def.min);
-      if (input) input.value = String(value);
-      if (valueEl) valueEl.textContent = formatValue(def, value);
-    }
-  };
-
-  uiDebugControlsEl.innerHTML = "";
-  for (const def of uiDebugControlDefs) {
-    const row = document.createElement("label");
-    row.className = "ui-debug-row";
-
-    const title = document.createElement("span");
-    title.textContent = def.label;
-
-    const input = document.createElement("input");
-    input.type = "range";
-    input.min = String(def.min);
-    input.max = String(def.max);
-    input.step = String(def.step);
-    input.value = String(uiLayoutDebugTuning[def.key]);
-
-    const valueEl = document.createElement("span");
-    valueEl.className = "ui-debug-value";
-    valueEl.textContent = formatValue(def, uiLayoutDebugTuning[def.key]);
-
-    const applyFromInput = () => {
-      const next = Number(input.value);
-      uiLayoutDebugTuning[def.key] = next;
-      valueEl.textContent = formatValue(def, next);
-      applyUiLayoutDebugTuning(uiLayoutDebugTuning);
-    };
-
-    input.addEventListener("input", applyFromInput);
-    input.addEventListener("change", applyFromInput);
-
-    row.append(title, input, valueEl);
-    uiDebugControlsEl.appendChild(row);
-    inputMap.set(def.key, input);
-    valueMap.set(def.key, valueEl);
-  }
-
-  uiDebugToggleEl.addEventListener("click", () => {
-    uiDebugBodyEl.classList.toggle("hidden");
-    gameUI.showCommentary("Open GameWin first to preview", 900);
-  });
-
-  uiDebugPreviewEl.addEventListener("click", () => {
-    gameUI.openResult("win", {
-      reward: levelWinRewardBase,
-      level: Math.max(1, state.currentLevelIndex + 1),
-      score: Math.max(0, state.stepLimit - state.stepsUsed),
-      canNext: true,
-      isFinal: false,
-    });
-    window.requestAnimationFrame(() => applyUiLayoutDebugTuning(uiLayoutDebugTuning));
-    gameUI.showCommentary("GameWin preview opened", 900);
-  });
-
-  uiDebugSaveEl.addEventListener("click", () => {
-    persistUiLayoutDebugTuning();
-    gameUI.showCommentary("UI layout saved", 900);
-  });
-
-  uiDebugResetEl.addEventListener("click", () => {
-    Object.assign(uiLayoutDebugTuning, defaultUiLayoutDebugTuning);
-    applyUiLayoutDebugTuning(uiLayoutDebugTuning);
-    refreshValues();
-    persistUiLayoutDebugTuning();
-    gameUI.showCommentary("UI layout reset", 900);
-  });
+function applyHudDebugTuning(values) {
+  document.documentElement.style.setProperty("--hud-level-offset-x", `${values.hudLevelOffsetX}px`);
 }
 
 function readGameSettings() {
@@ -1180,7 +1089,7 @@ function tryConsumeStaminaForLevelEntry() {
   settleStaminaRecovery();
   if (state.stamina <= 0) {
     syncStaminaUi();
-    gameUI.showCommentary("体力不足，25分钟恢复1点", 1400);
+    showHomeCenterTip("体力不足", 1200);
     return false;
   }
 
@@ -1245,6 +1154,39 @@ function getHomeEnergyTipEl() {
   tipEl.className = "home-energy-tip";
   homeEnergyStatusEl.appendChild(tipEl);
   return tipEl;
+}
+
+function getHomeCenterTipEl() {
+  if (!homeScreenEl) return null;
+  let tipEl = homeScreenEl.querySelector(".home-center-tip");
+  if (tipEl instanceof HTMLElement) return tipEl;
+  tipEl = document.createElement("div");
+  tipEl.className = "home-center-tip";
+  homeScreenEl.appendChild(tipEl);
+  return tipEl;
+}
+
+function hideHomeCenterTip() {
+  if (state.homeCenterTipTimer) {
+    window.clearTimeout(state.homeCenterTipTimer);
+    state.homeCenterTipTimer = 0;
+  }
+  const tipEl = getHomeCenterTipEl();
+  if (tipEl) {
+    tipEl.classList.remove("show");
+  }
+}
+
+function showHomeCenterTip(text, durationMs = 1200) {
+  const tipEl = getHomeCenterTipEl();
+  if (!tipEl) return;
+  hideHomeCenterTip();
+  tipEl.textContent = text;
+  tipEl.classList.add("show");
+  state.homeCenterTipTimer = window.setTimeout(() => {
+    tipEl.classList.remove("show");
+    state.homeCenterTipTimer = 0;
+  }, durationMs);
 }
 
 function hideHomeEnergyRecoverTip() {
@@ -1617,6 +1559,7 @@ function showHomeScreen() {
 function hideHomeScreen() {
   state.inHome = false;
   hideHomeEnergyRecoverTip();
+  hideHomeCenterTip();
   setGameHudVisible(true);
   if (homeScreenEl) homeScreenEl.classList.add("hidden");
   hideHomeSettingsModal();
@@ -1666,7 +1609,19 @@ function grantLevelWinProgress(nextLevelIndex) {
 function retryCurrentLevelFromResult() {
   if (!state.started) return;
   hideOutOfMovesBanner();
-  if (!tryConsumeStaminaForLevelEntry()) return;
+  if (!tryConsumeStaminaForLevelEntry()) {
+    gameUI.closeResult();
+    state.started = false;
+    state.gameOver = false;
+    state.levelTransitioning = false;
+    state.pointerDown = false;
+    state.pendingWinReward = 0;
+    state.rewardAppliedThisRound = true;
+    clearBoardEntities();
+    showHomeScreen();
+    showHomeCenterTip("体力不足", 1200);
+    return;
+  }
   gameUI.closeResult();
   state.gameOver = false;
   state.levelTransitioning = false;
@@ -1748,6 +1703,7 @@ function init() {
   hydrateStamina();
   applyHomeUiTuning(readHomeUiTuning());
   applyUiLayoutDebugTuning(uiLayoutDebugTuning);
+  applyHudDebugTuning(hudDebugTuning);
   applyGameSettings();
   syncCoinUi();
   syncStaminaUi();
@@ -1770,7 +1726,6 @@ function init() {
   bindHomeEnergyTip();
   bindHomeSettingsModal();
   bindGameplaySettingsMenu();
-  bindUiDebugPanel();
   gameUI.closeResult();
   setupLevelTestControls();
 
@@ -2168,6 +2123,7 @@ function updateStepsHud() {
   if (!stepsEl) return;
   const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
   stepsEl.textContent = `MOVE:${remaining}`;
+  if (hudLevelEl) hudLevelEl.textContent = `LV:${state.currentLevelIndex + 1}`;
 }
 
 function screenToWorld(clientX, clientY) {

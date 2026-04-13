@@ -57,8 +57,13 @@ const html = `<!doctype html>
         <div class="gameplay-topbar-spacer gameplay-topbar-right" aria-hidden="true"></div>
       </div>
 
-      <div id="hud" class="home-status" aria-label="剩余步数">
-        <span id="score" class="home-status-value">MOVE:0</span>
+      <div id="hud" aria-label="关卡状态">
+        <div class="home-status gameplay-hud-item" aria-label="剩余步数">
+          <span id="score" class="home-status-value">MOVE:0</span>
+        </div>
+        <div class="home-status gameplay-hud-item" aria-label="当前关卡">
+          <span id="hud-level" class="home-status-value">LV:1</span>
+        </div>
       </div>
 
       <div id="gameplay-settings-mask" class="hidden" aria-hidden="true"></div>
@@ -171,19 +176,6 @@ const html = `<!doctype html>
       <div id="app"></div>
     </div>
 
-    <div id="ui-debug-panel" aria-label="UI debug panel">
-      <button id="ui-debug-toggle" type="button">GAMEWIN DEBUG</button>
-      <div id="ui-debug-body" class="hidden">
-        <div class="ui-debug-tip">Open GameWin to see live changes.</div>
-        <div id="ui-debug-controls"></div>
-        <div class="ui-debug-actions">
-          <button id="ui-debug-preview" type="button">Preview Win</button>
-          <button id="ui-debug-save" type="button">Save</button>
-          <button id="ui-debug-reset" type="button">Reset</button>
-        </div>
-      </div>
-    </div>
-
     <div id="level-test" aria-label="Level test tools">
       <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
       <div id="level-test-panel" class="hidden">
@@ -192,6 +184,7 @@ const html = `<!doctype html>
         <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
       </div>
     </div>
+
 
     <script>${js}</script>
   </body>

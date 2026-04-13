@@ -90,7 +90,7 @@ export function createResultPage({
     } else {
       if (titleTextEl) titleTextEl.textContent = `Level ${levelNumber}`;
       if (descEl) {
-        descEl.textContent = `Failed with ${score} score`;
+        descEl.textContent = "Level Failed!";
         descEl.classList.remove("hidden");
       }
       rewardEl.textContent = "0";
@@ -98,7 +98,7 @@ export function createResultPage({
       cardBodyEl?.classList.add("is-lose");
       titleEl.classList.remove("is-win");
       titleEl.classList.add("is-lose");
-      winCloseBtn?.classList.add("hidden");
+      winCloseBtn?.classList.remove("hidden");
       perfectEl?.classList.add("hidden");
       rewardLabelEl?.classList.add("hidden");
       rewardEl.classList.add("hidden");
