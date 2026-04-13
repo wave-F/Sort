@@ -253,6 +253,8 @@ let hexOverlayLabelGroup = null;
 const hexOverlayLabelSprites = [];
 const hexOverlayLabelMaterials = new Map();
 let hexOverlayCenters = [];
+const hexOverlayTopColorIds = [];
+const hexOverlayTopZValues = [];
 const hexOverlayDefaultColor = new THREE.Color(0x000000);
 const hexOverlayWorkColor = new THREE.Color();
 
@@ -1428,6 +1430,8 @@ function rebuildHexOverlay() {
     hexOverlayLabelGroup = null;
   }
   hexOverlayLabelSprites.length = 0;
+  hexOverlayTopColorIds.length = 0;
+  hexOverlayTopZValues.length = 0;
 
   hexOverlayCenters = [];
   const r = hexOverlayRadius;
@@ -1470,10 +1474,14 @@ function rebuildHexOverlay() {
     matrix.makeTranslation(center.x, center.y, 0.8);
     mesh.setMatrixAt(i, matrix);
     mesh.setColorAt(i, hexOverlayDefaultColor);
+    hexOverlayTopColorIds[i] = -1;
+    hexOverlayTopZValues[i] = Number.NEGATIVE_INFINITY;
   }
 
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.userData.topColorIds = hexOverlayTopColorIds;
+  mesh.userData.topZValues = hexOverlayTopZValues;
   hexOverlayMesh = mesh;
   scene.add(hexOverlayMesh);
 
@@ -1527,10 +1535,11 @@ function updateHexOverlayColors() {
 
   for (let i = 0; i < hexOverlayCenters.length; i += 1) {
     const center = hexOverlayCenters[i];
-    let bestLayerY = -Infinity;
+    let bestSurfaceZ = Number.NEGATIVE_INFINITY;
     let bestDistSq = Infinity;
     let pickedColorHex = null;
     let pickedColorId = -1;
+    let pickedSurfaceZ = Number.NEGATIVE_INFINITY;
 
     for (let j = 0; j < fruits.length; j += 1) {
       const fruit = fruits[j];
@@ -1540,16 +1549,24 @@ function updateHexOverlayColors() {
       const dy = center.y - fruit.group.position.y;
       const distSq = dx * dx + dy * dy;
       const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
-      if (distSq > hitRadius * hitRadius) continue;
+      const hitRadiusSq = hitRadius * hitRadius;
+      if (distSq > hitRadiusSq) continue;
 
-      const layerY = fruit.group.position.y;
-      if (layerY > bestLayerY || (layerY === bestLayerY && distSq < bestDistSq)) {
-        bestLayerY = layerY;
+      const centerZ = fruit.group.position.z + (fruit.bubble?.position.z ?? 0);
+      const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
+      const surfaceZ = centerZ + localSurfaceZ;
+
+      if (surfaceZ > bestSurfaceZ || (surfaceZ === bestSurfaceZ && distSq < bestDistSq)) {
+        bestSurfaceZ = surfaceZ;
         bestDistSq = distSq;
         pickedColorHex = colors[fruit.colorId]?.base ?? null;
         pickedColorId = fruit.colorId;
+        pickedSurfaceZ = surfaceZ;
       }
     }
+
+    hexOverlayTopColorIds[i] = pickedColorId;
+    hexOverlayTopZValues[i] = pickedSurfaceZ;
 
     if (pickedColorHex === null) {
       hexOverlayMesh.setColorAt(i, hexOverlayDefaultColor);
