@@ -559,9 +559,9 @@ function createGameRuntime() {
     colors,
     bubbleRadiusScale,
     bubbleBaseRadius,
-    emitDuration: 0.78,
-    spawnRate: 74,
-    maxBubbles: 56,
+    emitDuration: 0.9,
+    spawnRate: 108,
+    maxBubbles: 88,
   });
 
   const collisionSystem = createCollisionSystem({
