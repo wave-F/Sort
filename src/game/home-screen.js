@@ -223,6 +223,14 @@ export function createHomeScreenController({
       return configured;
     }
 
+    const levelColorIds = Array.isArray(level?.colorIds) ? level.colorIds : [];
+    if (levelColorIds.length > 0) {
+      const fromLevel = Math.floor(levelColorIds[0]);
+      if (fromLevel >= 0 && fromLevel < colors.length) {
+        return fromLevel;
+      }
+    }
+
     const difficulty = String(level?.difficulty ?? "easy").toLowerCase();
     if (difficulty === "hard") return homeHardColorId;
     if (difficulty === "medium") return homeMediumColorId;

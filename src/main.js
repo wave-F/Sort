@@ -421,14 +421,19 @@ const homeScreenController = createHomeScreenController({
   getRenderer: () => renderer,
   getTrail: () => trail,
   screenToWorld,
-  createHomeBubbleEntity: ({ id, colorId }) => new BubbleEntity({
-    id,
-    colorId,
-    radius: 1,
-    vx: 0,
-    vy: 0,
-    baseColor: new THREE.Color(colors[colorId].base),
-  }),
+  createHomeBubbleEntity: ({ id, colorId }) => {
+    const entity = new BubbleEntity({
+      id,
+      colorId,
+      radius: 1,
+      vx: 0,
+      vy: 0,
+      baseColor: new THREE.Color(colors[colorId].base).offsetHSL(0, 0.1, 0),
+    });
+    entity.baseOpacity = 0.96;
+    entity.bubbleMaterial.opacity = 0.96;
+    return entity;
+  },
   scene,
   bubbleBaseRadius,
   onPlayUiClick: () => gameAudio.playUiClickAudio(),
