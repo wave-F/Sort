@@ -17,7 +17,7 @@ import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
-import { HEX_TEST_FLOW1_LABEL, createHexTestFlowController } from "./flow/hex-test-flow.js";
+import { HEX_TEST_FLOW1_LABEL, calculateTheoryStepsRecursive, createHexTestFlowController } from "./flow/hex-test-flow.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
@@ -79,6 +79,7 @@ const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
 const levelTestNextStepBtn = document.getElementById("level-test-next-step");
+const levelTestExportStepBtn = document.getElementById("level-test-export-step");
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 
 function setupHomeFloatBubbles() {
@@ -262,6 +263,9 @@ const hexOverlayHighlighted = new Set();
 const hexOverlayDefaultColor = new THREE.Color(0x000000);
 const hexOverlayWorkColor = new THREE.Color();
 const hexOverlayInvertColor = new THREE.Color();
+
+let levelsXlsxHandle = null;
+let xlsxLoaderPromise = null;
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -1079,7 +1083,7 @@ function init() {
 }
 
 function setupLevelTestControls() {
-  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn || !levelTestNextStepBtn || !levelTestHexToggleEl) {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn || !levelTestNextStepBtn || !levelTestExportStepBtn || !levelTestHexToggleEl) {
     return;
   }
 
@@ -1125,6 +1129,131 @@ function setupLevelTestControls() {
     gameUI.showCommentary(`执行${hexTestFlow.getLabel()}`, 500);
     levelTestNextStepBtn.textContent = hexTestFlow.runNext();
   });
+
+  levelTestExportStepBtn.addEventListener("click", () => {
+    void calculateAndExportTheoryStep();
+  });
+}
+
+function loadXlsxBrowserLibrary() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (xlsxLoaderPromise) return xlsxLoaderPromise;
+
+  xlsxLoaderPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.XLSX) resolve(window.XLSX);
+      else reject(new Error("XLSX loader failed"));
+    };
+    script.onerror = () => reject(new Error("无法加载 xlsx 库"));
+    document.head.appendChild(script);
+  });
+
+  return xlsxLoaderPromise;
+}
+
+async function getLevelsWorkbookHandle() {
+  if (levelsXlsxHandle) return levelsXlsxHandle;
+  if (typeof window.showOpenFilePicker !== "function") {
+    throw new Error("当前浏览器不支持文件写入API");
+  }
+
+  const [handle] = await window.showOpenFilePicker({
+    multiple: false,
+    types: [
+      {
+        description: "Excel Workbook",
+        accept: {
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+        },
+      },
+    ],
+    excludeAcceptAllOption: false,
+  });
+  levelsXlsxHandle = handle;
+  return handle;
+}
+
+async function writeTheoryStepToWorkbook(levelId, stepCount) {
+  const XLSX = await loadXlsxBrowserLibrary();
+  const handle = await getLevelsWorkbookHandle();
+  const file = await handle.getFile();
+  const raw = await file.arrayBuffer();
+  const workbook = XLSX.read(raw, { type: "array" });
+  const sheetName = workbook.SheetNames.includes("Levels") ? "Levels" : workbook.SheetNames[0];
+  if (!sheetName) throw new Error("工作簿中没有可用sheet");
+
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const normalize = (v) => String(v ?? "").trim().toLowerCase();
+  const headerRowIndex = rows.findIndex((row) => Array.isArray(row) && row.some((c) => normalize(c) === "id"));
+  if (headerRowIndex < 0) throw new Error("未找到id列");
+
+  const headerRow = rows[headerRowIndex];
+  const idCol = headerRow.findIndex((c) => normalize(c) === "id");
+  let theoryCol = headerRow.findIndex((c) => normalize(c) === "intheorystep");
+  if (theoryCol < 0) {
+    theoryCol = headerRow.length;
+    headerRow[theoryCol] = "inTheoryStep";
+  }
+
+  let targetRow = -1;
+  for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
+    const row = rows[r];
+    if (!Array.isArray(row)) continue;
+    if (Number(row[idCol]) === Number(levelId)) {
+      targetRow = r;
+      break;
+    }
+  }
+  if (targetRow < 0) throw new Error(`未找到关卡 id=${levelId}`);
+
+  rows[targetRow][theoryCol] = Number(stepCount);
+  workbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
+
+  const output = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  const writable = await handle.createWritable();
+  await writable.write(output);
+  await writable.close();
+}
+
+async function calculateAndExportTheoryStep() {
+  if (!state.started || state.inHome) {
+    gameUI.showCommentary("请先开始战斗再计算步数", 1000);
+    return;
+  }
+
+  if (!hexOverlayCenters.length) {
+    rebuildHexOverlay();
+    updateHexOverlayColors();
+  }
+
+  const simFruits = [];
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit?.active || fruit.sliced) continue;
+    simFruits.push({
+      x: fruit.group.position.x,
+      y: fruit.group.position.y,
+      z: fruit.group.position.z + (fruit.bubble?.position.z ?? 0),
+      radius: fruit.radius,
+      colorId: fruit.colorId,
+      active: true,
+    });
+  }
+
+  const stepCount = calculateTheoryStepsRecursive({ centers: hexOverlayCenters, fruits: simFruits });
+  const levelId = state.activeLevel?.id ?? state.currentLevelIndex + 1;
+
+  try {
+    await writeTheoryStepToWorkbook(levelId, stepCount);
+    gameUI.showCommentary(`理论步数=${stepCount}，已写入 Levels.xlsx`, 1300);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    gameUI.showCommentary(`导出失败：${message}`, 1400);
+  }
 }
 
 function setLevelTestSelection(index) {

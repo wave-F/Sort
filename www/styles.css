@@ -200,6 +200,10 @@ body {
   width: 100%;
 }
 
+#level-test-export-step {
+  width: 100%;
+}
+
 .level-test-group {
   margin: 2px 0 0;
   padding: 8px;

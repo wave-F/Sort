@@ -33,6 +33,187 @@ function buildHexIndexByCell(centers) {
   return { indexByCell, keyOfCell };
 }
 
+function computeTopColorIdsByZ(centers, simFruits) {
+  const topColorIds = new Array(centers.length).fill(-1);
+
+  for (let i = 0; i < centers.length; i += 1) {
+    const center = centers[i];
+    let bestSurfaceZ = Number.NEGATIVE_INFINITY;
+    let bestColorId = -1;
+    let bestDistSq = Infinity;
+
+    for (let j = 0; j < simFruits.length; j += 1) {
+      const fruit = simFruits[j];
+      if (!fruit?.active) continue;
+
+      const dx = center.x - fruit.x;
+      const dy = center.y - fruit.y;
+      const distSq = dx * dx + dy * dy;
+      const hitRadiusSq = fruit.radius * fruit.radius;
+      if (distSq > hitRadiusSq) continue;
+
+      const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
+      const surfaceZ = fruit.z + localSurfaceZ;
+      if (surfaceZ > bestSurfaceZ || (surfaceZ === bestSurfaceZ && distSq < bestDistSq)) {
+        bestSurfaceZ = surfaceZ;
+        bestDistSq = distSq;
+        bestColorId = fruit.colorId;
+      }
+    }
+
+    topColorIds[i] = bestColorId;
+  }
+
+  return topColorIds;
+}
+
+function findLargestConnectedRegion(centers, topColorIds) {
+  const { indexByCell, keyOfCell } = buildHexIndexByCell(centers);
+  const visited = new Uint8Array(centers.length);
+  let bestRegion = [];
+  let bestColorId = -1;
+
+  for (let i = 0; i < centers.length; i += 1) {
+    if (visited[i]) continue;
+    const colorId = topColorIds[i];
+    if (colorId < 0) {
+      visited[i] = 1;
+      continue;
+    }
+
+    const region = [];
+    const queue = [i];
+    visited[i] = 1;
+
+    for (let q = 0; q < queue.length; q += 1) {
+      const idx = queue[q];
+      region.push(idx);
+      const center = centers[idx];
+      const neighbors = getHexNeighborCells(center.col, center.row);
+
+      for (let k = 0; k < neighbors.length; k += 1) {
+        const nextIdx = indexByCell.get(keyOfCell(neighbors[k][0], neighbors[k][1]));
+        if (nextIdx === undefined || visited[nextIdx]) continue;
+        if (topColorIds[nextIdx] !== colorId) continue;
+        visited[nextIdx] = 1;
+        queue.push(nextIdx);
+      }
+    }
+
+    if (region.length > bestRegion.length) {
+      bestRegion = region;
+      bestColorId = colorId;
+    }
+  }
+
+  return { region: bestRegion, colorId: bestColorId };
+}
+
+function findReachableSameColorRegion(centers, topColorIds, seedRegion, targetColorId) {
+  const { indexByCell, keyOfCell } = buildHexIndexByCell(centers);
+  const visited = new Uint8Array(centers.length);
+  const queue = [];
+  const result = new Set();
+
+  for (const idx of seedRegion) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= centers.length) continue;
+    if (visited[idx]) continue;
+    visited[idx] = 1;
+    queue.push(idx);
+    result.add(idx);
+  }
+
+  for (let q = 0; q < queue.length; q += 1) {
+    const idx = queue[q];
+    const center = centers[idx];
+    const neighbors = getHexNeighborCells(center.col, center.row);
+
+    for (let k = 0; k < neighbors.length; k += 1) {
+      const nextIdx = indexByCell.get(keyOfCell(neighbors[k][0], neighbors[k][1]));
+      if (nextIdx === undefined || visited[nextIdx]) continue;
+
+      const nextColor = topColorIds[nextIdx];
+      if (nextColor !== -1 && nextColor !== targetColorId) continue;
+
+      visited[nextIdx] = 1;
+      queue.push(nextIdx);
+      if (nextColor === targetColorId) result.add(nextIdx);
+    }
+  }
+
+  return result;
+}
+
+function eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, targetColorId) {
+  let removed = 0;
+
+  for (let i = 0; i < simFruits.length; i += 1) {
+    const fruit = simFruits[i];
+    if (!fruit?.active) continue;
+    if (fruit.colorId !== targetColorId) continue;
+
+    const hitRadiusSq = fruit.radius * fruit.radius;
+    let covered = false;
+    for (const idx of selectedHexes) {
+      const center = centers[idx];
+      if (!center) continue;
+      const dx = center.x - fruit.x;
+      const dy = center.y - fruit.y;
+      if (dx * dx + dy * dy <= hitRadiusSq) {
+        covered = true;
+        break;
+      }
+    }
+
+    if (!covered) continue;
+    fruit.active = false;
+    removed += 1;
+  }
+
+  return removed;
+}
+
+function countActiveFruits(simFruits) {
+  let active = 0;
+  for (let i = 0; i < simFruits.length; i += 1) {
+    if (simFruits[i]?.active) active += 1;
+  }
+  return active;
+}
+
+export function calculateTheoryStepsRecursive({ centers, fruits, maxDepth = 2048 } = {}) {
+  const simFruits = Array.isArray(fruits)
+    ? fruits.map((f) => ({
+        x: Number(f.x) || 0,
+        y: Number(f.y) || 0,
+        z: Number(f.z) || 0,
+        radius: Math.max(0, Number(f.radius) || 0),
+        colorId: Number.isInteger(f.colorId) ? f.colorId : -1,
+        active: f.active !== false,
+      }))
+    : [];
+
+  function recurse(stepCount, depth) {
+    const activeCount = countActiveFruits(simFruits);
+    if (activeCount === 0) return stepCount;
+    if (depth >= maxDepth) return stepCount;
+
+    const topColorIds = computeTopColorIdsByZ(centers, simFruits);
+    const flow1 = findLargestConnectedRegion(centers, topColorIds);
+    if (!flow1.region.length || flow1.colorId < 0) return stepCount;
+
+    const flow2 = findReachableSameColorRegion(centers, topColorIds, flow1.region, flow1.colorId);
+    const selectedHexes = new Set(flow1.region);
+    for (const idx of flow2) selectedHexes.add(idx);
+
+    const removed = eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, flow1.colorId);
+    if (removed <= 0) return stepCount;
+    return recurse(stepCount + 1, depth + 1);
+  }
+
+  return recurse(0, 0);
+}
+
 export function createHexTestFlowController({
   gameUI,
   fruits,
