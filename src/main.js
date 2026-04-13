@@ -77,6 +77,18 @@ const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
 const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
 
+const isIOSDevice = (() => {
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const touchPoints = Number(navigator.maxTouchPoints || 0);
+  return /iPhone|iPad|iPod/i.test(ua) || (platform === "MacIntel" && touchPoints > 1);
+})();
+
+if (isIOSDevice) {
+  document.documentElement.classList.add("platform-ios");
+  if (document.body) document.body.classList.add("platform-ios");
+}
+
 function setupHomeFloatBubbles() {
   homeScreenController.setupHomeFloatBubbles();
 }
