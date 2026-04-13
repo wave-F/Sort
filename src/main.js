@@ -1073,8 +1073,11 @@ function init() {
     window.visualViewport.addEventListener("resize", resize);
     window.visualViewport.addEventListener("scroll", resize);
   }
-  window.addEventListener("pointerdown", onPointerDown);
-  window.addEventListener("pointermove", onPointerMove);
+  appEl.addEventListener("pointerdown", onPointerDown);
+  appEl.addEventListener("pointermove", onPointerMove);
+  appEl.addEventListener("pointerup", onPointerUp);
+  appEl.addEventListener("pointercancel", onPointerUp);
+  appEl.style.touchAction = "none";
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
@@ -1438,6 +1441,7 @@ function resetFruits(level) {
 
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+  if (ev.button !== undefined && ev.button !== 0) return;
   if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
     gameUI.showCommentary("本关步数已用尽。", 1000);
     return;
@@ -1447,8 +1451,14 @@ function onPointerDown(ev) {
   void gameAudio.preloadPopAudio();
   gameAudio.resetSelectToneProgression();
 
-  const rect = renderer.domElement.getBoundingClientRect();
-  if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
+  const captureTarget = appEl || renderer.domElement;
+  if (captureTarget?.setPointerCapture && ev.pointerId !== undefined) {
+    try {
+      captureTarget.setPointerCapture(ev.pointerId);
+    } catch (_err) {
+      // ignore capture failures
+    }
+  }
 
   state.pointerDown = true;
   state.sliceColorId = null;
@@ -1491,8 +1501,18 @@ function onPointerMove(ev) {
   });
 }
 
-function onPointerUp() {
+function onPointerUp(ev) {
   if (!state.pointerDown) return;
+  const captureTarget = appEl || renderer?.domElement;
+  if (captureTarget?.releasePointerCapture) {
+    try {
+      if (ev?.pointerId !== undefined && captureTarget.hasPointerCapture?.(ev.pointerId)) {
+        captureTarget.releasePointerCapture(ev.pointerId);
+      }
+    } catch (_err) {
+      // ignore release failures
+    }
+  }
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
