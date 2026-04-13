@@ -1318,6 +1318,7 @@ function onPointerMove(ev) {
     settleQueuedSlices,
     resetSelectToneProgression: gameAudio.resetSelectToneProgression,
     playSelectTone: gameAudio.playSelectTone,
+    playErrorTone: gameAudio.playErrorTone,
   });
 }
 

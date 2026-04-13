@@ -126,6 +126,7 @@ export function createSliceSystem({
     settleQueuedSlices,
     resetSelectToneProgression,
     playSelectTone,
+    playErrorTone,
   }) {
     if (!state.pointerDown || state.gameOver || state.sliceBroken || !state.lastPoint || !state.nowPoint) return;
 
@@ -163,6 +164,7 @@ export function createSliceSystem({
 
       if (fruit.colorId !== state.sliceColorId) {
         fruit.flashWrongHit();
+        playErrorTone?.();
         settleQueuedSlices();
         if (state.keepFullTrailDuringDrag) trail.reset();
         state.sliceBroken = true;

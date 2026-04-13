@@ -16,6 +16,7 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     uiClickIndex: 0,
     bgmUnlockRetryBound: false,
     bgmUnlockRetryHandler: null,
+    errorLastAt: 0,
   };
 
   function getNextUiClickAudio() {
@@ -299,6 +300,68 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     noiseSource.stop(now + 0.042);
   }
 
+  function playErrorTone() {
+    if (!state.sfxEnabled) return;
+    if (!ensureAudioUnlocked()) return;
+    const ctx = state.context;
+    if (!ctx) return;
+
+    const nowMs = performance.now();
+    if (nowMs - state.errorLastAt < 90) return;
+    state.errorLastAt = nowMs;
+
+    const now = ctx.currentTime;
+    const endAt = now + 0.19;
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.0001, now);
+    masterGain.gain.exponentialRampToValueAtTime(0.18, now + 0.003);
+    masterGain.gain.exponentialRampToValueAtTime(0.03, now + 0.065);
+    masterGain.gain.linearRampToValueAtTime(0.14, now + 0.08);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+    const growl = ctx.createOscillator();
+    growl.type = "sawtooth";
+    growl.frequency.setValueAtTime(760, now);
+    growl.frequency.exponentialRampToValueAtTime(430, now + 0.09);
+    growl.frequency.setValueAtTime(540, now + 0.1);
+    growl.frequency.exponentialRampToValueAtTime(300, endAt);
+
+    const bite = ctx.createOscillator();
+    bite.type = "square";
+    bite.frequency.setValueAtTime(980, now);
+    bite.frequency.exponentialRampToValueAtTime(620, now + 0.075);
+    bite.frequency.setValueAtTime(860, now + 0.1);
+    bite.frequency.exponentialRampToValueAtTime(470, endAt);
+
+    const growlGain = ctx.createGain();
+    growlGain.gain.value = 0.85;
+    const biteGain = ctx.createGain();
+    biteGain.gain.value = 0.16;
+
+    const toneShape = ctx.createBiquadFilter();
+    toneShape.type = "lowpass";
+    toneShape.frequency.value = 2400;
+    toneShape.Q.value = 0.3;
+
+    const safety = ctx.createBiquadFilter();
+    safety.type = "highpass";
+    safety.frequency.value = 90;
+
+    growl.connect(growlGain);
+    bite.connect(biteGain);
+    growlGain.connect(masterGain);
+    biteGain.connect(masterGain);
+    masterGain.connect(toneShape);
+    toneShape.connect(safety);
+    safety.connect(ctx.destination);
+
+    growl.start(now);
+    bite.start(now);
+    growl.stop(endAt + 0.01);
+    bite.stop(endAt);
+  }
+
   return {
     ensureAudioUnlocked,
     preloadPopAudio,
@@ -310,5 +373,6 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     playRandomPopAudio,
     resetSelectToneProgression,
     playSelectTone,
+    playErrorTone,
   };
 }
