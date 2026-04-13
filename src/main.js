@@ -249,6 +249,9 @@ const hexOverlayBorderWidth = 0.02;
 
 let hexOverlayMesh = null;
 let hexOverlayBorderMesh = null;
+let hexOverlayLabelGroup = null;
+const hexOverlayLabelSprites = [];
+const hexOverlayLabelMaterials = new Map();
 let hexOverlayCenters = [];
 const hexOverlayDefaultColor = new THREE.Color(0x000000);
 const hexOverlayWorkColor = new THREE.Color();
@@ -1368,6 +1371,44 @@ function createHexRingGeometry(radius, borderWidth) {
   return new THREE.ShapeGeometry(shape);
 }
 
+function getHexLabelMaterial(label) {
+  const key = String(label);
+  const cached = hexOverlayLabelMaterials.get(key);
+  if (cached) return cached;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    const fallback = new THREE.SpriteMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
+    hexOverlayLabelMaterials.set(key, fallback);
+    return fallback;
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 34px sans-serif";
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "rgba(0,0,0,0.92)";
+  ctx.fillStyle = "rgba(255,255,255,0.98)";
+  ctx.strokeText(key, 32, 34);
+  ctx.fillText(key, 32, 34);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 0.82,
+    depthTest: false,
+    depthWrite: false,
+  });
+  hexOverlayLabelMaterials.set(key, material);
+  return material;
+}
+
 function rebuildHexOverlay() {
   if (hexOverlayMesh) {
     scene.remove(hexOverlayMesh);
@@ -1381,6 +1422,12 @@ function rebuildHexOverlay() {
     hexOverlayBorderMesh.material.dispose();
     hexOverlayBorderMesh = null;
   }
+  if (hexOverlayLabelGroup) {
+    scene.remove(hexOverlayLabelGroup);
+    hexOverlayLabelGroup.clear();
+    hexOverlayLabelGroup = null;
+  }
+  hexOverlayLabelSprites.length = 0;
 
   hexOverlayCenters = [];
   const r = hexOverlayRadius;
@@ -1452,12 +1499,30 @@ function rebuildHexOverlay() {
   borderMesh.instanceMatrix.needsUpdate = true;
   hexOverlayBorderMesh = borderMesh;
   scene.add(hexOverlayBorderMesh);
+
+  const labelGroup = new THREE.Group();
+  labelGroup.renderOrder = 62;
+  const labelScale = r * 1.15;
+  const defaultLabelMaterial = getHexLabelMaterial("-1");
+  for (let i = 0; i < count; i += 1) {
+    const center = hexOverlayCenters[i];
+    const sprite = new THREE.Sprite(defaultLabelMaterial);
+    sprite.position.set(center.x, center.y, 0.802);
+    sprite.scale.set(labelScale, labelScale, 1);
+    sprite.renderOrder = 62;
+    sprite.userData.label = "-1";
+    hexOverlayLabelSprites.push(sprite);
+    labelGroup.add(sprite);
+  }
+  hexOverlayLabelGroup = labelGroup;
+  scene.add(hexOverlayLabelGroup);
 }
 
 function updateHexOverlayColors() {
   if (!hexOverlayMesh) return;
   hexOverlayMesh.visible = state.started && !state.inHome && state.showHexOverlay;
   if (hexOverlayBorderMesh) hexOverlayBorderMesh.visible = hexOverlayMesh.visible;
+  if (hexOverlayLabelGroup) hexOverlayLabelGroup.visible = hexOverlayMesh.visible;
   if (!hexOverlayMesh.visible) return;
 
   for (let i = 0; i < hexOverlayCenters.length; i += 1) {
@@ -1465,6 +1530,7 @@ function updateHexOverlayColors() {
     let bestLayerY = -Infinity;
     let bestDistSq = Infinity;
     let pickedColorHex = null;
+    let pickedColorId = -1;
 
     for (let j = 0; j < fruits.length; j += 1) {
       const fruit = fruits[j];
@@ -1481,6 +1547,7 @@ function updateHexOverlayColors() {
         bestLayerY = layerY;
         bestDistSq = distSq;
         pickedColorHex = colors[fruit.colorId]?.base ?? null;
+        pickedColorId = fruit.colorId;
       }
     }
 
@@ -1489,6 +1556,15 @@ function updateHexOverlayColors() {
     } else {
       hexOverlayWorkColor.setHex(pickedColorHex);
       hexOverlayMesh.setColorAt(i, hexOverlayWorkColor);
+    }
+
+    const sprite = hexOverlayLabelSprites[i];
+    if (sprite) {
+      const label = String(pickedColorId);
+      if (sprite.userData.label !== label) {
+        sprite.userData.label = label;
+        sprite.material = getHexLabelMaterial(label);
+      }
     }
   }
 
