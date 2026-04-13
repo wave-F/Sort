@@ -6,7 +6,7 @@ export function createCoinStatus({ rootEl, valueEl } = {}) {
 
   function getAnchorRect() {
     if (!rootEl) return null;
-    const icon = rootEl.querySelector(".coin-icon");
+    const icon = rootEl.querySelector(".home-status-badge.coin");
     const target = icon || rootEl;
     return target.getBoundingClientRect();
   }

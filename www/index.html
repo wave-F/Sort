@@ -9,6 +9,15 @@
   </head>
   <body>
     <div id="phone-frame">
+      <div id="gameplay-topbar" class="hidden" aria-hidden="true">
+        <div class="gameplay-topbar-spacer" aria-hidden="true"></div>
+        <div id="gameplay-coin-status" class="home-status home-status-coin is-hidden-in-gameplay" aria-label="金币数量">
+          <img class="home-status-badge coin" src="./assets/images/currency128_Coin.png" alt="金币" />
+          <span id="gameplay-coin-text" class="home-status-value">0</span>
+        </div>
+        <div class="gameplay-topbar-spacer gameplay-topbar-right" aria-hidden="true"></div>
+      </div>
+
       <div id="hud" class="home-status" aria-label="剩余步数">
         <span id="score" class="home-status-value">MOVE:0</span>
       </div>
@@ -28,12 +37,17 @@
         </button>
       </div>
 
-      <div id="level-test">
-        <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
-        <div id="level-test-panel" class="hidden">
-          <label for="level-test-select">选择关卡</label>
-          <select id="level-test-select"></select>
-          <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
+      <div id="gameplay-exit-mask" class="hidden" aria-hidden="true"></div>
+      <div id="gameplay-exit-modal" class="hidden" role="dialog" aria-modal="true" aria-label="Quit confirmation">
+        <button id="gameplay-exit-close" class="gameplay-exit-close" type="button" aria-label="Close">✕</button>
+        <div class="gameplay-exit-title">Are You Sure?</div>
+        <div class="gameplay-exit-inner">
+          <div class="gameplay-exit-icon" aria-hidden="true">💔</div>
+          <p>Leave this level and return Home?</p>
+        </div>
+        <div class="gameplay-exit-actions">
+          <button id="gameplay-exit-cancel" class="gameplay-exit-cancel" type="button">Cancel</button>
+          <button id="gameplay-exit-confirm" class="gameplay-exit-confirm" type="button">Quit</button>
         </div>
       </div>
 
@@ -84,6 +98,26 @@
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
 
+      <div id="result-mask" class="hidden" aria-hidden="true"></div>
+      <div id="result-page" class="layer hidden">
+        <div class="result-card panel-light">
+          <button id="result-win-close" class="result-win-close hidden" type="button" aria-label="Close">✕</button>
+          <h2 id="result-page-title" class="result-title is-lose"><span id="result-page-title-text">结果页</span></h2>
+          <div id="result-win-perfect" class="result-win-perfect hidden">PERFECT!</div>
+          <div id="result-reward-label" class="result-reward-label hidden">Rewards:</div>
+          <div class="result-reward-stack">
+            <img id="result-coin-icon" class="result-coin hidden" src="./assets/images/currency128_Coin.png" alt="金币" />
+            <div id="result-coin-gain" class="result-coin-gain hidden">0</div>
+          </div>
+          <p id="result-page-text">当前暂无统计。</p>
+          <div class="result-actions">
+            <button id="result-retry-btn" type="button" class="hidden" aria-label="重试"></button>
+            <button id="result-exit-btn" type="button" class="hidden" aria-label="返回"></button>
+            <button id="result-next-btn" type="button" class="hidden" aria-label="下一关"></button>
+          </div>
+        </div>
+      </div>
+
       <div id="level-win" class="layer hidden">
         <h2 id="level-win-title">关卡胜利！</h2>
         <p id="level-win-desc">泡泡雨已放送，准备下一关。</p>
@@ -96,6 +130,28 @@
       </div>
 
       <div id="app"></div>
+    </div>
+
+    <div id="ui-debug-panel" aria-label="UI debug panel">
+      <button id="ui-debug-toggle" type="button">GAMEWIN DEBUG</button>
+      <div id="ui-debug-body" class="hidden">
+        <div class="ui-debug-tip">Open GameWin to see live changes.</div>
+        <div id="ui-debug-controls"></div>
+        <div class="ui-debug-actions">
+          <button id="ui-debug-preview" type="button">Preview Win</button>
+          <button id="ui-debug-save" type="button">Save</button>
+          <button id="ui-debug-reset" type="button">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="level-test" aria-label="Level test tools">
+      <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
+      <div id="level-test-panel" class="hidden">
+        <label for="level-test-select">选择关卡</label>
+        <select id="level-test-select"></select>
+        <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
+      </div>
     </div>
 
     <script src="./main.js"></script>

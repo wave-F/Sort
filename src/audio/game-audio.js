@@ -92,7 +92,7 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     const audio = new Audio(levelBgmUrl);
     audio.loop = true;
     audio.preload = "auto";
-    audio.volume = 0.25;
+    audio.volume = 0.15;
     state.levelBgm = audio;
     return audio;
   }
