@@ -196,6 +196,10 @@ body {
   width: 100%;
 }
 
+#level-test-next-step {
+  width: 100%;
+}
+
 .level-test-switch {
   display: flex;
   align-items: center;

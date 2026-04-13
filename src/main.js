@@ -77,6 +77,7 @@ const levelTestRootEl = document.getElementById("level-test");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
+const levelTestNextStepBtn = document.getElementById("level-test-next-step");
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 
 function setupHomeFloatBubbles() {
@@ -256,8 +257,12 @@ const hexOverlayLabelMaterials = new Map();
 let hexOverlayCenters = [];
 const hexOverlayTopColorIds = [];
 const hexOverlayTopZValues = [];
+const hexOverlayHighlighted = new Set();
+let hexOverlayStepX = hexOverlayRadius * 1.5;
+let hexOverlayStepY = Math.sqrt(3) * hexOverlayRadius;
 const hexOverlayDefaultColor = new THREE.Color(0x000000);
 const hexOverlayWorkColor = new THREE.Color();
+const hexOverlayInvertColor = new THREE.Color();
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
@@ -1064,7 +1069,7 @@ function init() {
 }
 
 function setupLevelTestControls() {
-  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn || !levelTestHexToggleEl) {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn || !levelTestNextStepBtn || !levelTestHexToggleEl) {
     return;
   }
 
@@ -1094,6 +1099,11 @@ function setupLevelTestControls() {
   levelTestHexToggleEl.addEventListener("change", () => {
     state.showHexOverlay = levelTestHexToggleEl.checked;
     updateHexOverlayColors();
+  });
+
+  levelTestNextStepBtn.addEventListener("click", () => {
+    if (!state.started || state.inHome || !state.showHexOverlay) return;
+    testNextStepOnHexOverlay();
   });
 }
 
@@ -1412,6 +1422,88 @@ function getHexLabelMaterial(label) {
   return material;
 }
 
+function testNextStepOnHexOverlay() {
+  updateHexOverlayColors();
+
+  hexOverlayHighlighted.clear();
+  if (!hexOverlayCenters.length || !hexOverlayTopColorIds.length) {
+    updateHexOverlayColors();
+    return;
+  }
+
+  const keyOfCell = (col, row) => `${col},${row}`;
+  const indexByCell = new Map();
+  for (let i = 0; i < hexOverlayCenters.length; i += 1) {
+    const c = hexOverlayCenters[i];
+    indexByCell.set(keyOfCell(c.col, c.row), i);
+  }
+
+  const visited = new Uint8Array(hexOverlayCenters.length);
+  let bestRegion = [];
+
+  const getNeighborCells = (col, row) => {
+    if (col % 2 === 0) {
+      return [
+        [col, row - 1],
+        [col, row + 1],
+        [col - 1, row - 1],
+        [col - 1, row],
+        [col + 1, row - 1],
+        [col + 1, row],
+      ];
+    }
+    return [
+      [col, row - 1],
+      [col, row + 1],
+      [col - 1, row],
+      [col - 1, row + 1],
+      [col + 1, row],
+      [col + 1, row + 1],
+    ];
+  };
+
+  for (let i = 0; i < hexOverlayCenters.length; i += 1) {
+    if (visited[i]) continue;
+    const colorId = hexOverlayTopColorIds[i];
+    if (colorId < 0) {
+      visited[i] = 1;
+      continue;
+    }
+
+    const region = [];
+    const queue = [i];
+    visited[i] = 1;
+
+    for (let q = 0; q < queue.length; q += 1) {
+      const idx = queue[q];
+      region.push(idx);
+      const center = hexOverlayCenters[idx];
+
+      const neighbors = getNeighborCells(center.col, center.row);
+      for (let k = 0; k < neighbors.length; k += 1) {
+        const nextIdx = indexByCell.get(keyOfCell(neighbors[k][0], neighbors[k][1]));
+        if (nextIdx === undefined || visited[nextIdx]) continue;
+        if (hexOverlayTopColorIds[nextIdx] !== colorId) continue;
+        visited[nextIdx] = 1;
+        queue.push(nextIdx);
+      }
+    }
+
+    if (region.length > bestRegion.length) {
+      bestRegion = region;
+    }
+  }
+
+  for (let i = 0; i < bestRegion.length; i += 1) {
+    hexOverlayHighlighted.add(bestRegion[i]);
+  }
+
+  updateHexOverlayColors();
+  if (bestRegion.length > 0) {
+    gameUI.showCommentary(`测试下一步：最大同色连通 ${bestRegion.length} 格`, 900);
+  }
+}
+
 function drawHexOverlay(centers, radius) {
   const count = centers.length;
   if (!count) {
@@ -1505,11 +1597,14 @@ function rebuildHexOverlay() {
   hexOverlayLabelSprites.length = 0;
   hexOverlayTopColorIds.length = 0;
   hexOverlayTopZValues.length = 0;
+  hexOverlayHighlighted.clear();
 
   hexOverlayCenters = [];
   const r = hexOverlayRadius;
   const stepX = r * 1.5;
   const stepY = Math.sqrt(3) * r;
+  hexOverlayStepX = stepX;
+  hexOverlayStepY = stepY;
   const minX = bounds.left - r;
   const maxX = bounds.right + r;
   const minY = bounds.bottom - r;
@@ -1518,8 +1613,9 @@ function rebuildHexOverlay() {
   let col = 0;
   for (let x = minX; x <= maxX + stepX; x += stepX, col += 1) {
     const offsetY = col % 2 === 0 ? 0 : stepY * 0.5;
-    for (let y = minY + offsetY; y <= maxY + stepY; y += stepY) {
-      hexOverlayCenters.push({ x, y });
+    let row = 0;
+    for (let y = minY + offsetY; y <= maxY + stepY; y += stepY, row += 1) {
+      hexOverlayCenters.push({ x, y, col, row });
     }
   }
 
@@ -1577,7 +1673,12 @@ function updateHexOverlayColors() {
     if (pickedColorHex === null) {
       hexOverlayMesh.setColorAt(i, hexOverlayDefaultColor);
     } else {
-      hexOverlayWorkColor.setHex(pickedColorHex);
+      if (hexOverlayHighlighted.has(i)) {
+        hexOverlayInvertColor.setHex(pickedColorHex);
+        hexOverlayWorkColor.setRGB(1 - hexOverlayInvertColor.r, 1 - hexOverlayInvertColor.g, 1 - hexOverlayInvertColor.b);
+      } else {
+        hexOverlayWorkColor.setHex(pickedColorHex);
+      }
       hexOverlayMesh.setColorAt(i, hexOverlayWorkColor);
     }
 
