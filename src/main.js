@@ -407,7 +407,7 @@ const sessionFlow = createSessionFlowController({
   gameUI,
   burstSystem,
   victoryRainSystem,
-  trail,
+  getTrail: () => trail,
   clampLevelIndex,
   hasBubbleTuningOverride,
   onHideOutOfMovesBanner: hideOutOfMovesBanner,

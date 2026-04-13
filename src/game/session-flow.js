@@ -12,7 +12,7 @@ export function createSessionFlowController({
   gameUI,
   burstSystem,
   victoryRainSystem,
-  trail,
+  getTrail,
   clampLevelIndex,
   hasBubbleTuningOverride,
   onHideOutOfMovesBanner,
@@ -95,7 +95,7 @@ export function createSessionFlowController({
     onSetLevelTestSelection?.(index);
     onUpdateStepsHud?.();
 
-    trail.reset();
+    getTrail?.()?.reset();
     resetFruits(level);
     return true;
   }
@@ -133,7 +133,7 @@ export function createSessionFlowController({
     burstSystem.clear();
     victoryRainSystem.reset();
 
-    trail.reset();
+    getTrail?.()?.reset();
     onHideHomeScreen?.();
     gameUI.hideGameOver();
     gameUI.closeResult();
@@ -227,7 +227,7 @@ export function createSessionFlowController({
     onClearQueuedSelections?.();
     state.pendingPops.length = 0;
     victoryRainSystem.reset();
-    trail.reset();
+    getTrail?.()?.reset();
 
     const openLoseResult = () => {
       gameUI.openResult("lose", {
