@@ -1756,21 +1756,73 @@ function rebuildDebugHexOverlay() {
   const group = new THREE.Group();
   group.renderOrder = 70;
 
+  const hexLineZ = 0.95;
+  const hexFillZ = 0.9;
   const r = debugHexRadius;
   const stepX = r * 1.5;
   const stepY = Math.sqrt(3) * r;
-  const minX = bounds.left - r;
-  const maxX = bounds.right + r;
-  const minY = bounds.bottom - r;
-  const maxY = bounds.top + r;
   const geometry = createHexOutlineGeometry(r);
+
+  let viewportLeft = bounds.left;
+  let viewportRight = bounds.right;
+  let viewportBottom = bounds.bottom;
+  let viewportTop = bounds.top;
+
+  const overlayPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -hexLineZ);
+  const viewportRaycaster = new THREE.Raycaster();
+  const hit = new THREE.Vector3();
+  const ndcCorners = [
+    { x: -1, y: -1 },
+    { x: -1, y: 1 },
+    { x: 1, y: -1 },
+    { x: 1, y: 1 },
+  ];
+  const cornerHits = [];
+
+  for (let i = 0; i < ndcCorners.length; i += 1) {
+    viewportRaycaster.setFromCamera(ndcCorners[i], camera);
+    if (viewportRaycaster.ray.intersectPlane(overlayPlane, hit)) {
+      cornerHits.push({ x: hit.x, y: hit.y });
+    }
+  }
+
+  if (cornerHits.length === 4) {
+    viewportLeft = Math.min(cornerHits[0].x, cornerHits[1].x, cornerHits[2].x, cornerHits[3].x);
+    viewportRight = Math.max(cornerHits[0].x, cornerHits[1].x, cornerHits[2].x, cornerHits[3].x);
+    viewportBottom = Math.min(cornerHits[0].y, cornerHits[1].y, cornerHits[2].y, cornerHits[3].y);
+    viewportTop = Math.max(cornerHits[0].y, cornerHits[1].y, cornerHits[2].y, cornerHits[3].y);
+  }
+
+  const minX = viewportLeft - r;
+  const maxX = viewportRight + r;
+  const minY = viewportBottom - r;
+  const maxY = viewportTop + r;
+
+  const vertexOffsets = [];
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (Math.PI / 3) * i;
+    vertexOffsets.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
+  }
+
+  function isHexFullyInsideBounds(centerX, centerY) {
+    for (let i = 0; i < vertexOffsets.length; i += 1) {
+      const vx = centerX + vertexOffsets[i].x;
+      const vy = centerY + vertexOffsets[i].y;
+      if (vx < viewportLeft || vx > viewportRight || vy < viewportBottom || vy > viewportTop) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   for (let col = 0, x = minX; x <= maxX + stepX; x += stepX, col += 1) {
     const offsetY = col % 2 === 0 ? 0 : stepY * 0.5;
     for (let row = 0, y = minY + offsetY; y <= maxY + stepY; y += stepY, row += 1) {
+      if (!isHexFullyInsideBounds(x, y)) continue;
+
       const material = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, depthTest: false });
       const hex = new THREE.Line(geometry.clone(), material);
-      hex.position.set(x, y, 0.95);
+      hex.position.set(x, y, hexLineZ);
       group.add(hex);
       debugHexOverlayCenters.push({ x, y, col, row });
       debugHexOverlayTopColorIds.push(-1);
@@ -1796,7 +1848,7 @@ function rebuildDebugHexOverlay() {
   const matrix = new THREE.Matrix4();
   for (let i = 0; i < debugHexOverlayCenters.length; i += 1) {
     const c = debugHexOverlayCenters[i];
-    matrix.makeTranslation(c.x, c.y, 0.9);
+    matrix.makeTranslation(c.x, c.y, hexFillZ);
     fillMesh.setMatrixAt(i, matrix);
     fillMesh.setColorAt(i, new THREE.Color(0x000000));
   }
