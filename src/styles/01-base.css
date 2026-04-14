@@ -150,6 +150,10 @@ body {
   z-index: 30;
 }
 
+#gameplay-topbar.is-floating-over-continue {
+  z-index: 33;
+}
+
 #gameplay-coin-status {
   min-height: var(--status-height);
   width: 100%;
@@ -203,4 +207,3 @@ body {
   min-height: var(--hud-height);
   padding: 0 12px;
 }
-

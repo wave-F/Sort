@@ -27,6 +27,16 @@ export function createRewardFlow({
     syncCoinUi();
   }
 
+  function trySpendCoins(cost) {
+    const safeCost = Math.max(0, Math.floor(cost));
+    if (safeCost <= 0) return true;
+    if (state.coins < safeCost) return false;
+    state.coins = Math.max(0, state.coins - safeCost);
+    persistCoinBalance();
+    syncCoinUi();
+    return true;
+  }
+
   function getLevelWinReward(levelIndex) {
     void levelIndex;
     return levelWinRewardBase;
@@ -85,6 +95,7 @@ export function createRewardFlow({
     persistCoinBalance,
     syncCoinUi,
     addCoins,
+    trySpendCoins,
     getLevelWinReward,
     setGameplayCoinTopbarVisible,
     settlePendingWinReward,

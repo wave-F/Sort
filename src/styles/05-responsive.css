@@ -26,11 +26,14 @@
   }
 }
 
-@media (max-width: 1140px) {
+@media (hover: none) and (pointer: coarse) {
   #level-test {
     display: none;
   }
+}
 
+html.platform-ios #level-test {
+  display: none;
 }
 
 html.platform-ios body {

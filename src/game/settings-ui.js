@@ -76,11 +76,11 @@ export function createSettingsUiController({
   function syncGameplaySettingsButtons() {
     if (elements.gameplaySettingsMusicEl) {
       elements.gameplaySettingsMusicEl.classList.toggle("is-off", !gameSettings.musicEnabled);
-      elements.gameplaySettingsMusicEl.setAttribute("aria-label", gameSettings.musicEnabled ? "音乐已开启" : "音乐已关闭");
+      elements.gameplaySettingsMusicEl.setAttribute("aria-label", gameSettings.musicEnabled ? "Music on" : "Music off");
     }
     if (elements.gameplaySettingsSfxEl) {
       elements.gameplaySettingsSfxEl.classList.toggle("is-off", !gameSettings.sfxEnabled);
-      elements.gameplaySettingsSfxEl.setAttribute("aria-label", gameSettings.sfxEnabled ? "音效已开启" : "音效已关闭");
+      elements.gameplaySettingsSfxEl.setAttribute("aria-label", gameSettings.sfxEnabled ? "SFX on" : "SFX off");
     }
   }
 
@@ -179,7 +179,7 @@ export function createSettingsUiController({
       saveGameSettings();
       applyGameSettings();
       syncGameplaySettingsButtons();
-      gameUI.showCommentary("音乐开关已保存", 1000);
+      gameUI.showCommentary("Music setting saved", 1000);
     });
 
     elements.settingSfxToggleEl?.addEventListener("change", () => {
@@ -192,12 +192,12 @@ export function createSettingsUiController({
     elements.homeFillStaminaBtn?.addEventListener("click", () => {
       gameAudio.playUiClickAudio();
       onFillStaminaToMax?.();
-      gameUI.showCommentary("测试体力：已回满", 1000);
+      gameUI.showCommentary("Test stamina: refilled to max", 1000);
     });
 
     elements.homeClearDataBtn?.addEventListener("click", () => {
       gameAudio.playUiClickAudio();
-      const ok = typeof window !== "undefined" ? window.confirm("确认清除关卡进度、金币和设置选项吗？") : true;
+      const ok = typeof window !== "undefined" ? window.confirm("Clear level progress, coins, and settings?") : true;
       if (!ok) return;
 
       gameSettings.musicEnabled = defaultGameSettings.musicEnabled;

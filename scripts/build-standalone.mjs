@@ -93,15 +93,15 @@ const html = `<!doctype html>
 
       <div id="gameplay-settings-mask" class="hidden" aria-hidden="true"></div>
 
-      <div id="gameplay-settings" class="hidden" aria-label="局内设置">
-        <button id="gameplay-settings-toggle" class="home-mini-btn gp-settings-btn gp-main-btn" type="button" aria-label="打开局内设置">⚙️</button>
-        <button id="gameplay-settings-music" class="gp-settings-btn gp-settings-item" type="button" aria-label="音乐">
+      <div id="gameplay-settings" class="hidden" aria-label="In-game settings">
+        <button id="gameplay-settings-toggle" class="home-mini-btn gp-settings-btn gp-main-btn" type="button" aria-label="Open in-game settings">⚙️</button>
+        <button id="gameplay-settings-music" class="gp-settings-btn gp-settings-item" type="button" aria-label="Music">
           <span class="gp-settings-icon" aria-hidden="true">🎵</span>
         </button>
-        <button id="gameplay-settings-sfx" class="gp-settings-btn gp-settings-item" type="button" aria-label="音效">
+        <button id="gameplay-settings-sfx" class="gp-settings-btn gp-settings-item" type="button" aria-label="SFX">
           <span class="gp-settings-icon" aria-hidden="true">🔊</span>
         </button>
-        <button id="gameplay-settings-exit" class="gp-settings-btn gp-settings-item gp-exit-btn" type="button" aria-label="退出">
+        <button id="gameplay-settings-exit" class="gp-settings-btn gp-settings-item gp-exit-btn" type="button" aria-label="Exit">
           <span class="gp-settings-icon" aria-hidden="true">↩</span>
         </button>
       </div>
@@ -120,8 +120,6 @@ const html = `<!doctype html>
         </div>
       </div>
 
-      <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
-
       <div id="home-screen" class="layer">
         <div id="home-topbar">
           <div class="home-status home-status-energy" aria-label="体力状态">
@@ -134,27 +132,27 @@ const html = `<!doctype html>
             <span id="home-coin" class="home-status-value">0</span>
           </div>
 
-          <button id="home-settings-btn" class="home-mini-btn" type="button" aria-label="打开设置">⚙️</button>
+          <button id="home-settings-btn" class="home-mini-btn" type="button" aria-label="Open settings">⚙️</button>
         </div>
 
-        <div id="home-settings-modal" class="hidden" aria-label="游戏设置">
-          <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="游戏设置弹窗">
-            <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
-            <div class="home-settings-title-pill">设置</div>
+        <div id="home-settings-modal" class="hidden" aria-label="Game settings">
+          <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="Game settings dialog">
+            <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="Close settings">✕</button>
+            <div class="home-settings-title-pill">Settings</div>
             <div class="home-settings-inner">
               <div class="home-settings-icon" aria-hidden="true">⚙️</div>
               <label class="home-settings-row" for="setting-music-toggle">
-                <span>音乐</span>
+                <span>Music</span>
                 <input id="setting-music-toggle" type="checkbox" checked />
               </label>
               <label class="home-settings-row" for="setting-sfx-toggle">
-                <span>音效</span>
+                <span>SFX</span>
                 <input id="setting-sfx-toggle" type="checkbox" checked />
               </label>
             </div>
             <div class="home-settings-actions">
-              <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
-              <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+              <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">Test: Fill stamina</button>
+              <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">Clear game data</button>
             </div>
           </div>
         </div>
@@ -173,6 +171,23 @@ const html = `<!doctype html>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
       <div id="out-of-moves-banner" class="hidden" aria-hidden="true">OUT OF MOVES!</div>
+
+      <div id="out-of-moves-continue-mask" class="hidden" aria-hidden="true"></div>
+      <div id="out-of-moves-continue-modal" class="hidden" role="dialog" aria-modal="true" aria-label="Continue modal">
+        <button id="out-of-moves-continue-close" class="out-of-moves-continue-close" type="button" aria-label="Close">✕</button>
+        <div class="out-of-moves-continue-body">
+          <div class="out-of-moves-continue-title">Continue?</div>
+          <div class="out-of-moves-continue-center">
+            <div class="out-of-moves-continue-badge">+<span id="out-of-moves-continue-moves">3</span></div>
+            <p class="out-of-moves-continue-desc">Spend coins to add moves and keep playing!</p>
+          </div>
+          <button id="out-of-moves-continue-buy" class="out-of-moves-continue-buy" type="button">
+            <span class="out-of-moves-continue-buy-text">Play On</span>
+            <img class="out-of-moves-continue-buy-coin" src="./assets/images/currency128_Coin.png" alt="Coin" />
+            <span id="out-of-moves-continue-cost" class="out-of-moves-continue-buy-cost">50</span>
+          </button>
+        </div>
+      </div>
 
       <div id="result-mask" class="hidden" aria-hidden="true"></div>
       <div id="result-page" class="layer hidden">
@@ -209,7 +224,8 @@ const html = `<!doctype html>
     </div>
 
     <div id="level-test" aria-label="Level test tools">
-      <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
+      <button id="level-test-add-coins" class="tool-btn" type="button">Test +50 Coins</button>
+      <button id="level-test-toggle" class="tool-btn" type="button">Level Test</button>
       <div id="level-test-panel" class="hidden">
         <label for="level-test-select">选择关卡</label>
         <select id="level-test-select"></select>

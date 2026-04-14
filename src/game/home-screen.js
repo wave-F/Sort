@@ -131,7 +131,7 @@ export function createHomeScreenController({
     }
 
     const leftMs = getStaminaRecoverCountdownMs();
-    tipEl.textContent = `${formatCountdownMmSs(leftMs)}后恢复1点`;
+    tipEl.textContent = `Recover 1 stamina in ${formatCountdownMmSs(leftMs)}`;
   }
 
   function showHomeEnergyRecoverTip() {
@@ -172,11 +172,11 @@ export function createHomeScreenController({
 
       const current = clampLevelIndex(state.currentPlayableLevelIndex);
       if (raw > current) {
-        onShowCommentary?.(`第${raw + 1}关尚未解锁`, 900);
+        onShowCommentary?.(`Level ${raw + 1} is locked`, 900);
         return;
       }
 
-      onShowCommentary?.(`当前可挑战：第${current + 1}关`, 900);
+      onShowCommentary?.(`Current playable level: ${current + 1}`, 900);
     };
 
     elements.homeLevelPrevBtn?.addEventListener("click", onTap);

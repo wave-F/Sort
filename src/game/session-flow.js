@@ -89,6 +89,7 @@ export function createSessionFlowController({
     state.nowPoint = null;
     state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
     state.stepsUsed = 0;
+    state.outOfMovesContinueUsedInLevel = false;
     state.pendingWinReward = 0;
     state.rewardAppliedThisRound = true;
     levelFlow.reset();
@@ -142,7 +143,7 @@ export function createSessionFlowController({
     gameUI.closeResult();
 
     if (hasBubbleTuningOverride) {
-      gameUI.showCommentary("已应用调试页同步参数。", 1300);
+      gameUI.showCommentary("Debug tuning synced from the tuning page.", 1300);
     }
 
     const loaded = loadLevel(startIndex);
@@ -151,7 +152,7 @@ export function createSessionFlowController({
       state.started = false;
       state.inHome = true;
       onShowHomeScreen?.();
-      gameUI.showCommentary("关卡加载失败，请重试。", 1200);
+      gameUI.showCommentary("Level failed to load. Please try again.", 1200);
     }
   }
 
@@ -168,7 +169,7 @@ export function createSessionFlowController({
       state.rewardAppliedThisRound = true;
       onClearBoardEntities?.();
       onShowHomeScreen?.();
-      onShowHomeCenterTip?.("体力不足", 1200);
+      onShowHomeCenterTip?.("Not enough stamina", 1200);
       return;
     }
 

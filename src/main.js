@@ -78,7 +78,15 @@ const levelTestToggleBtn = document.getElementById("level-test-toggle");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
+const levelTestAddCoinsBtn = document.getElementById("level-test-add-coins");
 const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
+let outOfMovesContinueMaskEl = document.getElementById("out-of-moves-continue-mask");
+let outOfMovesContinueModalEl = document.getElementById("out-of-moves-continue-modal");
+let outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
+let outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
+let outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
+let outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
+let gameplayCenterTipEl = document.getElementById("gameplay-center-tip");
 
 const isIOSDevice = (() => {
   const ua = navigator.userAgent || "";
@@ -122,6 +130,8 @@ const level1TutorialSeenStorageKey = "fruit_level1_tutorial_seen_v1";
 const staminaMax = 5;
 const staminaRecoverIntervalMs = 25 * 60 * 1000;
 const outOfMovesBannerDurationMs = 1800;
+const outOfMovesContinueCost = 50;
+const outOfMovesContinueMoves = 3;
 const levelWinRewardBase = 20;
 const homeEasyColorIds = [1, 2, 3, 5, 6];
 const homeMediumColorId = 4;
@@ -257,6 +267,10 @@ const state = {
   homeCenterTipTimer: 0,
   outOfMovesBannerTimer: 0,
   outOfMovesBannerAnimation: null,
+  outOfMovesContinueOpen: false,
+  outOfMovesContinuePending: false,
+  outOfMovesContinueUsedInLevel: false,
+  gameplayCenterTipTimer: 0,
 };
 
 const persistence = createPersistenceController({
@@ -890,7 +904,7 @@ function updateLevel1Guide(now) {
 
     if (!state.pointerDown && state.pendingPops.length === 0 && !burstAnimating) {
       levelGuideState.phase = "warn";
-      gameUI.showLevelGuideTip("如果碰到异色泡泡，则会立即触发消除！小心！", "warning");
+      gameUI.showLevelGuideTip("Touching a different color will clear immediately. Watch out!", "warning");
     }
   }
 
@@ -903,7 +917,7 @@ function maybeShowLevel1Guide(levelIndex) {
   }
 
   tryActivateLevel1Guide();
-  gameUI.showLevelGuideTip("连续划到相同泡泡，一起消除！");
+  gameUI.showLevelGuideTip("Keep slicing the same color to clear them together!");
   level1TutorialSeen = true;
   persistLevel1TutorialSeen();
 }
@@ -1032,6 +1046,8 @@ function syncGameplaySettingsButtons() {
 
 function exitGameplayToHome() {
   hideOutOfMovesBanner();
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
   state.started = false;
   state.gameOver = false;
   state.levelTransitioning = false;
@@ -1076,7 +1092,7 @@ function clearGameplayDataOnly() {
     renderHomeScreen();
   }
 
-  gameUI.showCommentary("已清除游玩数据（保留TopBar和泡泡调参）", 1400);
+  gameUI.showCommentary("Gameplay data cleared (TopBar and bubble tuning kept).", 1400);
 }
 
 function bindHomeSettingsModal() {
@@ -1119,7 +1135,7 @@ function tryConsumeStaminaForLevelEntry() {
   settleStaminaRecovery();
   if (state.stamina <= 0) {
     syncStaminaUi();
-    showHomeCenterTip("体力不足", 1200);
+    showHomeCenterTip("Not enough stamina", 1200);
     return false;
   }
 
@@ -1186,6 +1202,50 @@ function showHomeCenterTip(text, durationMs = 1200) {
 
 function hideHomeEnergyRecoverTip() {
   homeScreenController.hideHomeEnergyRecoverTip();
+}
+
+function ensureOutOfMovesContinueElements() {
+  if (!phoneFrameEl) return;
+
+  if (!outOfMovesContinueMaskEl) {
+    const mask = document.createElement("div");
+    mask.id = "out-of-moves-continue-mask";
+    mask.className = "hidden";
+    mask.setAttribute("aria-hidden", "true");
+    phoneFrameEl.appendChild(mask);
+    outOfMovesContinueMaskEl = mask;
+  }
+
+  if (!outOfMovesContinueModalEl) {
+    const modal = document.createElement("div");
+    modal.id = "out-of-moves-continue-modal";
+    modal.className = "hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", "Continue modal");
+    modal.innerHTML = `
+      <button id="out-of-moves-continue-close" class="out-of-moves-continue-close" type="button" aria-label="Close">✕</button>
+      <div class="out-of-moves-continue-body">
+        <div class="out-of-moves-continue-title">Continue?</div>
+        <div class="out-of-moves-continue-center">
+          <div class="out-of-moves-continue-badge">+<span id="out-of-moves-continue-moves">3</span></div>
+          <p class="out-of-moves-continue-desc">Spend coins to add moves and keep playing!</p>
+        </div>
+        <button id="out-of-moves-continue-buy" class="out-of-moves-continue-buy" type="button">
+          <span class="out-of-moves-continue-buy-text">Play On</span>
+          <img class="out-of-moves-continue-buy-coin" src="./assets/images/currency128_Coin.png" alt="Coin" />
+          <span id="out-of-moves-continue-cost" class="out-of-moves-continue-buy-cost">50</span>
+        </button>
+      </div>
+    `;
+    phoneFrameEl.appendChild(modal);
+    outOfMovesContinueModalEl = modal;
+  }
+
+  outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
+  outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
+  outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
+  outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
 }
 
 function bindHomeEnergyTip() {
@@ -1260,16 +1320,150 @@ function playOutOfMovesBanner(onDone) {
   }, outOfMovesBannerDurationMs);
 }
 
+function syncOutOfMovesContinueModalUi() {
+  if (outOfMovesContinueMovesEl) outOfMovesContinueMovesEl.textContent = String(outOfMovesContinueMoves);
+  if (outOfMovesContinueCostEl) outOfMovesContinueCostEl.textContent = String(outOfMovesContinueCost);
+}
+
+function setOutOfMovesContinueCoinTopbarVisible(show) {
+  if (show) {
+    setGameplayCoinTopbarVisible(true);
+    gameplayTopbarEl?.classList.add("is-floating-over-continue");
+    return;
+  }
+
+  gameplayTopbarEl?.classList.remove("is-floating-over-continue");
+  setGameplayCoinTopbarVisible(false);
+}
+
+function ensureGameplayCenterTipEl() {
+  if (gameplayCenterTipEl) return gameplayCenterTipEl;
+  if (!phoneFrameEl) return null;
+  const el = document.createElement("div");
+  el.id = "gameplay-center-tip";
+  el.className = "gameplay-center-tip";
+  phoneFrameEl.appendChild(el);
+  gameplayCenterTipEl = el;
+  return gameplayCenterTipEl;
+}
+
+function clearGameplayCenterTip() {
+  if (state.gameplayCenterTipTimer) {
+    window.clearTimeout(state.gameplayCenterTipTimer);
+    state.gameplayCenterTipTimer = 0;
+  }
+  gameplayCenterTipEl?.classList.remove("show");
+}
+
+function showGameplayCenterTip(text, durationMs = 1200) {
+  const tipEl = ensureGameplayCenterTipEl();
+  if (!tipEl) return;
+  clearGameplayCenterTip();
+  tipEl.textContent = text;
+  tipEl.classList.add("show");
+  state.gameplayCenterTipTimer = window.setTimeout(() => {
+    tipEl.classList.remove("show");
+    state.gameplayCenterTipTimer = 0;
+  }, durationMs);
+}
+
+function hideOutOfMovesContinueModal() {
+  outOfMovesContinueMaskEl?.classList.add("hidden");
+  outOfMovesContinueModalEl?.classList.add("hidden");
+  setOutOfMovesContinueCoinTopbarVisible(false);
+  clearGameplayCenterTip();
+  state.outOfMovesContinueOpen = false;
+}
+
+function openOutOfMovesContinueModal() {
+  ensureOutOfMovesContinueElements();
+  if (!outOfMovesContinueMaskEl || !outOfMovesContinueModalEl || !outOfMovesContinueBuyEl || !outOfMovesContinueCloseEl) {
+    state.outOfMovesContinuePending = false;
+    state.levelTransitioning = false;
+    endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`);
+    return;
+  }
+  syncOutOfMovesContinueModalUi();
+  outOfMovesContinueMaskEl.classList.remove("hidden");
+  outOfMovesContinueModalEl.classList.remove("hidden");
+  setOutOfMovesContinueCoinTopbarVisible(true);
+  state.outOfMovesContinueOpen = true;
+}
+
+function resolveOutOfMovesAsLose() {
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  state.levelTransitioning = false;
+  endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`);
+}
+
+function continueAfterOutOfMoves() {
+  if (state.outOfMovesContinueUsedInLevel) {
+    resolveOutOfMovesAsLose();
+    return;
+  }
+
+  if (!trySpendCoins(outOfMovesContinueCost)) {
+    syncOutOfMovesContinueModalUi();
+    showGameplayCenterTip("Not enough coins", 1200);
+    return;
+  }
+
+  state.stepLimit = Math.max(1, state.stepLimit + outOfMovesContinueMoves);
+  state.outOfMovesContinueUsedInLevel = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.outOfMovesContinuePending = false;
+  hideOutOfMovesContinueModal();
+  syncOutOfMovesContinueModalUi();
+  updateStepsHud();
+    gameUI.showCommentary(`+${outOfMovesContinueMoves} moves`, 1000);
+}
+
+function triggerOutOfMovesContinueFlow() {
+  if (state.outOfMovesContinuePending || state.outOfMovesContinueOpen || state.gameOver) return;
+  if (state.outOfMovesContinueUsedInLevel) {
+    endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`, { showOutOfMovesBanner: true });
+    return;
+  }
+  state.pointerDown = false;
+  state.levelTransitioning = true;
+  state.outOfMovesContinuePending = true;
+  clearQueuedSelections();
+  trail?.reset();
+  playOutOfMovesBanner(() => {
+    openOutOfMovesContinueModal();
+  });
+}
+
+function bindOutOfMovesContinueModal() {
+  ensureOutOfMovesContinueElements();
+  outOfMovesContinueBuyEl?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    continueAfterOutOfMoves();
+  });
+
+  outOfMovesContinueCloseEl?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    resolveOutOfMovesAsLose();
+  });
+}
+
 function persistCoinBalance() {
   rewardFlow.persistCoinBalance();
 }
 
 function syncCoinUi() {
   rewardFlow.syncCoinUi();
+  syncOutOfMovesContinueModalUi();
 }
 
 function addCoins(value) {
   rewardFlow.addCoins(value);
+}
+
+function trySpendCoins(value) {
+  return rewardFlow.trySpendCoins(value);
 }
 
 function getLevelWinReward(levelIndex) {
@@ -1321,18 +1515,25 @@ function grantLevelWinProgress(nextLevelIndex) {
 }
 
 function retryCurrentLevelFromResult() {
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
   sessionFlow.retryCurrentLevelFromResult();
 }
 
 function backHomeFromResult() {
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
   sessionFlow.backHomeFromResult();
 }
 
 function startNextLevel(nextLevelIndex) {
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
   sessionFlow.startNextLevel(nextLevelIndex);
 }
 
 function init() {
+  ensureOutOfMovesContinueElements();
   hydrateLevelProgress();
   hydrateCoinBalance();
   hydrateStamina();
@@ -1361,6 +1562,7 @@ function init() {
   bindHomeEnergyTip();
   bindHomeSettingsModal();
   bindGameplaySettingsMenu();
+  bindOutOfMovesContinueModal();
   gameUI.closeResult();
   setupLevelTestControls();
 
@@ -1382,12 +1584,25 @@ function setupLevelTestControls() {
     return;
   }
 
+  let addCoinsBtn = levelTestAddCoinsBtn;
+  if (!addCoinsBtn) {
+    const host = document.getElementById("level-test");
+    if (host) {
+      addCoinsBtn = document.createElement("button");
+      addCoinsBtn.id = "level-test-add-coins";
+      addCoinsBtn.className = "tool-btn";
+      addCoinsBtn.type = "button";
+      addCoinsBtn.textContent = "Test +50 Coins";
+      host.insertBefore(addCoinsBtn, levelTestToggleBtn);
+    }
+  }
+
   levelTestSelectEl.innerHTML = "";
   for (let i = 0; i < LEVELS.length; i += 1) {
     const level = LEVELS[i];
     const option = document.createElement("option");
     option.value = String(i);
-    option.textContent = `第${i + 1}关 ${level.name}`;
+    option.textContent = `Level ${i + 1} ${level.name}`;
     levelTestSelectEl.appendChild(option);
   }
 
@@ -1403,6 +1618,12 @@ function setupLevelTestControls() {
       return;
     }
     jumpToLevelForTest(targetIndex);
+  });
+
+  addCoinsBtn?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    addCoins(50);
+    gameUI.showCommentary("Test: +50 coins added", 1200);
   });
 }
 
@@ -1421,7 +1642,7 @@ function jumpToLevelForTest(index) {
   state.levelTransitioning = false;
   loadLevel(index);
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
-  gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
+  gameUI.showCommentary(`Test mode: switched to Level ${index + 1}`, 1400);
 }
 
 async function setupRenderer() {
@@ -1461,11 +1682,13 @@ function showWebGpuUnsupported() {
   layer.style.color = "#ffffff";
   layer.style.fontWeight = "800";
   layer.style.lineHeight = "1.7";
-  layer.innerHTML = "<div style=\"font-size:28px;\">无法启动</div><div style=\"margin-top:10px;font-size:15px;opacity:0.92;\">当前浏览器/设备不支持 WebGPU。<br/>请使用支持 WebGPU 的新版 Chrome 或 Edge。</div>";
+  layer.innerHTML = "<div style=\"font-size:28px;\">Cannot Start</div><div style=\"margin-top:10px;font-size:15px;opacity:0.92;\">This browser/device does not support WebGPU.<br/>Please use a newer Chrome or Edge with WebGPU support.</div>";
   appEl.appendChild(layer);
 }
 
 function startGame() {
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
   sessionFlow.startGame();
 }
 
@@ -1480,7 +1703,7 @@ function resetFruits(level) {
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
   if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
-    gameUI.showCommentary("本关步数已用尽。", 1000);
+    gameUI.showCommentary("Out of moves for this level.", 1000);
     return;
   }
 
@@ -1578,13 +1801,14 @@ function tick() {
   if (
     state.started
     && !state.gameOver
+    && !state.outOfMovesContinuePending
     && state.stepLimit > 0
     && state.stepsUsed >= state.stepLimit
     && remaining > 0
     && !state.pointerDown
     && state.pendingPops.length === 0
   ) {
-    endGame(`第${state.currentLevelIndex + 1}关失败：步数用尽`, { showOutOfMovesBanner: true });
+    triggerOutOfMovesContinueFlow();
   }
 }
 

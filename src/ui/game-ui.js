@@ -4,7 +4,6 @@ import { createCoinFly } from "./coin-fly.js";
 
 export function createGameUI({
   sliceStateEl,
-  commentaryEl,
   levelGuideEl,
   levelGuideHandEl,
   levelGuideTipEl,
@@ -17,8 +16,6 @@ export function createGameUI({
   onResultNext,
   onResultBack,
 } = {}) {
-  let commentaryTimer = 0;
-
   const result = createResultPage({
     ...(resultPage || {}),
     onRetry: onResultRetry,
@@ -37,12 +34,8 @@ export function createGameUI({
   }
 
   function showCommentary(text, durationMs = 1200) {
-    if (!commentaryEl) return;
-    commentaryEl.classList.remove("hidden");
-    commentaryEl.textContent = text;
-    commentaryEl.classList.add("show");
-    if (commentaryTimer) clearTimeout(commentaryTimer);
-    commentaryTimer = window.setTimeout(() => commentaryEl.classList.remove("show"), durationMs);
+    void text;
+    void durationMs;
   }
 
   function showGameOver(reason = "本局结束") {
