@@ -163,11 +163,20 @@
       <div id="level-test-panel" class="hidden">
         <label for="level-test-select">选择关卡</label>
         <select id="level-test-select"></select>
-        <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
+
+        <fieldset class="level-test-group">
+          <legend>步数</legend>
+          <button id="level-test-next-step" class="tool-btn" type="button">测试流程1(最大联通区域)</button>
+          <button id="level-test-export-step" class="tool-btn" type="button">计算并导出步数</button>
+          <label class="level-test-switch" for="level-test-hex-toggle">
+            <input id="level-test-hex-toggle" type="checkbox" />
+            <span>显示六边形</span>
+          </label>
+        </fieldset>
       </div>
     </div>
 
 
-    <script type="module" src="./src/main.js?v=33"></script>
+    <script type="module" src="./src/main.js?v=41"></script>
   </body>
 </html>

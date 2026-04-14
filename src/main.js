@@ -17,6 +17,7 @@ import { createLayoutViewportController } from "./game/layout-viewport.js";
 import { createRoundStateController } from "./game/round-state.js";
 import { createBubbleMaterial, createBubbleEntityClass } from "./entities/bubble-entity.js";
 import { SliceTrail } from "./entities/slice-trail.js";
+import { HEX_TEST_FLOW1_LABEL, calculateTheoryStepsRecursive, createHexTestFlowController } from "./flow/hex-test-flow.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
@@ -78,6 +79,9 @@ const levelTestToggleBtn = document.getElementById("level-test-toggle");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
+const levelTestNextStepBtn = document.getElementById("level-test-next-step");
+const levelTestExportStepBtn = document.getElementById("level-test-export-step");
+const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 const levelTestAddCoinsBtn = document.getElementById("level-test-add-coins");
 const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
 let outOfMovesContinueMaskEl = document.getElementById("out-of-moves-continue-mask");
@@ -109,6 +113,7 @@ const rules = {
   minSliceSegment: 0.02,
   playAreaInset: 0.18,
 };
+const debugHexRadius = 0.1;
 
 const slicePopStaggerStep = 0.075;
 const spawnEdgePadding = 0.01;
@@ -271,6 +276,7 @@ const state = {
   outOfMovesContinuePending: false,
   outOfMovesContinueUsedInLevel: false,
   gameplayCenterTipTimer: 0,
+  showHexOverlay: false,
 };
 
 const persistence = createPersistenceController({
@@ -294,6 +300,17 @@ camera.lookAt(0, 0, 0);
 
 let renderer;
 let trail;
+let debugHexOverlayGroup = null;
+let debugHexOverlayFillMesh = null;
+const debugHexOverlayCenters = [];
+const debugHexOverlayTopColorIds = [];
+const debugHexOverlayTopZValues = [];
+const debugHexOverlayHighlighted = new Set();
+const debugHexOverlayLines = [];
+const debugHexFillWorkColor = new THREE.Color();
+const debugHexFillInvertColor = new THREE.Color();
+let levelsXlsxHandle = null;
+let xlsxLoaderPromise = null;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -347,6 +364,17 @@ const {
   gameAudio,
   levelRuntime,
 } = gameRuntime;
+
+const hexTestFlow = createHexTestFlowController({
+  gameUI,
+  fruits,
+  colors,
+  hexOverlayCenters: debugHexOverlayCenters,
+  hexOverlayTopColorIds: debugHexOverlayTopColorIds,
+  hexOverlayHighlighted: debugHexOverlayHighlighted,
+  rebuildHexOverlay: () => rebuildDebugHexOverlay(),
+  updateHexOverlayColors: () => updateDebugHexOverlayColors(),
+});
 
 const BubbleEntity = createBubbleEntityClass({
   bubbleTuning,
@@ -1580,9 +1608,14 @@ function init() {
 }
 
 function setupLevelTestControls() {
-  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn) {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl) {
     return;
   }
+
+  if (levelTestHexToggleEl) {
+    levelTestHexToggleEl.checked = state.showHexOverlay;
+  }
+  if (levelTestNextStepBtn) levelTestNextStepBtn.textContent = hexTestFlow.getLabel();
 
   let addCoinsBtn = levelTestAddCoinsBtn;
   if (!addCoinsBtn) {
@@ -1611,13 +1644,47 @@ function setupLevelTestControls() {
     levelTestPanelEl.classList.toggle("hidden");
   });
 
-  levelTestJumpBtn.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
+  const jumpToSelectedLevel = () => {
     const targetIndex = Number(levelTestSelectEl.value);
     if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= LEVELS.length) {
       return;
     }
     jumpToLevelForTest(targetIndex);
+  };
+
+  if (levelTestJumpBtn) {
+    levelTestJumpBtn.addEventListener("click", () => {
+      gameAudio.playUiClickAudio();
+      jumpToSelectedLevel();
+    });
+  } else {
+    levelTestSelectEl.addEventListener("change", () => {
+      gameAudio.playUiClickAudio();
+      jumpToSelectedLevel();
+    });
+  }
+
+  levelTestHexToggleEl?.addEventListener("change", () => {
+    state.showHexOverlay = Boolean(levelTestHexToggleEl.checked);
+    updateDebugHexOverlayColors();
+    gameUI.showCommentary(state.showHexOverlay ? "六边形已显示" : "六边形已隐藏", 700);
+  });
+
+  levelTestNextStepBtn?.addEventListener("click", () => {
+    if (!state.started || state.inHome) {
+      gameUI.showCommentary("请先开始战斗再测试流程", 900);
+      return;
+    }
+    if (!state.showHexOverlay) {
+      state.showHexOverlay = true;
+      if (levelTestHexToggleEl) levelTestHexToggleEl.checked = true;
+    }
+    levelTestNextStepBtn.textContent = hexTestFlow.runNext();
+    updateDebugHexOverlayColors();
+  });
+
+  levelTestExportStepBtn?.addEventListener("click", () => {
+    void calculateAndExportTheoryStep();
   });
 
   addCoinsBtn?.addEventListener("click", () => {
@@ -1625,6 +1692,127 @@ function setupLevelTestControls() {
     addCoins(50);
     gameUI.showCommentary("Test: +50 coins added", 1200);
   });
+}
+
+function loadXlsxBrowserLibrary() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (xlsxLoaderPromise) return xlsxLoaderPromise;
+
+  xlsxLoaderPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.XLSX) resolve(window.XLSX);
+      else reject(new Error("XLSX loader failed"));
+    };
+    script.onerror = () => reject(new Error("无法加载 xlsx 库"));
+    document.head.appendChild(script);
+  });
+
+  return xlsxLoaderPromise;
+}
+
+async function getLevelsWorkbookHandle() {
+  if (levelsXlsxHandle) return levelsXlsxHandle;
+  if (typeof window.showOpenFilePicker !== "function") {
+    throw new Error("当前浏览器不支持文件写入API");
+  }
+
+  const [handle] = await window.showOpenFilePicker({
+    multiple: false,
+    types: [
+      {
+        description: "Excel Workbook",
+        accept: {
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+        },
+      },
+    ],
+    excludeAcceptAllOption: false,
+  });
+  levelsXlsxHandle = handle;
+  return handle;
+}
+
+async function writeTheoryStepToWorkbook(levelId, stepCount) {
+  const XLSX = await loadXlsxBrowserLibrary();
+  const handle = await getLevelsWorkbookHandle();
+  const file = await handle.getFile();
+  const raw = await file.arrayBuffer();
+  const workbook = XLSX.read(raw, { type: "array" });
+  const sheetName = workbook.SheetNames.includes("Levels") ? "Levels" : workbook.SheetNames[0];
+  if (!sheetName) throw new Error("工作簿中没有可用sheet");
+
+  const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const normalize = (v) => String(v ?? "").trim().toLowerCase();
+  const headerRowIndex = rows.findIndex((row) => Array.isArray(row) && row.some((c) => normalize(c) === "id"));
+  if (headerRowIndex < 0) throw new Error("未找到id列");
+
+  const headerRow = rows[headerRowIndex];
+  const idCol = headerRow.findIndex((c) => normalize(c) === "id");
+  let theoryCol = headerRow.findIndex((c) => normalize(c) === "intheorystep");
+  if (theoryCol < 0) {
+    theoryCol = headerRow.length;
+    headerRow[theoryCol] = "inTheoryStep";
+  }
+
+  let targetRow = -1;
+  for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
+    const row = rows[r];
+    if (!Array.isArray(row)) continue;
+    if (Number(row[idCol]) === Number(levelId)) {
+      targetRow = r;
+      break;
+    }
+  }
+  if (targetRow < 0) throw new Error(`未找到关卡 id=${levelId}`);
+
+  rows[targetRow][theoryCol] = Number(stepCount);
+  workbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
+
+  const output = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  const writable = await handle.createWritable();
+  await writable.write(output);
+  await writable.close();
+}
+
+async function calculateAndExportTheoryStep() {
+  if (!state.started || state.inHome) {
+    gameUI.showCommentary("请先开始战斗再计算步数", 1000);
+    return;
+  }
+
+  if (!debugHexOverlayCenters.length) {
+    rebuildDebugHexOverlay();
+    updateDebugHexOverlayColors();
+  }
+
+  const simFruits = [];
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit?.active || fruit.sliced) continue;
+    simFruits.push({
+      x: fruit.group.position.x,
+      y: fruit.group.position.y,
+      z: fruit.group.position.z + (fruit.bubble?.position.z ?? 0),
+      radius: fruit.radius,
+      colorId: fruit.colorId,
+      active: true,
+    });
+  }
+
+  const stepCount = calculateTheoryStepsRecursive({ centers: debugHexOverlayCenters, fruits: simFruits });
+  const levelId = state.activeLevel?.id ?? state.currentLevelIndex + 1;
+
+  try {
+    await writeTheoryStepToWorkbook(levelId, stepCount);
+    gameUI.showCommentary(`理论步数=${stepCount}，已写入 Levels.xlsx`, 1300);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    gameUI.showCommentary(`导出失败：${message}`, 1400);
+  }
 }
 
 function setLevelTestSelection(index) {
@@ -1641,8 +1829,164 @@ function jumpToLevelForTest(index) {
 
   state.levelTransitioning = false;
   loadLevel(index);
+  hexTestFlow.reset();
+  updateDebugHexOverlayColors();
+  if (levelTestNextStepBtn) levelTestNextStepBtn.textContent = HEX_TEST_FLOW1_LABEL;
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
   gameUI.showCommentary(`Test mode: switched to Level ${index + 1}`, 1400);
+}
+
+function createHexOutlineGeometry(radius) {
+  const points = [];
+  for (let i = 0; i <= 6; i += 1) {
+    const angle = (Math.PI / 3) * i;
+    points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
+  }
+  return new THREE.BufferGeometry().setFromPoints(points);
+}
+
+function rebuildDebugHexOverlay() {
+  if (debugHexOverlayGroup) {
+    scene.remove(debugHexOverlayGroup);
+    debugHexOverlayGroup.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose?.();
+      if (obj.material) obj.material.dispose?.();
+    });
+    debugHexOverlayGroup = null;
+    debugHexOverlayFillMesh = null;
+  }
+
+  debugHexOverlayCenters.length = 0;
+  debugHexOverlayTopColorIds.length = 0;
+  debugHexOverlayTopZValues.length = 0;
+  debugHexOverlayHighlighted.clear();
+  debugHexOverlayLines.length = 0;
+
+  const group = new THREE.Group();
+  group.renderOrder = 70;
+
+  const r = debugHexRadius;
+  const stepX = r * 1.5;
+  const stepY = Math.sqrt(3) * r;
+  const minX = bounds.left - r;
+  const maxX = bounds.right + r;
+  const minY = bounds.bottom - r;
+  const maxY = bounds.top + r;
+  const geometry = createHexOutlineGeometry(r);
+
+  for (let col = 0, x = minX; x <= maxX + stepX; x += stepX, col += 1) {
+    const offsetY = col % 2 === 0 ? 0 : stepY * 0.5;
+    for (let row = 0, y = minY + offsetY; y <= maxY + stepY; y += stepY, row += 1) {
+      const material = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, depthTest: false });
+      const hex = new THREE.Line(geometry.clone(), material);
+      hex.position.set(x, y, 0.95);
+      group.add(hex);
+      debugHexOverlayCenters.push({ x, y, col, row });
+      debugHexOverlayTopColorIds.push(-1);
+      debugHexOverlayTopZValues.push(Number.NEGATIVE_INFINITY);
+      debugHexOverlayLines.push(hex);
+    }
+  }
+
+  debugHexOverlayGroup = group;
+  const fillGeometry = new THREE.CircleGeometry(r, 6);
+  const fillMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.35,
+    vertexColors: true,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+  });
+  const fillMesh = new THREE.InstancedMesh(fillGeometry, fillMaterial, debugHexOverlayCenters.length);
+  fillMesh.renderOrder = 69;
+  fillMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const matrix = new THREE.Matrix4();
+  for (let i = 0; i < debugHexOverlayCenters.length; i += 1) {
+    const c = debugHexOverlayCenters[i];
+    matrix.makeTranslation(c.x, c.y, 0.9);
+    fillMesh.setMatrixAt(i, matrix);
+    fillMesh.setColorAt(i, new THREE.Color(0x000000));
+  }
+  fillMesh.instanceMatrix.needsUpdate = true;
+  if (fillMesh.instanceColor) fillMesh.instanceColor.needsUpdate = true;
+  debugHexOverlayFillMesh = fillMesh;
+  group.add(fillMesh);
+  scene.add(group);
+  updateDebugHexOverlayColors();
+}
+
+function updateDebugHexOverlayVisibility() {
+  if (!debugHexOverlayGroup) return;
+  debugHexOverlayGroup.visible = state.showHexOverlay && state.started && !state.inHome;
+}
+
+function updateDebugHexOverlayColors() {
+  updateDebugHexOverlayVisibility();
+  if (!debugHexOverlayGroup || !debugHexOverlayGroup.visible) return;
+
+  for (let i = 0; i < debugHexOverlayCenters.length; i += 1) {
+    const center = debugHexOverlayCenters[i];
+    let bestSurfaceZ = Number.NEGATIVE_INFINITY;
+    let bestDistSq = Infinity;
+    let pickedColorId = -1;
+
+    for (let j = 0; j < fruits.length; j += 1) {
+      const fruit = fruits[j];
+      if (!fruit?.active || fruit.sliced || !fruit.bubble.visible) continue;
+
+      const dx = center.x - fruit.group.position.x;
+      const dy = center.y - fruit.group.position.y;
+      const distSq = dx * dx + dy * dy;
+      const hitRadiusSq = fruit.radius * fruit.radius;
+      if (distSq > hitRadiusSq) continue;
+
+      const centerZ = fruit.group.position.z + (fruit.bubble?.position.z ?? 0);
+      const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
+      const surfaceZ = centerZ + localSurfaceZ;
+
+      if (surfaceZ > bestSurfaceZ || (surfaceZ === bestSurfaceZ && distSq < bestDistSq)) {
+        bestSurfaceZ = surfaceZ;
+        bestDistSq = distSq;
+        pickedColorId = fruit.colorId;
+      }
+    }
+
+    debugHexOverlayTopColorIds[i] = pickedColorId;
+    debugHexOverlayTopZValues[i] = bestSurfaceZ;
+
+    const line = debugHexOverlayLines[i];
+    if (!line || !line.material) continue;
+    if (pickedColorId < 0) {
+      if (debugHexOverlayFillMesh) {
+        debugHexFillWorkColor.setHex(0x000000);
+        debugHexOverlayFillMesh.setColorAt(i, debugHexFillWorkColor);
+      }
+      line.material.color.setHex(0x000000);
+      line.material.opacity = 0.45;
+    } else {
+      const baseHex = colors[pickedColorId]?.base ?? 0xffffff;
+      if (debugHexOverlayHighlighted.has(i)) {
+        debugHexFillInvertColor.setHex(baseHex);
+        debugHexFillWorkColor.setRGB(1 - debugHexFillInvertColor.r, 1 - debugHexFillInvertColor.g, 1 - debugHexFillInvertColor.b);
+        if (debugHexOverlayFillMesh) debugHexOverlayFillMesh.setColorAt(i, debugHexFillWorkColor);
+        line.material.color.setRGB(1 - debugHexFillInvertColor.r, 1 - debugHexFillInvertColor.g, 1 - debugHexFillInvertColor.b);
+        line.material.opacity = 0.95;
+      } else {
+        if (debugHexOverlayFillMesh) {
+          debugHexFillWorkColor.setHex(baseHex);
+          debugHexOverlayFillMesh.setColorAt(i, debugHexFillWorkColor);
+        }
+        line.material.color.setHex(baseHex);
+        line.material.opacity = 0.72;
+      }
+    }
+  }
+
+  if (debugHexOverlayFillMesh?.instanceColor) {
+    debugHexOverlayFillMesh.instanceColor.needsUpdate = true;
+  }
 }
 
 async function setupRenderer() {
@@ -1655,6 +1999,7 @@ async function setupRenderer() {
   trail = new SliceTrail(64);
   trail.setKeepFullMode(state.keepFullTrailDuringDrag);
   scene.add(trail.mesh);
+  rebuildDebugHexOverlay();
 
   if (state.inHome) {
     renderHomeScreen();
@@ -1693,7 +2038,9 @@ function startGame() {
 }
 
 function loadLevel(index) {
-  return sessionFlow.loadLevel(index);
+  const result = sessionFlow.loadLevel(index);
+  updateDebugHexOverlayVisibility();
+  return result;
 }
 
 function resetFruits(level) {
@@ -1781,6 +2128,7 @@ function tick() {
   if (state.inHome && wallNow - state.staminaUiSyncAt >= 1000) {
     syncStaminaUi();
   }
+  updateDebugHexOverlayVisibility();
 
   collisionSystem.resolve(fruits);
   burstSystem.update(dt);
@@ -1863,6 +2211,7 @@ function screenToWorld(clientX, clientY) {
 
 function resize() {
   layoutViewport.resize();
+  rebuildDebugHexOverlay();
 }
 
 function updatePhoneAspect() {
