@@ -8,6 +8,13 @@ export function createGameAudio({
   gainCoinSoundUrl = "",
   gameWinSoundUrl = "",
   gameLoseSoundUrl = "",
+  onUiClick,
+  onSelectTone,
+  onErrorTone,
+  onPop,
+  onGainCoin,
+  onWin,
+  onLose,
 } = {}) {
   const state = {
     context: null,
@@ -59,6 +66,7 @@ export function createGameAudio({
     if (playTask && typeof playTask.catch === "function") {
       playTask.catch(() => {});
     }
+    onUiClick?.();
   }
 
   function getNextPoolAudio(url, poolKey, indexKey, volume, poolSize = 4) {
@@ -91,14 +99,17 @@ export function createGameAudio({
 
   function playGainCoinAudio() {
     playPoolAudio(gainCoinSoundUrl, "gainCoinPool", "gainCoinIndex", 0.32, 8);
+    onGainCoin?.();
   }
 
   function playGameWinAudio() {
     playPoolAudio(gameWinSoundUrl, "gameWinPool", "gameWinIndex", 0.4, 4);
+    onWin?.();
   }
 
   function playGameLoseAudio() {
     playPoolAudio(gameLoseSoundUrl, "gameLosePool", "gameLoseIndex", 0.4, 4);
+    onLose?.();
   }
 
   function unbindBgmUnlockRetry() {
@@ -257,6 +268,7 @@ export function createGameAudio({
     source.connect(gain);
     gain.connect(ctx.destination);
     source.start();
+    onPop?.();
   }
 
   function resetSelectToneProgression() {
@@ -352,6 +364,7 @@ export function createGameAudio({
     body.stop(endAt + 0.012);
     sparkle.stop(endAt);
     noiseSource.stop(now + 0.042);
+    onSelectTone?.();
   }
 
   function playErrorTone() {
@@ -414,6 +427,7 @@ export function createGameAudio({
     bite.start(now);
     growl.stop(endAt + 0.01);
     bite.stop(endAt);
+    onErrorTone?.();
   }
 
   return {

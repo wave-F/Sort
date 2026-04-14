@@ -10,6 +10,7 @@ import { createResultPage } from "./ui/result-page.js";
 import { createStartPageController } from "./ui/start-page.js";
 import { createBubblePageController } from "./ui/bubble-page.js";
 import { createTopStatusBarController } from "./ui/top-status-bar.js";
+import { createGameHaptics } from "./haptics/game-haptics.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
 import { clampNumber, createLevelIndexClamper, createPersistenceController } from "./game/persistence.js";
@@ -632,6 +633,8 @@ const bubblePageController = createBubblePageController({
 init();
 
 function createGameRuntime() {
+  const gameHaptics = createGameHaptics();
+
   const resultController = createResultPage({
     maskEl: resultMaskEl,
     cardEl: resultPageEl,
@@ -697,6 +700,13 @@ function createGameRuntime() {
     gameLoseSoundUrl,
     selectScaleFrequencies,
     levelBgmUrl,
+    onUiClick: () => gameHaptics.uiClick(),
+    onSelectTone: () => gameHaptics.select(),
+    onErrorTone: () => gameHaptics.error(),
+    onPop: () => gameHaptics.pop(),
+    onGainCoin: () => gameHaptics.gainCoin(),
+    onWin: () => gameHaptics.win(),
+    onLose: () => gameHaptics.lose(),
   });
 
   const victoryRainSystem = createVictoryRainSystem({
