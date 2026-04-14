@@ -24,6 +24,17 @@ export function createSliceSystem({
   const workSliceCandidates = [];
   const workSliceMeshes = [];
 
+  function getFruitSliceHitRadius(fruit) {
+    const baseRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+    const layerCount = Math.max(1, Math.floor(Number(fruit.layerCount) || 1));
+    const layerRemaining = Math.max(1, Math.floor(Number(fruit.layerRemaining ?? fruit.layerCount) || 1));
+    if (layerCount <= 1 || layerRemaining > 1) return baseRadius;
+
+    const rawScale = Number(fruit.doubleLayerInnerScale);
+    const innerScale = Number.isFinite(rawScale) && rawScale > 0 && rawScale < 1 ? rawScale : 0.6;
+    return baseRadius * innerScale;
+  }
+
   function pickTopFruitAtWorldPoint(worldX, worldY, bubbleMeshes) {
     workProject.set(worldX, worldY, 0).project(camera);
     raycaster.setFromCamera({ x: workProject.x, y: workProject.y }, camera);
@@ -57,7 +68,7 @@ export function createSliceSystem({
       if (bucket) bucket.push(fruit);
       else workSliceGrid.set(key, [fruit]);
 
-      const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+      const hitRadius = getFruitSliceHitRadius(fruit);
       if (hitRadius > maxRadius) maxRadius = hitRadius;
     }
 
@@ -80,7 +91,7 @@ export function createSliceSystem({
         if (!bucket) continue;
         for (let i = 0; i < bucket.length; i += 1) {
           const fruit = bucket[i];
-          const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1) + queryPadding;
+          const hitRadius = getFruitSliceHitRadius(fruit) + queryPadding;
           const dx = x - fruit.group.position.x;
           const dy = y - fruit.group.position.y;
           if (dx * dx + dy * dy <= hitRadius * hitRadius) {
@@ -109,14 +120,16 @@ export function createSliceSystem({
       if (candidateCount === 0) continue;
       workSliceMeshes.length = 0;
       for (let k = 0; k < candidateCount; k += 1) {
-        workSliceMeshes.push(workSliceCandidates[k].bubble);
+        const candidate = workSliceCandidates[k];
+        if (candidate.outerShell?.visible) workSliceMeshes.push(candidate.outerShell);
+        workSliceMeshes.push(candidate.bubble);
       }
 
       const fruit = pickTopFruitAtWorldPoint(x, y, workSliceMeshes);
       if (!fruit || seen.has(fruit.id)) continue;
 
       seen.add(fruit.id);
-      const hitRadius = fruit.radius * Math.max(1, fruit.selectionScale ?? 1);
+      const hitRadius = getFruitSliceHitRadius(fruit);
       result.push({ fruit, hitRadius });
     }
 

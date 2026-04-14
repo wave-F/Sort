@@ -995,6 +995,26 @@ function worldToGuidePoint(world, outVec3) {
   return { x, y };
 }
 
+function getLevelGuideTipAnchorPoint() {
+  const width = phoneFrameEl?.clientWidth ?? 0;
+  const height = phoneFrameEl?.clientHeight ?? 0;
+  if (width <= 0 || height <= 0) return { x: 180, y: 120 };
+  return {
+    x: width * 0.5,
+    y: Math.max(84, height * 0.22),
+  };
+}
+
+function getTopGuideTipAnchorPoint() {
+  const width = phoneFrameEl?.clientWidth ?? 0;
+  const height = phoneFrameEl?.clientHeight ?? 0;
+  if (width <= 0 || height <= 0) return { x: 180, y: 120 };
+  return {
+    x: width * 0.5,
+    y: Math.max(84, height * 0.22),
+  };
+}
+
 function isLockGuideFruitValid(fruit) {
   return Boolean(fruit && fruit.active && !fruit.sliced && fruit.locked && fruit.group?.visible !== false);
 }
@@ -1069,8 +1089,9 @@ function updateLockGuideOverlay() {
     lockGuideSpotlightEl.style.height = `${diameter.toFixed(1)}px`;
   }
   if (lockGuideTipEl) {
-    lockGuideTipEl.style.left = `${point.x.toFixed(2)}px`;
-    lockGuideTipEl.style.top = `${(point.y - diameter * 0.56).toFixed(2)}px`;
+    const tipPoint = getTopGuideTipAnchorPoint();
+    lockGuideTipEl.style.left = `${tipPoint.x.toFixed(2)}px`;
+    lockGuideTipEl.style.top = `${tipPoint.y.toFixed(2)}px`;
   }
 }
 
@@ -1103,8 +1124,9 @@ function updateDoubleLayerGuideOverlay() {
     doubleLayerGuideSpotlightEl.style.height = `${diameter.toFixed(1)}px`;
   }
   if (doubleLayerGuideTipEl) {
-    doubleLayerGuideTipEl.style.left = `${point.x.toFixed(2)}px`;
-    doubleLayerGuideTipEl.style.top = `${(point.y - diameter * 0.56).toFixed(2)}px`;
+    const tipPoint = getTopGuideTipAnchorPoint();
+    doubleLayerGuideTipEl.style.left = `${tipPoint.x.toFixed(2)}px`;
+    doubleLayerGuideTipEl.style.top = `${tipPoint.y.toFixed(2)}px`;
   }
 }
 
@@ -1193,13 +1215,21 @@ function tryActivateLevel1Guide() {
     return false;
   }
 
+  const now = performance.now();
   levelGuideState.active = true;
   levelGuideState.phase = "swipe";
   levelGuideState.startFruit = pair.startFruit;
   levelGuideState.endFruit = pair.endFruit;
-  levelGuideState.cycleStartedAt = performance.now();
+  levelGuideState.cycleStartedAt = now;
   gameUI.showLevelGuide();
   gameUI.setLevelGuideHandVisible(true);
+
+  const start = worldToGuidePoint(pair.startFruit.group.position, guideProjectA);
+  if (start) {
+    gameUI.setLevelGuidePosition(start.x, start.y, 1);
+    const tipPoint = getLevelGuideTipAnchorPoint();
+    gameUI.setLevelGuideTipPosition(tipPoint.x, tipPoint.y);
+  }
   return true;
 }
 
@@ -1252,7 +1282,8 @@ function updateLevel1Guide(now) {
     const x = THREE.MathUtils.lerp(start.x, end.x, p);
     const y = THREE.MathUtils.lerp(start.y, end.y, p);
     gameUI.setLevelGuidePosition(x, y, scale);
-    gameUI.setLevelGuideTipPosition(start.x, start.y - 38);
+    const tipPoint = getLevelGuideTipAnchorPoint();
+    gameUI.setLevelGuideTipPosition(tipPoint.x, tipPoint.y);
     return;
   }
 

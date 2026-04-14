@@ -159,6 +159,7 @@ export function createBubbleEntityClass({
       this.bubble.scale.setScalar(this.baseScale);
       this.bubble.userData.fruit = this;
       this.outerShell = this.createOuterShell();
+      this.outerShell.userData.fruit = this;
       this.selectRing = this.createSelectRing();
       this.lockCore = this.createLockCore();
       this.lockCounter = this.createLockCounter();
@@ -334,7 +335,7 @@ export function createBubbleEntityClass({
       group.add(this.lockKeyHole);
       group.add(this.lockKeySlot);
       group.visible = false;
-      group.scale.set(this.radius * 0.62, this.radius * 0.62, this.radius * 0.38);
+      group.scale.set(this.radius * 0.84, this.radius * 0.84, this.radius * 0.52);
       group.position.set(0, 0, this.radius * 0.76);
       return group;
     }
@@ -353,8 +354,8 @@ export function createBubbleEntityClass({
       }
 
       const canvas = document.createElement("canvas");
-      canvas.width = 96;
-      canvas.height = 96;
+      canvas.width = 128;
+      canvas.height = 128;
       const context = canvas.getContext("2d");
       const texture = new THREE.CanvasTexture(canvas);
       texture.generateMipmaps = false;
@@ -368,8 +369,8 @@ export function createBubbleEntityClass({
         depthTest: false,
       }));
       sprite.visible = false;
-      sprite.scale.set(this.radius * 0.44, this.radius * 0.44, 1);
-      sprite.position.set(0, -this.radius * 0.22, this.radius * 0.82);
+      sprite.scale.set(this.radius * 0.66, this.radius * 0.66, 1);
+      sprite.position.set(0, -this.radius * 0.3, this.radius * 0.84);
       return { sprite, texture, canvas, context, lastText: "" };
     }
 
@@ -401,7 +402,7 @@ export function createBubbleEntityClass({
       ctx.stroke();
 
       ctx.fillStyle = "#f1fbff";
-      ctx.font = "700 44px sans-serif";
+      ctx.font = "700 60px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(text, cx, cy + 1);
@@ -679,8 +680,8 @@ export function createBubbleEntityClass({
         this.lockCounter.sprite.visible = true;
 
         const pulse = 0.5 + 0.5 * Math.sin(this.life * 2.8 + this.id * 0.53);
-        const s = this.radius * (0.62 + pulse * 0.03);
-        this.lockCore.scale.set(s, s, s * 0.62);
+        const s = this.radius * (0.84 + pulse * 0.05);
+        this.lockCore.scale.set(s, s, s * 0.7);
         this.lockCore.rotation.z = Math.sin(this.life * 0.85 + this.id * 0.17) * 0.04;
 
         this.lockBody.material.emissiveIntensity = 0.12 + pulse * 0.16;
@@ -689,7 +690,7 @@ export function createBubbleEntityClass({
         this.lockShackleStemR.material.emissiveIntensity = 0.1 + pulse * 0.12;
 
         this.lockCounter.sprite.material.opacity = 0.72 + pulse * 0.22;
-        this.lockCounter.sprite.position.y = -this.radius * (0.22 - pulse * 0.015);
+        this.lockCounter.sprite.position.y = -this.radius * (0.3 - pulse * 0.02);
         this.bubbleMaterial.opacity = this.baseOpacity * 0.72;
         this.bubbleMaterial.transmission = Math.max(0.2, this.baseTransmission * 0.36);
         this.bubbleMaterial.thickness = Math.max(0.46, this.baseThickness * 0.36);
@@ -699,9 +700,9 @@ export function createBubbleEntityClass({
       this.lockCore.visible = false;
       this.lockCounter.sprite.visible = false;
       this.lockCore.rotation.z = 0;
-      this.lockCore.scale.set(this.radius * 0.62, this.radius * 0.62, this.radius * 0.38);
+      this.lockCore.scale.set(this.radius * 0.84, this.radius * 0.84, this.radius * 0.52);
       this.lockCounter.sprite.material.opacity = 0;
-      this.lockCounter.sprite.position.y = -this.radius * 0.22;
+      this.lockCounter.sprite.position.y = -this.radius * 0.3;
       this.bubbleMaterial.transmission = this.baseTransmission;
       this.bubbleMaterial.thickness = this.baseThickness;
 
