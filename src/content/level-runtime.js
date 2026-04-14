@@ -30,8 +30,26 @@ export function createLevelRuntime({
   spawnEdgePadding,
   spawnEdgeBias,
   spawnEdgeBand,
+  referenceViewportAspect = 430 / 932,
+  referenceWorldHeight = 10,
+  referencePlayAreaInset = 0.18,
 } = {}) {
   const cache = new Map();
+  const safeReferenceAspect = Number.isFinite(referenceViewportAspect) && referenceViewportAspect > 0
+    ? referenceViewportAspect
+    : 430 / 932;
+  const safeReferenceWorldHeight = Number.isFinite(referenceWorldHeight) && referenceWorldHeight > 0
+    ? referenceWorldHeight
+    : 10;
+  const safeReferenceInset = Number.isFinite(referencePlayAreaInset) ? Math.max(0, referencePlayAreaInset) : 0.18;
+  const referenceHalfH = safeReferenceWorldHeight / 2;
+  const referenceHalfW = referenceHalfH * safeReferenceAspect;
+  const referenceBounds = {
+    left: -referenceHalfW + safeReferenceInset,
+    right: referenceHalfW - safeReferenceInset,
+    top: referenceHalfH - safeReferenceInset,
+    bottom: -referenceHalfH + safeReferenceInset,
+  };
 
   function normalizeColorIds(colorIds, fruitsDef) {
     if (Array.isArray(colorIds) && colorIds.length) {
@@ -163,8 +181,8 @@ export function createLevelRuntime({
     const clusters = [];
     for (let i = 0; i < clusterCount; i += 1) {
       clusters.push({
-        x: lerp(bounds.left + clusterMargin, bounds.right - clusterMargin, rng()),
-        y: lerp(bounds.bottom + clusterMargin, bounds.top - clusterMargin, rng()),
+        x: lerp(referenceBounds.left + clusterMargin, referenceBounds.right - clusterMargin, rng()),
+        y: lerp(referenceBounds.bottom + clusterMargin, referenceBounds.top - clusterMargin, rng()),
         spread: lerp(0.85, 1.55, rng()),
         weight: lerp(0.7, 1.4, rng()),
       });
@@ -188,15 +206,15 @@ export function createLevelRuntime({
         if (useEdge) {
           const side = Math.floor(rng() * 4);
           if (side === 0 || side === 1) {
-            const maxDepth = Math.max(0, Math.min(spawnEdgeBand, bounds.right - bounds.left - margin * 2));
+            const maxDepth = Math.max(0, Math.min(spawnEdgeBand, referenceBounds.right - referenceBounds.left - margin * 2));
             const depth = Math.sqrt(rng()) * maxDepth;
-            x = side === 0 ? bounds.left + margin + depth : bounds.right - margin - depth;
-            y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
+            x = side === 0 ? referenceBounds.left + margin + depth : referenceBounds.right - margin - depth;
+            y = lerp(referenceBounds.bottom + margin, referenceBounds.top - margin, rng());
           } else {
-            const maxDepth = Math.max(0, Math.min(spawnEdgeBand, bounds.top - bounds.bottom - margin * 2));
+            const maxDepth = Math.max(0, Math.min(spawnEdgeBand, referenceBounds.top - referenceBounds.bottom - margin * 2));
             const depth = Math.sqrt(rng()) * maxDepth;
-            y = side === 2 ? bounds.bottom + margin + depth : bounds.top - margin - depth;
-            x = lerp(bounds.left + margin, bounds.right - margin, rng());
+            y = side === 2 ? referenceBounds.bottom + margin + depth : referenceBounds.top - margin - depth;
+            x = lerp(referenceBounds.left + margin, referenceBounds.right - margin, rng());
           }
         } else if (useCluster) {
           let pick = rng() * weightTotal;
@@ -214,12 +232,12 @@ export function createLevelRuntime({
           x = cluster.x + Math.cos(angle) * radial;
           y = cluster.y + Math.sin(angle) * radial;
         } else {
-          x = lerp(bounds.left + margin, bounds.right - margin, rng());
-          y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
+          x = lerp(referenceBounds.left + margin, referenceBounds.right - margin, rng());
+          y = lerp(referenceBounds.bottom + margin, referenceBounds.top - margin, rng());
         }
 
-        x = THREE.MathUtils.clamp(x, bounds.left + margin, bounds.right - margin);
-        y = THREE.MathUtils.clamp(y, bounds.bottom + margin, bounds.top - margin);
+        x = THREE.MathUtils.clamp(x, referenceBounds.left + margin, referenceBounds.right - margin);
+        y = THREE.MathUtils.clamp(y, referenceBounds.bottom + margin, referenceBounds.top - margin);
 
         let overlap = false;
         for (const p of fruitsDef) {
@@ -236,8 +254,8 @@ export function createLevelRuntime({
       }
 
       if (!placed) {
-        x = lerp(bounds.left + margin, bounds.right - margin, rng());
-        y = lerp(bounds.bottom + margin, bounds.top - margin, rng());
+        x = lerp(referenceBounds.left + margin, referenceBounds.right - margin, rng());
+        y = lerp(referenceBounds.bottom + margin, referenceBounds.top - margin, rng());
       }
 
       const angle = rng() * Math.PI * 2;
@@ -274,6 +292,7 @@ export function createLevelRuntime({
     const seed = Math.floor(level.seed ?? 1000 + (level.id ?? index + 1) * 137);
     const stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 8));
 
+    const useGeneratedFruits = fruitsDef.length === 0;
     const fruits = fruitsDef.length
       ? fruitsDef.map((f) => ({
           x: f.x,
@@ -296,6 +315,7 @@ export function createLevelRuntime({
     return {
       id: level.id,
       name: level.name,
+      useGeneratedFruits,
       seed,
       fruitCount,
       colorIds,
@@ -310,6 +330,7 @@ export function createLevelRuntime({
   function cloneNormalizedLevel(level) {
     return {
       ...level,
+      useGeneratedFruits: Boolean(level.useGeneratedFruits),
       colorIds: level.colorIds.map((id) => id),
       colorCounts: level.colorCounts.map((item) => ({ colorId: item.colorId, count: item.count })),
       radiusRange: { min: level.radiusRange.min, max: level.radiusRange.max },
@@ -325,17 +346,46 @@ export function createLevelRuntime({
     };
   }
 
+  function projectGeneratedFruitToCurrentBounds(fruit) {
+    const referenceWidth = referenceBounds.right - referenceBounds.left;
+    const referenceHeight = referenceBounds.top - referenceBounds.bottom;
+    const currentWidth = bounds.right - bounds.left;
+    const currentHeight = bounds.top - bounds.bottom;
+
+    const tx = referenceWidth > 0 ? (fruit.x - referenceBounds.left) / referenceWidth : 0.5;
+    const ty = referenceHeight > 0 ? (fruit.y - referenceBounds.bottom) / referenceHeight : 0.5;
+    const scaleX = referenceWidth > 0 ? currentWidth / referenceWidth : 1;
+    const scaleY = referenceHeight > 0 ? currentHeight / referenceHeight : 1;
+    const radiusScale = Math.max(0.01, Math.min(scaleX, scaleY));
+
+    return {
+      x: lerp(bounds.left, bounds.right, tx),
+      y: lerp(bounds.bottom, bounds.top, ty),
+      colorId: fruit.colorId,
+      radius: fruit.radius * radiusScale,
+      vx: fruit.vx * scaleX,
+      vy: fruit.vy * scaleY,
+    };
+  }
+
+  function projectLevelToCurrentBounds(level) {
+    if (!level.useGeneratedFruits) return cloneNormalizedLevel(level);
+    const projected = cloneNormalizedLevel(level);
+    projected.fruits = projected.fruits.map((fruit) => projectGeneratedFruitToCurrentBounds(fruit));
+    return projected;
+  }
+
   function getNormalizedLevel(index) {
     const baseLevel = levels[index];
     if (!baseLevel) return null;
 
-    const key = `${index}|${bounds.left.toFixed(3)}|${bounds.right.toFixed(3)}|${bounds.top.toFixed(3)}|${bounds.bottom.toFixed(3)}`;
+    const key = String(index);
     const cached = cache.get(key);
-    if (cached) return cloneNormalizedLevel(cached);
+    if (cached) return projectLevelToCurrentBounds(cached);
 
     const normalized = normalizeLevelDefinition(baseLevel, index);
     cache.set(key, normalized);
-    return cloneNormalizedLevel(normalized);
+    return projectLevelToCurrentBounds(normalized);
   }
 
   function clearCache() {

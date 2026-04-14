@@ -779,6 +779,9 @@ function createGameRuntime() {
     spawnEdgePadding,
     spawnEdgeBias,
     spawnEdgeBand,
+    referenceViewportAspect: iphoneAspectBase,
+    referenceWorldHeight: rules.worldHeight,
+    referencePlayAreaInset: rules.playAreaInset,
   });
 
   return {

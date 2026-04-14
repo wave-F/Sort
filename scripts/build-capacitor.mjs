@@ -116,6 +116,11 @@ const html = `<!doctype html>
         </div>
       </div>
 
+      <div id="level-guide" class="hidden" aria-hidden="true">
+        <span id="level-guide-tip" class="level-guide-tip">连续划到相同泡泡，一起消除！</span>
+        <img id="level-guide-hand" class="level-guide-hand" src="./assets/images/HandPointer.png" alt="" aria-hidden="true" />
+      </div>
+
       <div id="home-screen" class="layer">
         <div id="home-topbar">
           <div class="home-status home-status-energy" aria-label="体力状态">
