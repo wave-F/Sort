@@ -559,6 +559,10 @@ const sessionFlow = createSessionFlowController({
   onBackHomeFromResult: backHomeFromResult,
   onAfterLevelLoaded: (index) => {
     maybeShowLevel1Guide(index);
+    if (state.showHexOverlay) {
+      if (!debugHexOverlayCenters.length) rebuildDebugHexOverlay();
+      updateDebugHexOverlayColors();
+    }
   },
   createBubbleEntity: ({ id, colorId, radius, vx, vy, baseColor }) => new BubbleEntity({
     id,
