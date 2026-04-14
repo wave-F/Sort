@@ -1618,7 +1618,7 @@ function setupLevelTestControls() {
   if (levelTestHexToggleEl) {
     levelTestHexToggleEl.checked = state.showHexOverlay;
   }
-  if (levelTestNextStepBtn) levelTestNextStepBtn.textContent = hexTestFlow.getLabel();
+  updateLevelTestFlowButtonLabel();
 
   let addCoinsBtn = levelTestAddCoinsBtn;
   if (!addCoinsBtn) {
@@ -1674,14 +1674,11 @@ function setupLevelTestControls() {
   });
 
   levelTestNextStepBtn?.addEventListener("click", () => {
-    if (!state.started || state.inHome) {
+    if (!canRunLevelTestFlow()) {
       gameUI.showCommentary("请先开始战斗再测试流程", 900);
       return;
     }
-    if (!state.showHexOverlay) {
-      state.showHexOverlay = true;
-      if (levelTestHexToggleEl) levelTestHexToggleEl.checked = true;
-    }
+    ensureHexOverlayVisibleForTest();
     levelTestNextStepBtn.textContent = hexTestFlow.runNext();
     updateDebugHexOverlayColors();
   });
@@ -1695,6 +1692,21 @@ function setupLevelTestControls() {
     addCoins(50);
     gameUI.showCommentary("Test: +50 coins added", 1200);
   });
+}
+
+function canRunLevelTestFlow() {
+  return state.started && !state.inHome;
+}
+
+function ensureHexOverlayVisibleForTest() {
+  if (state.showHexOverlay) return;
+  state.showHexOverlay = true;
+  if (levelTestHexToggleEl) levelTestHexToggleEl.checked = true;
+}
+
+function updateLevelTestFlowButtonLabel() {
+  if (!levelTestNextStepBtn) return;
+  levelTestNextStepBtn.textContent = hexTestFlow.getLabel();
 }
 
 function loadXlsxBrowserLibrary() {
@@ -1792,19 +1804,7 @@ async function calculateAndExportTheoryStep() {
     updateDebugHexOverlayColors();
   }
 
-  const simFruits = [];
-  for (let i = 0; i < fruits.length; i += 1) {
-    const fruit = fruits[i];
-    if (!fruit?.active || fruit.sliced) continue;
-    simFruits.push({
-      x: fruit.group.position.x,
-      y: fruit.group.position.y,
-      z: fruit.group.position.z + (fruit.bubble?.position.z ?? 0),
-      radius: fruit.radius,
-      colorId: fruit.colorId,
-      active: true,
-    });
-  }
+  const simFruits = buildActiveFruitSnapshot();
 
   const stepCount = calculateTheoryStepsRecursive({ centers: debugHexOverlayCenters, fruits: simFruits });
   const levelId = state.activeLevel?.id ?? state.currentLevelIndex + 1;
@@ -1816,6 +1816,23 @@ async function calculateAndExportTheoryStep() {
     const message = error instanceof Error ? error.message : String(error);
     gameUI.showCommentary(`导出失败：${message}`, 1400);
   }
+}
+
+function buildActiveFruitSnapshot() {
+  const snapshot = [];
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit?.active || fruit.sliced) continue;
+    snapshot.push({
+      x: fruit.group.position.x,
+      y: fruit.group.position.y,
+      z: fruit.group.position.z + (fruit.bubble?.position.z ?? 0),
+      radius: fruit.radius,
+      colorId: fruit.colorId,
+      active: true,
+    });
+  }
+  return snapshot;
 }
 
 function setLevelTestSelection(index) {
