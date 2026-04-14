@@ -314,6 +314,9 @@ const debugHexOverlayTopColorIds = [];
 const debugHexOverlayTopZValues = [];
 const debugHexOverlayHighlighted = new Set();
 const debugHexOverlayLines = [];
+const debugHexOverlayLabelEls = [];
+let debugHexOverlayVertexOffsets = [];
+let debugHexLabelLayerEl = null;
 const debugHexFillWorkColor = new THREE.Color();
 const debugHexFillInvertColor = new THREE.Color();
 let levelsXlsxHandle = null;
@@ -1520,13 +1523,21 @@ function setupLevelTestControls() {
   });
 
   levelTestNextStepBtn?.addEventListener("click", () => {
-    if (!canRunLevelTestFlow()) {
-      gameUI.showCommentary("请先开始战斗再测试流程", 900);
-      return;
+    gameAudio.playUiClickAudio();
+    try {
+      if (!canRunLevelTestFlow()) {
+        hexTestFlow.reset();
+        updateLevelTestFlowButtonLabel();
+        return;
+      }
+
+      ensureHexOverlayVisibleForTest();
+      levelTestNextStepBtn.textContent = hexTestFlow.runNext();
+    } catch (error) {
+      console.error("Level test flow click failed", error);
+      updateLevelTestFlowButtonLabel();
+      gameUI.showCommentary("测试流程执行失败，请重试", 900);
     }
-    ensureHexOverlayVisibleForTest();
-    levelTestNextStepBtn.textContent = hexTestFlow.runNext();
-    updateDebugHexOverlayColors();
   });
 
   levelTestExportStepBtn?.addEventListener("click", () => {
@@ -1739,6 +1750,61 @@ function setDebugHexLineStyle(index, colorId) {
   line.material.opacity = 0.72;
 }
 
+function ensureDebugHexLabelLayer() {
+  if (debugHexLabelLayerEl) return debugHexLabelLayerEl;
+  if (!appEl) return null;
+  const layer = document.createElement("div");
+  layer.id = "debug-hex-label-layer";
+  layer.style.position = "absolute";
+  layer.style.left = "0";
+  layer.style.top = "0";
+  layer.style.width = "100%";
+  layer.style.height = "100%";
+  layer.style.pointerEvents = "none";
+  layer.style.zIndex = "8";
+  appEl.appendChild(layer);
+  debugHexLabelLayerEl = layer;
+  return debugHexLabelLayerEl;
+}
+
+function clearDebugHexLabelLayer() {
+  const layer = ensureDebugHexLabelLayer();
+  if (!layer) return;
+  layer.innerHTML = "";
+  debugHexOverlayLabelEls.length = 0;
+}
+
+function worldToOverlayPosition(x, y, z = 0.95) {
+  if (!renderer || !camera) return null;
+  const ndc = new THREE.Vector3(x, y, z).project(camera);
+  const canvas = renderer.domElement;
+  const width = canvas.clientWidth || 1;
+  const height = canvas.clientHeight || 1;
+  const px = ((ndc.x + 1) * 0.5) * width;
+  const py = ((1 - ndc.y) * 0.5) * height;
+  return { x: px, y: py };
+}
+
+function positionDebugHexLabelEl(labelEl, center) {
+  if (!labelEl || !center) return;
+  const pos = worldToOverlayPosition(center.x, center.y, 0.95);
+  if (!pos) return;
+  labelEl.style.left = `${pos.x}px`;
+  labelEl.style.top = `${pos.y}px`;
+}
+
+function updateHexOverlayLabelEl(labelEl, colorId, highlighted) {
+  if (!labelEl) return;
+  if (colorId < 0) {
+    labelEl.textContent = "";
+    return;
+  }
+
+  labelEl.textContent = String(colorId);
+  labelEl.style.color = highlighted ? "#111" : "#fff";
+  labelEl.style.textShadow = "none";
+}
+
 function createHexOutlineGeometry(radius) {
   const points = [];
   for (let i = 0; i <= 6; i += 1) {
@@ -1746,6 +1812,73 @@ function createHexOutlineGeometry(radius) {
     points.push(new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0));
   }
   return new THREE.BufferGeometry().setFromPoints(points);
+}
+
+function createHexVertexOffsets(radius) {
+  const offsets = [];
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (Math.PI / 3) * i;
+    offsets.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  }
+  return offsets;
+}
+
+function isPointInPolygon(x, y, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const xi = points[i].x;
+    const yi = points[i].y;
+    const xj = points[j].x;
+    const yj = points[j].y;
+    const intersects = (yi > y) !== (yj > y)
+      && x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceSqPointToSegment(px, py, ax, ay, bx, by) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq <= 1e-12) {
+    const dx = px - ax;
+    const dy = py - ay;
+    return dx * dx + dy * dy;
+  }
+
+  const t = THREE.MathUtils.clamp((apx * abx + apy * aby) / lenSq, 0, 1);
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  const dx = px - cx;
+  const dy = py - cy;
+  return dx * dx + dy * dy;
+}
+
+function circleIntersectsHex(circleX, circleY, radius, hexCenterX, hexCenterY, hexOffsets) {
+  const localX = circleX - hexCenterX;
+  const localY = circleY - hexCenterY;
+  const radiusSq = radius * radius;
+
+  if (isPointInPolygon(localX, localY, hexOffsets)) return true;
+
+  for (let i = 0; i < hexOffsets.length; i += 1) {
+    const vx = hexOffsets[i].x;
+    const vy = hexOffsets[i].y;
+    const dx = localX - vx;
+    const dy = localY - vy;
+    if (dx * dx + dy * dy <= radiusSq) return true;
+  }
+
+  for (let i = 0; i < hexOffsets.length; i += 1) {
+    const a = hexOffsets[i];
+    const b = hexOffsets[(i + 1) % hexOffsets.length];
+    if (distanceSqPointToSegment(localX, localY, a.x, a.y, b.x, b.y) <= radiusSq) return true;
+  }
+
+  return false;
 }
 
 function rebuildDebugHexOverlay() {
@@ -1764,6 +1897,7 @@ function rebuildDebugHexOverlay() {
   debugHexOverlayTopZValues.length = 0;
   debugHexOverlayHighlighted.clear();
   debugHexOverlayLines.length = 0;
+  clearDebugHexLabelLayer();
 
   const group = new THREE.Group();
   group.renderOrder = 70;
@@ -1810,11 +1944,8 @@ function rebuildDebugHexOverlay() {
   const minY = viewportBottom - r;
   const maxY = viewportTop + r;
 
-  const vertexOffsets = [];
-  for (let i = 0; i < 6; i += 1) {
-    const angle = (Math.PI / 3) * i;
-    vertexOffsets.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
-  }
+  const vertexOffsets = createHexVertexOffsets(r);
+  debugHexOverlayVertexOffsets = vertexOffsets;
 
   function isHexFullyInsideBounds(centerX, centerY) {
     for (let i = 0; i < vertexOffsets.length; i += 1) {
@@ -1836,10 +1967,23 @@ function rebuildDebugHexOverlay() {
       const hex = new THREE.Line(geometry.clone(), material);
       hex.position.set(x, y, hexLineZ);
       group.add(hex);
+
+      const labelLayer = ensureDebugHexLabelLayer();
+      const labelEl = document.createElement("div");
+      labelEl.style.position = "absolute";
+      labelEl.style.transform = "translate(-50%, -50%)";
+      labelEl.style.font = "700 12px Arial";
+      labelEl.style.lineHeight = "1";
+      labelEl.style.willChange = "transform";
+      labelEl.textContent = "";
+      positionDebugHexLabelEl(labelEl, { x, y });
+      labelLayer?.appendChild(labelEl);
+
       debugHexOverlayCenters.push({ x, y, col, row });
       debugHexOverlayTopColorIds.push(-1);
       debugHexOverlayTopZValues.push(Number.NEGATIVE_INFINITY);
       debugHexOverlayLines.push(hex);
+      debugHexOverlayLabelEls.push(labelEl);
     }
   }
 
@@ -1874,13 +2018,22 @@ function rebuildDebugHexOverlay() {
 
 function updateDebugHexOverlayVisibility() {
   if (!debugHexOverlayGroup) return;
-  debugHexOverlayGroup.visible = state.showHexOverlay && state.started && !state.inHome;
+  const visible = state.showHexOverlay && state.started && !state.inHome;
+  debugHexOverlayGroup.visible = visible;
+  if (debugHexLabelLayerEl) {
+    debugHexLabelLayerEl.style.display = visible ? "block" : "none";
+  }
 }
 
 function updateDebugHexOverlayColors() {
   updateDebugHexOverlayVisibility();
   syncHexOverlayToggleUI();
   if (!debugHexOverlayGroup || !debugHexOverlayGroup.visible) return;
+
+  const hexOffsets = debugHexOverlayVertexOffsets.length
+    ? debugHexOverlayVertexOffsets
+    : createHexVertexOffsets(debugHexRadius);
+  const hexOuterRadius = debugHexRadius;
 
   for (let i = 0; i < debugHexOverlayCenters.length; i += 1) {
     const center = debugHexOverlayCenters[i];
@@ -1892,11 +2045,27 @@ function updateDebugHexOverlayColors() {
       const fruit = fruits[j];
       if (!fruit?.active || fruit.sliced || !fruit.bubble.visible) continue;
 
-      const dx = center.x - fruit.group.position.x;
-      const dy = center.y - fruit.group.position.y;
+      const fx = fruit.group.position.x;
+      const fy = fruit.group.position.y;
+      const dx = center.x - fx;
+      const dy = center.y - fy;
+
+      const quickReach = fruit.radius + hexOuterRadius;
+      if (Math.abs(dx) > quickReach || Math.abs(dy) > quickReach) continue;
+      if (dx * dx + dy * dy > quickReach * quickReach) continue;
+
+      const hit = circleIntersectsHex(
+        fx,
+        fy,
+        fruit.radius,
+        center.x,
+        center.y,
+        hexOffsets
+      );
+      if (!hit) continue;
+
       const distSq = dx * dx + dy * dy;
       const hitRadiusSq = fruit.radius * fruit.radius;
-      if (distSq > hitRadiusSq) continue;
 
       const centerZ = fruit.group.position.z + (fruit.bubble?.position.z ?? 0);
       const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
@@ -1912,6 +2081,7 @@ function updateDebugHexOverlayColors() {
     debugHexOverlayTopColorIds[i] = pickedColorId;
     debugHexOverlayTopZValues[i] = bestSurfaceZ;
     setDebugHexLineStyle(i, pickedColorId);
+    updateHexOverlayLabelEl(debugHexOverlayLabelEls[i], pickedColorId, debugHexOverlayHighlighted.has(i));
   }
 
   if (debugHexOverlayFillMesh?.instanceColor) {
