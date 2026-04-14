@@ -31,7 +31,7 @@
         0.2
       ],
       "minSteps": 2,
-      "stepLimit": 6
+      "stepLimit": 5
     },
     {
       "id": 2,
@@ -68,7 +68,7 @@
         0.2
       ],
       "minSteps": 3,
-      "stepLimit": 7
+      "stepLimit": 6
     },
     {
       "id": 3,
@@ -105,7 +105,7 @@
         0.2
       ],
       "minSteps": 3,
-      "stepLimit": 7
+      "stepLimit": 6
     },
     {
       "id": 4,
@@ -147,7 +147,7 @@
         0.2
       ],
       "minSteps": 6,
-      "stepLimit": 10
+      "stepLimit": 7
     },
     {
       "id": 5,
@@ -184,7 +184,7 @@
         0.28
       ],
       "minSteps": 6,
-      "stepLimit": 9
+      "stepLimit": 5
     },
     {
       "id": 6,
@@ -226,7 +226,7 @@
         0.2
       ],
       "minSteps": 8,
-      "stepLimit": 12
+      "stepLimit": 7
     },
     {
       "id": 7,
@@ -273,7 +273,7 @@
         0.2
       ],
       "minSteps": 10,
-      "stepLimit": 14
+      "stepLimit": 8
     },
     {
       "id": 8,
@@ -315,7 +315,7 @@
         0.2
       ],
       "minSteps": 5,
-      "stepLimit": 9
+      "stepLimit": 7
     },
     {
       "id": 9,
@@ -362,7 +362,7 @@
         0.2
       ],
       "minSteps": 10,
-      "stepLimit": 14
+      "stepLimit": 10
     },
     {
       "id": 10,
@@ -404,7 +404,7 @@
         0.32
       ],
       "minSteps": 6,
-      "stepLimit": 8
+      "stepLimit": 7
     },
     {
       "id": 11,
@@ -451,7 +451,7 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 10
+      "stepLimit": 9
     },
     {
       "id": 12,
@@ -493,7 +493,7 @@
         0.24
       ],
       "minSteps": 7,
-      "stepLimit": 11
+      "stepLimit": 8
     },
     {
       "id": 13,
@@ -545,7 +545,7 @@
         0.24
       ],
       "minSteps": 7,
-      "stepLimit": 11
+      "stepLimit": 10
     },
     {
       "id": 14,
@@ -597,7 +597,7 @@
         0.24
       ],
       "minSteps": 14,
-      "stepLimit": 18
+      "stepLimit": 10
     },
     {
       "id": 15,
@@ -649,7 +649,7 @@
         0.28
       ],
       "minSteps": 18,
-      "stepLimit": 21
+      "stepLimit": 12
     },
     {
       "id": 16,
@@ -758,7 +758,7 @@
         0.24
       ],
       "minSteps": 11,
-      "stepLimit": 15
+      "stepLimit": 11
     },
     {
       "id": 18,
@@ -820,7 +820,7 @@
         0.24
       ],
       "minSteps": 18,
-      "stepLimit": 22
+      "stepLimit": 13
     },
     {
       "id": 19,
@@ -877,7 +877,7 @@
         0.24
       ],
       "minSteps": 14,
-      "stepLimit": 18
+      "stepLimit": 10
     },
     {
       "id": 20,
@@ -939,7 +939,7 @@
         0.32
       ],
       "minSteps": 17,
-      "stepLimit": 19
+      "stepLimit": 14
     }
   ]
 }

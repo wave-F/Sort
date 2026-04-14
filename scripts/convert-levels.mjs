@@ -5,19 +5,14 @@ import xlsx from "xlsx";
 
 const INPUT_RELATIVE = path.join("src", "excel", "Levels.xlsx");
 const OUTPUT_RELATIVE = path.join("src", "config", "levels.json");
-const REQUIRED_COLUMNS = ["id", "name", "difficulty", "colorkindcount", "fruitcountrange", "radiusrange", "speedrange", "seed"];
-const OPTIONAL_COLUMNS = ["homebubblecolorid"];
+const REQUIRED_COLUMNS = ["id", "name", "difficulty", "colorkindcount", "fruitcountrange", "radiusrange", "speedrange", "seed", "step"];
+const OPTIONAL_COLUMNS = ["homebubblecolorid", "intheorystep"];
 const AVAILABLE_COLOR_IDS = [0, 1, 2, 3, 4, 5, 6, 7];
 const BOUNDS = {
   left: -2.6325,
   right: 2.6325,
   top: 4.82,
   bottom: -4.82,
-};
-const STEP_OFFSET = {
-  easy: 4,
-  medium: 3,
-  hard: 2,
 };
 
 function normalize(value) {
@@ -63,6 +58,30 @@ function parseDifficulty(raw, rowNum) {
   if (["medium", "中等", "normal", "m"].includes(text)) return "medium";
   if (["hard", "困难", "h"].includes(text)) return "hard";
   throw new Error(`Invalid difficulty at row ${rowNum}, expected easy/medium/hard`);
+}
+
+function getStepOffsetByDifficulty(difficulty) {
+  if (difficulty === "easy") return 3;
+  if (difficulty === "medium") return 2;
+  return 1;
+}
+
+function resolveStepLimit(row, col, difficulty, rowNum) {
+  const stepRaw = row[col.step];
+  const direct = Number(stepRaw);
+  if (Number.isFinite(direct) && direct > 0) {
+    return Math.max(1, Math.floor(direct));
+  }
+
+  const inTheoryIdx = col.intheorystep;
+  if (inTheoryIdx >= 0) {
+    const theory = Number(row[inTheoryIdx]);
+    if (Number.isFinite(theory)) {
+      return Math.max(1, Math.floor(theory) + getStepOffsetByDifficulty(difficulty));
+    }
+  }
+
+  throw new Error(`Invalid step at row ${rowNum}. Ensure step or inTheoryStep is numeric.`);
 }
 
 function parseHomeBubbleColorId(raw, difficulty, rowNum, id) {
@@ -435,6 +454,7 @@ export function convertLevels(projectRoot = process.cwd()) {
     const seed = (seedRaw == null || String(seedRaw).trim() === "")
       ? 20000 + id * 137
       : Math.floor(toNumber(seedRaw, "seed", excelRowNum));
+    const stepLimitFromSheet = resolveStepLimit(row, col, difficulty, excelRowNum);
 
     if (id <= 0) throw new Error(`Invalid id at row ${excelRowNum}`);
     if (!name) throw new Error(`Empty name at row ${excelRowNum}`);
@@ -461,7 +481,7 @@ export function convertLevels(projectRoot = process.cwd()) {
       speedMax: speedRange[1],
     });
     const minSteps = estimateMinSteps(previewFruits);
-    const stepLimit = minSteps + STEP_OFFSET[difficulty];
+    const stepLimit = stepLimitFromSheet;
 
     levels.push({
       id,
