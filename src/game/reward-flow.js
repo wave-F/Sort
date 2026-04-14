@@ -5,6 +5,7 @@ export function createRewardFlow({
   getGameUI,
   homeCoinEl,
   onSetResultCoinTopbarVisible,
+  onCoinArriveSfx,
 } = {}) {
   function persistCoinBalance() {
     if (typeof window === "undefined" || !window.localStorage) return;
@@ -64,6 +65,9 @@ export function createRewardFlow({
     setGameplayCoinTopbarVisible(true);
     gameUI.playCoinFly(reward, {
       originRect,
+      onCoinArrive: () => {
+        onCoinArriveSfx?.();
+      },
       onDone: () => {
         setGameplayCoinTopbarVisible(false);
       },

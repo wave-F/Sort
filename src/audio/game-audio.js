@@ -1,6 +1,14 @@
 import * as THREE from "three/webgpu";
 
-export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = [], levelBgmUrl = "", clickSoundUrl = "" } = {}) {
+export function createGameAudio({
+  popSoundUrls = [],
+  selectScaleFrequencies = [],
+  levelBgmUrl = "",
+  clickSoundUrl = "",
+  gainCoinSoundUrl = "",
+  gameWinSoundUrl = "",
+  gameLoseSoundUrl = "",
+} = {}) {
   const state = {
     context: null,
     unlocked: false,
@@ -14,6 +22,12 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     levelBgm: null,
     uiClickPool: [],
     uiClickIndex: 0,
+    gainCoinPool: [],
+    gainCoinIndex: 0,
+    gameWinPool: [],
+    gameWinIndex: 0,
+    gameLosePool: [],
+    gameLoseIndex: 0,
     bgmUnlockRetryBound: false,
     bgmUnlockRetryHandler: null,
     errorLastAt: 0,
@@ -45,6 +59,46 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     if (playTask && typeof playTask.catch === "function") {
       playTask.catch(() => {});
     }
+  }
+
+  function getNextPoolAudio(url, poolKey, indexKey, volume, poolSize = 4) {
+    if (!url || typeof Audio === "undefined") return null;
+
+    if (!state[poolKey].length) {
+      for (let i = 0; i < poolSize; i += 1) {
+        const audio = new Audio(url);
+        audio.preload = "auto";
+        audio.volume = volume;
+        state[poolKey].push(audio);
+      }
+    }
+
+    const audio = state[poolKey][state[indexKey] % state[poolKey].length] || null;
+    state[indexKey] += 1;
+    return audio;
+  }
+
+  function playPoolAudio(url, poolKey, indexKey, volume, poolSize = 4) {
+    if (!state.sfxEnabled) return;
+    const audio = getNextPoolAudio(url, poolKey, indexKey, volume, poolSize);
+    if (!audio) return;
+    audio.currentTime = 0;
+    const playTask = audio.play();
+    if (playTask && typeof playTask.catch === "function") {
+      playTask.catch(() => {});
+    }
+  }
+
+  function playGainCoinAudio() {
+    playPoolAudio(gainCoinSoundUrl, "gainCoinPool", "gainCoinIndex", 0.32, 8);
+  }
+
+  function playGameWinAudio() {
+    playPoolAudio(gameWinSoundUrl, "gameWinPool", "gameWinIndex", 0.4, 4);
+  }
+
+  function playGameLoseAudio() {
+    playPoolAudio(gameLoseSoundUrl, "gameLosePool", "gameLoseIndex", 0.4, 4);
   }
 
   function unbindBgmUnlockRetry() {
@@ -370,6 +424,9 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     playLevelBgm,
     stopLevelBgm,
     playUiClickAudio,
+    playGainCoinAudio,
+    playGameWinAudio,
+    playGameLoseAudio,
     playRandomPopAudio,
     resetSelectToneProgression,
     playSelectTone,
