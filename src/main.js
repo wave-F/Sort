@@ -159,7 +159,7 @@ const popSoundFiles = [
 const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
 const clickSoundUrl = "./assets/audio/pop/click.wav";
 const gainCoinSoundUrl = "./assets/audio/pop/gain_coin.wav";
-const gameWinSoundUrl = "./assets/audio/pop/gamewin.mp3";
+const gameWinSoundUrl = "./assets/audio/pop/gamewin.wav";
 const gameLoseSoundUrl = "./assets/audio/pop/gamelose.mp3";
 const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
 const levelBgmUrl = "./assets/audio/bgm_preview/result_win_soft_carefree.mp3";
