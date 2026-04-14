@@ -103,7 +103,7 @@ export function createGameAudio({
   }
 
   function playGameWinAudio() {
-    playPoolAudio(gameWinSoundUrl, "gameWinPool", "gameWinIndex", 0.4, 4);
+    playPoolAudio(gameWinSoundUrl, "gameWinPool", "gameWinIndex", 1, 4);
     onWin?.();
   }
 
