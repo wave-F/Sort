@@ -6,6 +6,8 @@ import { createSliceSystem } from "./systems/slice-system.js";
 import { createVictoryRainSystem } from "./systems/victory-rain-system.js";
 import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
+import { createStartPageController } from "./ui/start-page.js";
+import { createBubblePageController } from "./ui/bubble-page.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
 import { clampNumber, createLevelIndexClamper, createPersistenceController } from "./game/persistence.js";
@@ -17,7 +19,7 @@ import { createLayoutViewportController } from "./game/layout-viewport.js";
 import { createRoundStateController } from "./game/round-state.js";
 import { createBubbleMaterial, createBubbleEntityClass } from "./entities/bubble-entity.js";
 import { SliceTrail } from "./entities/slice-trail.js";
-import { HEX_TEST_FLOW1_LABEL, calculateTheoryStepsRecursive, createHexTestFlowController } from "./flow/hex-test-flow.js";
+import { calculateTheoryStepsRecursive, createHexTestFlowController } from "./flow/hex-test-flow.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
@@ -84,13 +86,13 @@ const levelTestExportStepBtn = document.getElementById("level-test-export-step")
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 const levelTestAddCoinsBtn = document.getElementById("level-test-add-coins");
 const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
-let outOfMovesContinueMaskEl = document.getElementById("out-of-moves-continue-mask");
-let outOfMovesContinueModalEl = document.getElementById("out-of-moves-continue-modal");
-let outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
-let outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
-let outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
-let outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
-let gameplayCenterTipEl = document.getElementById("gameplay-center-tip");
+const outOfMovesContinueMaskEl = document.getElementById("out-of-moves-continue-mask");
+const outOfMovesContinueModalEl = document.getElementById("out-of-moves-continue-modal");
+const outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
+const outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
+const outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
+const outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
+const gameplayCenterTipEl = document.getElementById("gameplay-center-tip");
 
 const isIOSDevice = (() => {
   const ua = navigator.userAgent || "";
@@ -553,6 +555,42 @@ const sessionFlow = createSessionFlowController({
     vy,
     baseColor,
   }),
+});
+
+const startPageController = createStartPageController({
+  startBtn,
+  restartBtn,
+  onPlayUiClick: () => gameAudio.playUiClickAudio(),
+  onStart: () => startGame(),
+});
+
+const bubblePageController = createBubblePageController({
+  state,
+  phoneFrameEl,
+  gameplayTopbarEl,
+  outOfMovesBannerEl,
+  initialElements: {
+    maskEl: outOfMovesContinueMaskEl,
+    modalEl: outOfMovesContinueModalEl,
+    closeEl: outOfMovesContinueCloseEl,
+    movesEl: outOfMovesContinueMovesEl,
+    costEl: outOfMovesContinueCostEl,
+    buyEl: outOfMovesContinueBuyEl,
+    centerTipEl: gameplayCenterTipEl,
+  },
+  constants: {
+    bannerDurationMs: outOfMovesBannerDurationMs,
+    continueCost: outOfMovesContinueCost,
+    continueMoves: outOfMovesContinueMoves,
+  },
+  onSetGameplayCoinTopbarVisible: (show) => setGameplayCoinTopbarVisible(show),
+  onTrySpendCoins: (value) => trySpendCoins(value),
+  onUpdateStepsHud: () => updateStepsHud(),
+  onShowCommentary: (text, durationMs) => gameUI.showCommentary(text, durationMs),
+  onEndGame: (reason, options) => endGame(reason, options),
+  onClearQueuedSelections: () => clearQueuedSelections(),
+  onResetTrail: () => trail?.reset(),
+  onPlayUiClick: () => gameAudio.playUiClickAudio(),
 });
 
 init();
@@ -1233,248 +1271,35 @@ function hideHomeEnergyRecoverTip() {
 }
 
 function ensureOutOfMovesContinueElements() {
-  if (!phoneFrameEl) return;
-
-  if (!outOfMovesContinueMaskEl) {
-    const mask = document.createElement("div");
-    mask.id = "out-of-moves-continue-mask";
-    mask.className = "hidden";
-    mask.setAttribute("aria-hidden", "true");
-    phoneFrameEl.appendChild(mask);
-    outOfMovesContinueMaskEl = mask;
-  }
-
-  if (!outOfMovesContinueModalEl) {
-    const modal = document.createElement("div");
-    modal.id = "out-of-moves-continue-modal";
-    modal.className = "hidden";
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
-    modal.setAttribute("aria-label", "Continue modal");
-    modal.innerHTML = `
-      <button id="out-of-moves-continue-close" class="out-of-moves-continue-close" type="button" aria-label="Close">✕</button>
-      <div class="out-of-moves-continue-body">
-        <div class="out-of-moves-continue-title">Continue?</div>
-        <div class="out-of-moves-continue-center">
-          <div class="out-of-moves-continue-badge">+<span id="out-of-moves-continue-moves">3</span></div>
-          <p class="out-of-moves-continue-desc">Spend coins to add moves and keep playing!</p>
-        </div>
-        <button id="out-of-moves-continue-buy" class="out-of-moves-continue-buy" type="button">
-          <span class="out-of-moves-continue-buy-text">Play On</span>
-          <img class="out-of-moves-continue-buy-coin" src="./assets/images/currency128_Coin.png" alt="Coin" />
-          <span id="out-of-moves-continue-cost" class="out-of-moves-continue-buy-cost">50</span>
-        </button>
-      </div>
-    `;
-    phoneFrameEl.appendChild(modal);
-    outOfMovesContinueModalEl = modal;
-  }
-
-  outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
-  outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
-  outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
-  outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
+  bubblePageController.ensureOutOfMovesContinueElements();
 }
 
 function bindHomeEnergyTip() {
   homeScreenController.bindHomeEnergyTip();
 }
 
-function clearOutOfMovesBannerTimer() {
-  if (!state.outOfMovesBannerTimer) return;
-  window.clearTimeout(state.outOfMovesBannerTimer);
-  state.outOfMovesBannerTimer = 0;
-}
-
-function clearOutOfMovesBannerAnimation() {
-  if (!state.outOfMovesBannerAnimation) return;
-  state.outOfMovesBannerAnimation.cancel();
-  state.outOfMovesBannerAnimation = null;
-}
-
 function hideOutOfMovesBanner() {
-  clearOutOfMovesBannerAnimation();
-  clearOutOfMovesBannerTimer();
-  if (!outOfMovesBannerEl) return;
-  outOfMovesBannerEl.classList.remove("show");
-  outOfMovesBannerEl.classList.add("hidden");
-  outOfMovesBannerEl.style.opacity = "";
-  outOfMovesBannerEl.style.transform = "";
+  bubblePageController.hideOutOfMovesBanner();
 }
 
 function playOutOfMovesBanner(onDone) {
-  if (!outOfMovesBannerEl) {
-    onDone?.();
-    return;
-  }
-
-  hideOutOfMovesBanner();
-  outOfMovesBannerEl.classList.remove("hidden");
-  outOfMovesBannerEl.style.opacity = "1";
-  outOfMovesBannerEl.style.transform = "translateY(-50%)";
-
-  if (typeof outOfMovesBannerEl.animate === "function") {
-    const animation = outOfMovesBannerEl.animate(
-      [
-        { transform: "translateY(-260%)", opacity: 0, offset: 0 },
-        { transform: "translateY(-50%)", opacity: 1, offset: 0.24 },
-        { transform: "translateY(-50%)", opacity: 1, offset: 0.62 },
-        { transform: "translateY(220%)", opacity: 0, offset: 1 },
-      ],
-      {
-        duration: outOfMovesBannerDurationMs,
-        easing: "cubic-bezier(0.22, 0.82, 0.22, 1)",
-        fill: "both",
-      }
-    );
-    state.outOfMovesBannerAnimation = animation;
-    animation.onfinish = () => {
-      state.outOfMovesBannerAnimation = null;
-      hideOutOfMovesBanner();
-      onDone?.();
-    };
-    animation.oncancel = () => {
-      state.outOfMovesBannerAnimation = null;
-    };
-    return;
-  }
-
-  outOfMovesBannerEl.classList.remove("show");
-  void outOfMovesBannerEl.offsetWidth;
-  outOfMovesBannerEl.classList.add("show");
-  state.outOfMovesBannerTimer = window.setTimeout(() => {
-    hideOutOfMovesBanner();
-    onDone?.();
-  }, outOfMovesBannerDurationMs);
+  bubblePageController.playOutOfMovesBanner(onDone);
 }
 
 function syncOutOfMovesContinueModalUi() {
-  if (outOfMovesContinueMovesEl) outOfMovesContinueMovesEl.textContent = String(outOfMovesContinueMoves);
-  if (outOfMovesContinueCostEl) outOfMovesContinueCostEl.textContent = String(outOfMovesContinueCost);
-}
-
-function setOutOfMovesContinueCoinTopbarVisible(show) {
-  if (show) {
-    setGameplayCoinTopbarVisible(true);
-    gameplayTopbarEl?.classList.add("is-floating-over-continue");
-    return;
-  }
-
-  gameplayTopbarEl?.classList.remove("is-floating-over-continue");
-  setGameplayCoinTopbarVisible(false);
-}
-
-function ensureGameplayCenterTipEl() {
-  if (gameplayCenterTipEl) return gameplayCenterTipEl;
-  if (!phoneFrameEl) return null;
-  const el = document.createElement("div");
-  el.id = "gameplay-center-tip";
-  el.className = "gameplay-center-tip";
-  phoneFrameEl.appendChild(el);
-  gameplayCenterTipEl = el;
-  return gameplayCenterTipEl;
-}
-
-function clearGameplayCenterTip() {
-  if (state.gameplayCenterTipTimer) {
-    window.clearTimeout(state.gameplayCenterTipTimer);
-    state.gameplayCenterTipTimer = 0;
-  }
-  gameplayCenterTipEl?.classList.remove("show");
-}
-
-function showGameplayCenterTip(text, durationMs = 1200) {
-  const tipEl = ensureGameplayCenterTipEl();
-  if (!tipEl) return;
-  clearGameplayCenterTip();
-  tipEl.textContent = text;
-  tipEl.classList.add("show");
-  state.gameplayCenterTipTimer = window.setTimeout(() => {
-    tipEl.classList.remove("show");
-    state.gameplayCenterTipTimer = 0;
-  }, durationMs);
+  bubblePageController.syncOutOfMovesContinueModalUi();
 }
 
 function hideOutOfMovesContinueModal() {
-  outOfMovesContinueMaskEl?.classList.add("hidden");
-  outOfMovesContinueModalEl?.classList.add("hidden");
-  setOutOfMovesContinueCoinTopbarVisible(false);
-  clearGameplayCenterTip();
-  state.outOfMovesContinueOpen = false;
-}
-
-function openOutOfMovesContinueModal() {
-  ensureOutOfMovesContinueElements();
-  if (!outOfMovesContinueMaskEl || !outOfMovesContinueModalEl || !outOfMovesContinueBuyEl || !outOfMovesContinueCloseEl) {
-    state.outOfMovesContinuePending = false;
-    state.levelTransitioning = false;
-    endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`);
-    return;
-  }
-  syncOutOfMovesContinueModalUi();
-  outOfMovesContinueMaskEl.classList.remove("hidden");
-  outOfMovesContinueModalEl.classList.remove("hidden");
-  setOutOfMovesContinueCoinTopbarVisible(true);
-  state.outOfMovesContinueOpen = true;
-}
-
-function resolveOutOfMovesAsLose() {
-  hideOutOfMovesContinueModal();
-  state.outOfMovesContinuePending = false;
-  state.levelTransitioning = false;
-  endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`);
-}
-
-function continueAfterOutOfMoves() {
-  if (state.outOfMovesContinueUsedInLevel) {
-    resolveOutOfMovesAsLose();
-    return;
-  }
-
-  if (!trySpendCoins(outOfMovesContinueCost)) {
-    syncOutOfMovesContinueModalUi();
-    showGameplayCenterTip("Not enough coins", 1200);
-    return;
-  }
-
-  state.stepLimit = Math.max(1, state.stepLimit + outOfMovesContinueMoves);
-  state.outOfMovesContinueUsedInLevel = true;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.outOfMovesContinuePending = false;
-  hideOutOfMovesContinueModal();
-  syncOutOfMovesContinueModalUi();
-  updateStepsHud();
-    gameUI.showCommentary(`+${outOfMovesContinueMoves} moves`, 1000);
+  bubblePageController.hideOutOfMovesContinueModal();
 }
 
 function triggerOutOfMovesContinueFlow() {
-  if (state.outOfMovesContinuePending || state.outOfMovesContinueOpen || state.gameOver) return;
-  if (state.outOfMovesContinueUsedInLevel) {
-    endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`, { showOutOfMovesBanner: true });
-    return;
-  }
-  state.pointerDown = false;
-  state.levelTransitioning = true;
-  state.outOfMovesContinuePending = true;
-  clearQueuedSelections();
-  trail?.reset();
-  playOutOfMovesBanner(() => {
-    openOutOfMovesContinueModal();
-  });
+  bubblePageController.triggerOutOfMovesContinueFlow();
 }
 
 function bindOutOfMovesContinueModal() {
-  ensureOutOfMovesContinueElements();
-  outOfMovesContinueBuyEl?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    continueAfterOutOfMoves();
-  });
-
-  outOfMovesContinueCloseEl?.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    resolveOutOfMovesAsLose();
-  });
+  bubblePageController.bindOutOfMovesContinueModal();
 }
 
 function persistCoinBalance() {
@@ -1578,14 +1403,7 @@ function init() {
   setupHomeFloatBubbles();
   renderHomeScreen();
 
-  startBtn.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    startGame();
-  });
-  restartBtn.addEventListener("click", () => {
-    gameAudio.playUiClickAudio();
-    startGame();
-  });
+  startPageController.bindStartActions();
   bindHomeLevelButtons();
   bindHomeEnergyTip();
   bindHomeSettingsModal();
@@ -1702,6 +1520,11 @@ function ensureHexOverlayVisibleForTest() {
   if (state.showHexOverlay) return;
   state.showHexOverlay = true;
   if (levelTestHexToggleEl) levelTestHexToggleEl.checked = true;
+}
+
+function syncHexOverlayToggleUI() {
+  if (!levelTestHexToggleEl) return;
+  levelTestHexToggleEl.checked = state.showHexOverlay;
 }
 
 function updateLevelTestFlowButtonLabel() {
@@ -1851,9 +1674,41 @@ function jumpToLevelForTest(index) {
   loadLevel(index);
   hexTestFlow.reset();
   updateDebugHexOverlayColors();
-  if (levelTestNextStepBtn) levelTestNextStepBtn.textContent = HEX_TEST_FLOW1_LABEL;
+  updateLevelTestFlowButtonLabel();
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
   gameUI.showCommentary(`Test mode: switched to Level ${index + 1}`, 1400);
+}
+
+function setDebugHexLineStyle(index, colorId) {
+  const line = debugHexOverlayLines[index];
+  if (!line || !line.material) return;
+
+  if (colorId < 0) {
+    if (debugHexOverlayFillMesh) {
+      debugHexFillWorkColor.setHex(0x000000);
+      debugHexOverlayFillMesh.setColorAt(index, debugHexFillWorkColor);
+    }
+    line.material.color.setHex(0x000000);
+    line.material.opacity = 0.45;
+    return;
+  }
+
+  const baseHex = colors[colorId]?.base ?? 0xffffff;
+  if (debugHexOverlayHighlighted.has(index)) {
+    debugHexFillInvertColor.setHex(baseHex);
+    debugHexFillWorkColor.setRGB(1 - debugHexFillInvertColor.r, 1 - debugHexFillInvertColor.g, 1 - debugHexFillInvertColor.b);
+    if (debugHexOverlayFillMesh) debugHexOverlayFillMesh.setColorAt(index, debugHexFillWorkColor);
+    line.material.color.setRGB(1 - debugHexFillInvertColor.r, 1 - debugHexFillInvertColor.g, 1 - debugHexFillInvertColor.b);
+    line.material.opacity = 0.95;
+    return;
+  }
+
+  if (debugHexOverlayFillMesh) {
+    debugHexFillWorkColor.setHex(baseHex);
+    debugHexOverlayFillMesh.setColorAt(index, debugHexFillWorkColor);
+  }
+  line.material.color.setHex(baseHex);
+  line.material.opacity = 0.72;
 }
 
 function createHexOutlineGeometry(radius) {
@@ -1944,6 +1799,7 @@ function updateDebugHexOverlayVisibility() {
 
 function updateDebugHexOverlayColors() {
   updateDebugHexOverlayVisibility();
+  syncHexOverlayToggleUI();
   if (!debugHexOverlayGroup || !debugHexOverlayGroup.visible) return;
 
   for (let i = 0; i < debugHexOverlayCenters.length; i += 1) {
@@ -1975,33 +1831,7 @@ function updateDebugHexOverlayColors() {
 
     debugHexOverlayTopColorIds[i] = pickedColorId;
     debugHexOverlayTopZValues[i] = bestSurfaceZ;
-
-    const line = debugHexOverlayLines[i];
-    if (!line || !line.material) continue;
-    if (pickedColorId < 0) {
-      if (debugHexOverlayFillMesh) {
-        debugHexFillWorkColor.setHex(0x000000);
-        debugHexOverlayFillMesh.setColorAt(i, debugHexFillWorkColor);
-      }
-      line.material.color.setHex(0x000000);
-      line.material.opacity = 0.45;
-    } else {
-      const baseHex = colors[pickedColorId]?.base ?? 0xffffff;
-      if (debugHexOverlayHighlighted.has(i)) {
-        debugHexFillInvertColor.setHex(baseHex);
-        debugHexFillWorkColor.setRGB(1 - debugHexFillInvertColor.r, 1 - debugHexFillInvertColor.g, 1 - debugHexFillInvertColor.b);
-        if (debugHexOverlayFillMesh) debugHexOverlayFillMesh.setColorAt(i, debugHexFillWorkColor);
-        line.material.color.setRGB(1 - debugHexFillInvertColor.r, 1 - debugHexFillInvertColor.g, 1 - debugHexFillInvertColor.b);
-        line.material.opacity = 0.95;
-      } else {
-        if (debugHexOverlayFillMesh) {
-          debugHexFillWorkColor.setHex(baseHex);
-          debugHexOverlayFillMesh.setColorAt(i, debugHexFillWorkColor);
-        }
-        line.material.color.setHex(baseHex);
-        line.material.opacity = 0.72;
-      }
-    }
+    setDebugHexLineStyle(i, pickedColorId);
   }
 
   if (debugHexOverlayFillMesh?.instanceColor) {
