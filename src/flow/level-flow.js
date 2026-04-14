@@ -86,7 +86,7 @@ export function createLevelFlowController({
     pendingNextLevelIndex = nextLevelIndex;
 
     onVictoryFxStart?.();
-    showCommentary?.(`第${justCleared + 1}关胜利！泡泡雨喷发中...`, 1300);
+    showCommentary?.(`Level ${justCleared + 1} clear! Bubble rain incoming...`, 1300);
   }
 
   function continueToNextLevel() {

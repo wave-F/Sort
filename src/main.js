@@ -1,13 +1,4 @@
 import * as THREE from "three/webgpu";
-import {
-  normalLocal,
-  normalView,
-  positionLocal,
-  positionViewDirection,
-  time,
-  uniform,
-  vec3,
-} from "three/tsl";
 import { LEVELS } from "./levels.js";
 import { createLevelFlowController } from "./flow/level-flow.js";
 import { createCollisionSystem } from "./systems/collision-system.js";
@@ -17,48 +8,62 @@ import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
-import { HEX_TEST_FLOW1_LABEL, calculateTheoryStepsRecursive, createHexTestFlowController } from "./flow/hex-test-flow.js";
+import { clampNumber, createLevelIndexClamper, createPersistenceController } from "./game/persistence.js";
+import { readGameSettings, createSettingsUiController } from "./game/settings-ui.js";
+import { createRewardFlow } from "./game/reward-flow.js";
+import { createHomeScreenController } from "./game/home-screen.js";
+import { createSessionFlowController } from "./game/session-flow.js";
+import { createLayoutViewportController } from "./game/layout-viewport.js";
+import { createRoundStateController } from "./game/round-state.js";
+import { createBubbleMaterial, createBubbleEntityClass } from "./entities/bubble-entity.js";
+import { SliceTrail } from "./entities/slice-trail.js";
 
 const appEl = document.getElementById("app");
 const phoneFrameEl = document.getElementById("phone-frame");
-const titleEl = document.getElementById("title");
 const hudEl = document.getElementById("hud");
 const stepsEl = document.getElementById("score");
+const hudLevelEl = document.getElementById("hud-level");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
+const levelGuideEl = document.getElementById("level-guide");
+const levelGuideHandEl = document.getElementById("level-guide-hand");
+const levelGuideTipEl = document.getElementById("level-guide-tip");
 const homeScreenEl = document.getElementById("home-screen");
 const homeLevelPrevBtn = document.getElementById("home-level-prev");
 const homeLevelCurrentBtn = document.getElementById("home-level-current");
 const homeLevelNextBtn = document.getElementById("home-level-next");
 const homeSettingsBtn = document.getElementById("home-settings-btn");
-const homeUiPanelEl = document.getElementById("home-ui-panel");
-const homeUiEnergySizeEl = document.getElementById("home-ui-energy-size");
-const homeUiEnergyXEl = document.getElementById("home-ui-energy-x");
-const homeUiEnergyYEl = document.getElementById("home-ui-energy-y");
-const homeUiCoinSizeEl = document.getElementById("home-ui-coin-size");
-const homeUiCoinIconXEl = document.getElementById("home-ui-coin-icon-x");
-const homeUiCoinIconYEl = document.getElementById("home-ui-coin-icon-y");
-const homeUiCoinXEl = document.getElementById("home-ui-coin-x");
-const homeUiCoinYEl = document.getElementById("home-ui-coin-y");
-const homeUiEnergySizeValueEl = document.getElementById("home-ui-energy-size-value");
-const homeUiEnergyXValueEl = document.getElementById("home-ui-energy-x-value");
-const homeUiEnergyYValueEl = document.getElementById("home-ui-energy-y-value");
-const homeUiCoinSizeValueEl = document.getElementById("home-ui-coin-size-value");
-const homeUiCoinIconXValueEl = document.getElementById("home-ui-coin-icon-x-value");
-const homeUiCoinIconYValueEl = document.getElementById("home-ui-coin-icon-y-value");
-const homeUiCoinXValueEl = document.getElementById("home-ui-coin-x-value");
-const homeUiCoinYValueEl = document.getElementById("home-ui-coin-y-value");
-const homeUiSaveBtn = document.getElementById("home-ui-save-btn");
-const homeUiCloseBtn = document.getElementById("home-ui-close-btn");
-const homeUiResetBtn = document.getElementById("home-ui-reset-btn");
+const homeSettingsModalEl = document.getElementById("home-settings-modal");
+const homeSettingsCloseBtn = document.getElementById("home-settings-close-btn");
+const settingMusicToggleEl = document.getElementById("setting-music-toggle");
+const settingSfxToggleEl = document.getElementById("setting-sfx-toggle");
+const homeFillStaminaBtn = document.getElementById("home-fill-stamina-btn");
+const homeClearDataBtn = document.getElementById("home-clear-data-btn");
 const homeCoinEl = document.getElementById("home-coin");
-const coinStatusEl = document.getElementById("coin-status");
-const coinStatusTextEl = document.getElementById("coin-status-text");
+const homeEnergyTextEl = document.getElementById("home-energy-text");
+const homeEnergyStatusEl = document.querySelector("#home-topbar .home-status-energy");
+const gameplayTopbarEl = document.getElementById("gameplay-topbar");
+const gameplayCoinStatusEl = document.getElementById("gameplay-coin-status");
+const gameplayCoinTextEl = document.getElementById("gameplay-coin-text");
 const coinFlyLayerEl = document.getElementById("coin-fly-layer");
+const gameplaySettingsMaskEl = document.getElementById("gameplay-settings-mask");
+const gameplaySettingsRootEl = document.getElementById("gameplay-settings");
+const gameplaySettingsToggleEl = document.getElementById("gameplay-settings-toggle");
+const gameplaySettingsMusicEl = document.getElementById("gameplay-settings-music");
+const gameplaySettingsSfxEl = document.getElementById("gameplay-settings-sfx");
+const gameplaySettingsExitEl = document.getElementById("gameplay-settings-exit");
+const gameplayExitMaskEl = document.getElementById("gameplay-exit-mask");
+const gameplayExitModalEl = document.getElementById("gameplay-exit-modal");
+const gameplayExitCloseEl = document.getElementById("gameplay-exit-close");
+const gameplayExitCancelEl = document.getElementById("gameplay-exit-cancel");
+const gameplayExitConfirmEl = document.getElementById("gameplay-exit-confirm");
 const resultMaskEl = document.getElementById("result-mask");
 const resultPageEl = document.getElementById("result-page");
 const resultPageTitleEl = document.getElementById("result-page-title");
 const resultPageTitleTextEl = document.getElementById("result-page-title-text");
+const resultWinCloseBtn = document.getElementById("result-win-close");
+const resultWinPerfectEl = document.getElementById("result-win-perfect");
+const resultRewardLabelEl = document.getElementById("result-reward-label");
 const resultPageTextEl = document.getElementById("result-page-text");
 const resultCoinIconEl = document.getElementById("result-coin-icon");
 const resultCoinGainEl = document.getElementById("result-coin-gain");
@@ -67,54 +72,36 @@ const resultExitBtn = document.getElementById("result-exit-btn");
 const resultNextBtn = document.getElementById("result-next-btn");
 const gameOverEl = document.getElementById("game-over");
 const gameOverTitleEl = document.getElementById("game-over-title");
-const levelWinEl = document.getElementById("level-win");
-const levelWinTitleEl = document.getElementById("level-win-title");
-const levelWinDescEl = document.getElementById("level-win-desc");
 const startBtn = document.getElementById("start-btn");
 const restartBtn = document.getElementById("restart-btn");
-const levelWinNextBtn = document.getElementById("level-win-next-btn");
 const levelTestToggleBtn = document.getElementById("level-test-toggle");
-const levelTestRootEl = document.getElementById("level-test");
 const levelTestPanelEl = document.getElementById("level-test-panel");
 const levelTestSelectEl = document.getElementById("level-test-select");
-const levelTestNextStepBtn = document.getElementById("level-test-next-step");
-const levelTestExportStepBtn = document.getElementById("level-test-export-step");
-const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
+const levelTestJumpBtn = document.getElementById("level-test-jump");
+const levelTestAddCoinsBtn = document.getElementById("level-test-add-coins");
+const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
+let outOfMovesContinueMaskEl = document.getElementById("out-of-moves-continue-mask");
+let outOfMovesContinueModalEl = document.getElementById("out-of-moves-continue-modal");
+let outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
+let outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
+let outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
+let outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
+let gameplayCenterTipEl = document.getElementById("gameplay-center-tip");
+
+const isIOSDevice = (() => {
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const touchPoints = Number(navigator.maxTouchPoints || 0);
+  return /iPhone|iPad|iPod/i.test(ua) || (platform === "MacIntel" && touchPoints > 1);
+})();
+
+if (isIOSDevice) {
+  document.documentElement.classList.add("platform-ios");
+  if (document.body) document.body.classList.add("platform-ios");
+}
 
 function setupHomeFloatBubbles() {
-  if (!homeScreenEl) return;
-
-  let layer = homeScreenEl.querySelector("#home-float-layer");
-  if (!(layer instanceof HTMLElement)) {
-    layer = document.createElement("div");
-    layer.id = "home-float-layer";
-    layer.setAttribute("aria-hidden", "true");
-    homeScreenEl.prepend(layer);
-  }
-
-  if (layer.childElementCount > 0) return;
-
-  const bubbleCount = 16;
-  for (let i = 0; i < bubbleCount; i += 1) {
-    const bubble = document.createElement("span");
-    bubble.className = "home-float-bubble";
-
-    const size = 10 + Math.random() * 32;
-    const left = 4 + Math.random() * 92;
-    const duration = 9 + Math.random() * 10;
-    const delay = -Math.random() * duration;
-    const drift = -18 + Math.random() * 36;
-    const alpha = 0.42 + Math.random() * 0.38;
-
-    bubble.style.setProperty("--size", `${size.toFixed(1)}px`);
-    bubble.style.setProperty("--left", `${left.toFixed(2)}%`);
-    bubble.style.setProperty("--dur", `${duration.toFixed(2)}s`);
-    bubble.style.setProperty("--delay", `${delay.toFixed(2)}s`);
-    bubble.style.setProperty("--drift", `${drift.toFixed(1)}px`);
-    bubble.style.setProperty("--alpha", alpha.toFixed(2));
-
-    layer.appendChild(bubble);
-  }
+  homeScreenController.setupHomeFloatBubbles();
 }
 
 const rules = {
@@ -127,7 +114,6 @@ const slicePopStaggerStep = 0.075;
 const spawnEdgePadding = 0.01;
 const spawnEdgeBias = 0.38;
 const spawnEdgeBand = 0.9;
-const boundsClampExpand = 0.2;
 const wallSlideDamping = 0.992;
 const wallContactGain = 0.8;
 
@@ -135,7 +121,17 @@ const bubbleRadiusScale = 3;
 const bubbleTuningStorageKey = "bubble_tuning_v1";
 const levelProgressStorageKey = "fruit_level_progress_v1";
 const coinStorageKey = "fruit_coin_balance_v1";
+const staminaStorageKey = "fruit_stamina_v1";
 const homeUiTuningStorageKey = "fruit_home_ui_tuning_v1";
+const gameSettingsStorageKey = "fruit_game_settings_v1";
+const uiLayoutDebugStorageKey = "fruit_ui_layout_debug_v1";
+const hudDebugStorageKey = "fruit_hud_debug_v1";
+const level1TutorialSeenStorageKey = "fruit_level1_tutorial_seen_v1";
+const staminaMax = 5;
+const staminaRecoverIntervalMs = 25 * 60 * 1000;
+const outOfMovesBannerDurationMs = 1800;
+const outOfMovesContinueCost = 50;
+const outOfMovesContinueMoves = 3;
 const levelWinRewardBase = 20;
 const homeEasyColorIds = [1, 2, 3, 5, 6];
 const homeMediumColorId = 4;
@@ -152,21 +148,23 @@ const popSoundFiles = [
   "oga-pop10.ogg",
 ];
 const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
+const clickSoundUrl = "./assets/audio/pop/click.wav";
 const selectScaleFrequencies = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
+const levelBgmUrl = "./assets/audio/bgm_preview/result_win_soft_carefree.mp3";
 const iphoneAspectBase = 430 / 932;
 const portraitAspectMin = 9 / 20;
 const portraitAspectMax = 1 / 2;
 const desktopAspectSwitchWidth = 820;
 
 const colors = [
-  { id: "red", name: "红泡", base: 0xff1a2d },
-  { id: "orange", name: "橙泡", base: 0xff7a00 },
-  { id: "green", name: "绿泡", base: 0x20c85a },
-  { id: "blue", name: "蓝泡", base: 0x145dff },
-  { id: "purple", name: "紫泡", base: 0xc24dff },
-  { id: "yellow", name: "黄泡", base: 0xd6f542 },
-  { id: "pink", name: "粉泡", base: 0xff5fb2 },
-  { id: "teal", name: "青泡", base: 0x14b8a6 },
+  { id: "red", name: "红泡", base: 0xff0037 },
+  { id: "orange", name: "橙泡", base: 0xff8a00 },
+  { id: "green", name: "绿泡", base: 0x00d86a },
+  { id: "blue", name: "蓝泡", base: 0x00a6ff },
+  { id: "purple", name: "紫泡", base: 0x8a2bff },
+  { id: "yellow", name: "黄泡", base: 0xffef00 },
+  { id: "pink", name: "粉泡", base: 0xff3dc2 },
+  { id: "teal", name: "青泡", base: 0x00d4c1 },
 ];
 
 const defaultBubbleTuning = {
@@ -198,9 +196,42 @@ const defaultHomeUiTuning = {
   coinTextY: 0,
 };
 
+const defaultGameSettings = {
+  musicEnabled: true,
+  sfxEnabled: true,
+};
+
+const clampLevelIndex = createLevelIndexClamper(LEVELS.length);
+
+const defaultUiLayoutDebugTuning = {
+  winWidth: 0,
+  winHeight: 0,
+  winX: 0,
+  winY: 0,
+  winScale: 1,
+  titleY: 0,
+  titleScale: 1,
+  perfectY: 0,
+  perfectScale: 1,
+  rewardY: 0,
+  rewardScale: 1,
+  coinNumX: 0,
+  coinNumY: 0,
+  actionsY: 0,
+  continueScale: 1,
+};
+
+const defaultHudDebugTuning = {
+  hudLevelOffsetX: 0,
+};
+
 const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
+let level1TutorialSeen = readLevel1TutorialSeen();
+const gameSettings = readGameSettings({ storageKey: gameSettingsStorageKey, defaultSettings: defaultGameSettings });
+const uiLayoutDebugTuning = readUiLayoutDebugTuning();
+const hudDebugTuning = readHudDebugTuning();
 
 const state = {
   started: false,
@@ -226,10 +257,33 @@ const state = {
   stepLimit: 0,
   stepsUsed: 0,
   coins: 0,
+  stamina: staminaMax,
+  staminaLastRecoverAt: 0,
+  staminaUiSyncAt: 0,
   pendingWinReward: 0,
   rewardAppliedThisRound: false,
-  showHexOverlay: false,
+  staminaTipHideTimer: 0,
+  staminaTipTickTimer: 0,
+  homeCenterTipTimer: 0,
+  outOfMovesBannerTimer: 0,
+  outOfMovesBannerAnimation: null,
+  outOfMovesContinueOpen: false,
+  outOfMovesContinuePending: false,
+  outOfMovesContinueUsedInLevel: false,
+  gameplayCenterTipTimer: 0,
 };
+
+const persistence = createPersistenceController({
+  state,
+  storageKeys: {
+    levelProgress: levelProgressStorageKey,
+    coin: coinStorageKey,
+    stamina: staminaStorageKey,
+  },
+  levelCount: LEVELS.length,
+  staminaMax,
+  staminaRecoverIntervalMs,
+});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xfffbf2);
@@ -243,34 +297,26 @@ let trail;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
-const homeBubbles = [];
-const homeBubbleBounds = { left: -999, right: 999, top: 999, bottom: -999 };
-const hexOverlayRadius = 0.1;
-const hexOverlayOpacity = 0.38;
-const hexOverlayBorderOpacity = 0.72;
-const hexOverlayBorderWidth = 0.02;
-
-let hexOverlayMesh = null;
-let hexOverlayBorderMesh = null;
-let hexOverlayLabelGroup = null;
-const hexOverlayLabelSprites = [];
-const hexOverlayLabelMaterials = new Map();
-let hexOverlayCenters = [];
-const hexOverlayTopColorIds = [];
-const hexOverlayTopZValues = [];
-const hexOverlayHighlighted = new Set();
-const hexOverlayDefaultColor = new THREE.Color(0x000000);
-const hexOverlayWorkColor = new THREE.Color();
-const hexOverlayInvertColor = new THREE.Color();
-
-let levelsXlsxHandle = null;
-let xlsxLoaderPromise = null;
 
 const clock = new THREE.Clock();
 const raycaster = new THREE.Raycaster();
 const playPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 const workHit = new THREE.Vector3();
+const guideProjectA = new THREE.Vector3();
+const guideProjectB = new THREE.Vector3();
+
+const levelGuideState = {
+  active: false,
+  phase: "swipe",
+  startFruit: null,
+  endFruit: null,
+  anchorX: 0,
+  anchorY: 0,
+  cycleStartedAt: 0,
+  segmentMs: 760,
+  holdMs: 180,
+};
 
 scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
 const key = new THREE.DirectionalLight(0xffffff, bubbleTuning.lightKey);
@@ -288,14 +334,7 @@ scene.add(fill);
 const bubbleBaseRadius = 1.2;
 const bubbleGeometry = new THREE.SphereGeometry(bubbleBaseRadius, 120, 120);
 const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
-
-const BubbleBurstState = {
-  IDLE: "IDLE",
-  PRE_BURST: "PRE_BURST",
-  BURST: "BURST",
-  DISSIPATE: "DISSIPATE",
-  RESET: "RESET",
-};
+const createBubbleMaterialForTuning = (baseColor) => createBubbleMaterial(baseColor, bubbleTuning);
 
 const gameRuntime = createGameRuntime();
 const {
@@ -309,15 +348,183 @@ const {
   levelRuntime,
 } = gameRuntime;
 
-const hexTestFlow = createHexTestFlowController({
+const BubbleEntity = createBubbleEntityClass({
+  bubbleTuning,
+  bubbleBaseRadius,
+  bubbleGeometry,
+  wallSlideDamping,
+  wallContactGain,
+  burstSystem,
+  createBubbleMaterialFn: createBubbleMaterialForTuning,
+});
+
+const rewardFlow = createRewardFlow({
+  state,
+  coinStorageKey,
+  levelWinRewardBase,
+  getGameUI: () => gameUI,
+  homeCoinEl,
+  gameplayCoinStatusEl,
+  gameplayTopbarEl,
+});
+
+const layoutViewport = createLayoutViewportController({
+  elements: {
+    appEl,
+    phoneFrameEl,
+    resultPageEl,
+    hudEl,
+    gameplayTopbarEl,
+    gameplayCoinStatusEl,
+    gameplaySettingsRootEl,
+    gameplaySettingsMaskEl,
+    gameplayExitMaskEl,
+    gameplayExitModalEl,
+    commentaryEl,
+    sliceStateEl,
+    levelTestPanelEl,
+  },
+  constants: {
+    desktopAspectSwitchWidth,
+    iphoneAspectBase,
+    portraitAspectMin,
+    portraitAspectMax,
+  },
+  camera,
+  bounds,
+  rules,
+  levelRuntime,
+  getRenderer: () => renderer,
+  onHideGameplaySettingsMenu: hideGameplaySettingsMenu,
+  onHideGameplayExitModal: hideGameplayExitModal,
+});
+
+const settingsUi = createSettingsUiController({
+  elements: {
+    homeSettingsBtn,
+    homeSettingsModalEl,
+    homeSettingsCloseBtn,
+    settingMusicToggleEl,
+    settingSfxToggleEl,
+    homeFillStaminaBtn,
+    homeClearDataBtn,
+    gameplaySettingsMaskEl,
+    gameplaySettingsRootEl,
+    gameplaySettingsToggleEl,
+    gameplaySettingsMusicEl,
+    gameplaySettingsSfxEl,
+    gameplaySettingsExitEl,
+    gameplayExitMaskEl,
+    gameplayExitModalEl,
+    gameplayExitCloseEl,
+    gameplayExitCancelEl,
+    gameplayExitConfirmEl,
+  },
+  gameSettings,
+  defaultGameSettings,
+  storageKey: gameSettingsStorageKey,
+  gameAudio,
   gameUI,
+  onFillStaminaToMax: fillStaminaToMax,
+  onClearGameplayDataOnly: clearGameplayDataOnly,
+  onExitGameplayToHome: exitGameplayToHome,
+});
+
+const roundState = createRoundStateController({
+  state,
+  fruits,
+  scene,
+  burstSystem,
+  victoryRainSystem,
+  getTrail: () => trail,
+  slicePopStaggerStep,
+  onPlayPopAudio: () => gameAudio.playRandomPopAudio(),
+});
+
+const homeScreenController = createHomeScreenController({
+  state,
+  elements: {
+    homeScreenEl,
+    homeEnergyStatusEl,
+    homeLevelPrevBtn,
+    homeLevelCurrentBtn,
+    homeLevelNextBtn,
+  },
+  levels: LEVELS,
+  colors,
+  homeEasyColorIds,
+  homeMediumColorId,
+  homeHardColorId,
+  clampLevelIndex,
+  staminaMax,
+  formatCountdownMmSs,
+  getStaminaRecoverCountdownMs,
+  onSyncStaminaUi: syncStaminaUi,
+  onSettleStaminaRecovery: settleStaminaRecovery,
+  onSetGameHudVisible: setGameHudVisible,
+  onHideHomeSettingsModal: hideHomeSettingsModal,
+  getRenderer: () => renderer,
+  getTrail: () => trail,
+  screenToWorld,
+  createHomeBubbleEntity: ({ id, colorId }) => {
+    const entity = new BubbleEntity({
+      id,
+      colorId,
+      radius: 1,
+      vx: 0,
+      vy: 0,
+      baseColor: new THREE.Color(colors[colorId].base).offsetHSL(0, 0.1, 0),
+    });
+    entity.baseOpacity = 0.96;
+    entity.bubbleMaterial.opacity = 0.96;
+    return entity;
+  },
+  scene,
+  bubbleBaseRadius,
+  onPlayUiClick: () => gameAudio.playUiClickAudio(),
+  onShowCommentary: (text, durationMs) => gameUI.showCommentary(text, durationMs),
+});
+
+const sessionFlow = createSessionFlowController({
+  state,
   fruits,
   colors,
-  hexOverlayCenters,
-  hexOverlayTopColorIds,
-  hexOverlayHighlighted,
-  rebuildHexOverlay: () => rebuildHexOverlay(),
-  updateHexOverlayColors: () => updateHexOverlayColors(),
+  bounds,
+  scene,
+  levelRuntime,
+  levelFlow,
+  gameAudio,
+  gameUI,
+  burstSystem,
+  victoryRainSystem,
+  getTrail: () => trail,
+  clampLevelIndex,
+  hasBubbleTuningOverride,
+  onHideOutOfMovesBanner: hideOutOfMovesBanner,
+  onTryConsumeStaminaForLevelEntry: tryConsumeStaminaForLevelEntry,
+  onSettlePendingWinReward: settlePendingWinReward,
+  onRestoreStaminaAfterFailedEntry: restoreStaminaAfterFailedEntry,
+  onShowHomeScreen: showHomeScreen,
+  onHideHomeScreen: hideHomeScreen,
+  onShowHomeCenterTip: showHomeCenterTip,
+  onSetLevelTestSelection: setLevelTestSelection,
+  onUpdateStepsHud: updateStepsHud,
+  onClearQueuedSelections: clearQueuedSelections,
+  onPlayOutOfMovesBanner: playOutOfMovesBanner,
+  onClearBoardEntities: clearBoardEntities,
+  onPersistLevelProgress: persistLevelProgress,
+  onBackHomeFromResult: backHomeFromResult,
+  onAfterLevelLoaded: (index) => {
+    maybeShowLevel1Guide(index);
+  },
+  createBubbleEntity: ({ id, colorId, radius, vx, vy, baseColor }) => new BubbleEntity({
+    id,
+    colorId,
+    radius,
+    vx,
+    vy,
+    baseColor,
+  }),
 });
 
 init();
@@ -326,16 +533,19 @@ function createGameRuntime() {
   const gameUI = createGameUI({
     sliceStateEl,
     commentaryEl,
+    levelGuideEl,
+    levelGuideHandEl,
+    levelGuideTipEl,
     gameOverEl,
     gameOverTitleEl,
-    levelWinEl,
-    levelWinTitleEl,
-    levelWinDescEl,
     resultPage: {
       maskEl: resultMaskEl,
       cardEl: resultPageEl,
       titleEl: resultPageTitleEl,
       titleTextEl: resultPageTitleTextEl,
+      winCloseBtn: resultWinCloseBtn,
+      perfectEl: resultWinPerfectEl,
+      rewardLabelEl: resultRewardLabelEl,
       descEl: resultPageTextEl,
       rewardEl: resultCoinGainEl,
       coinIconEl: resultCoinIconEl,
@@ -344,16 +554,25 @@ function createGameRuntime() {
       backBtn: resultExitBtn,
     },
     coinStatus: {
-      rootEl: coinStatusEl,
-      valueEl: coinStatusTextEl,
+      rootEl: gameplayCoinStatusEl,
+      valueEl: gameplayCoinTextEl,
     },
     coinFly: {
       layerEl: coinFlyLayerEl,
       frameEl: phoneFrameEl,
     },
-    onResultRetry: retryCurrentLevelFromResult,
-    onResultNext: () => levelFlow.continueToNextLevel(),
-    onResultBack: backHomeFromResult,
+    onResultRetry: () => {
+      gameAudio.playUiClickAudio();
+      retryCurrentLevelFromResult();
+    },
+    onResultNext: () => {
+      gameAudio.playUiClickAudio();
+      levelFlow.continueToNextLevel();
+    },
+    onResultBack: () => {
+      gameAudio.playUiClickAudio();
+      backHomeFromResult();
+    },
   });
 
   const burstSystem = createBurstSystem({
@@ -362,13 +581,15 @@ function createGameRuntime() {
     bubbleTuning,
     bubbleBaseRadius,
     burstBubbleGeometry,
-    createBubbleMaterial,
+    createBubbleMaterial: createBubbleMaterialForTuning,
     poolSize: 180,
   });
 
   const gameAudio = createGameAudio({
     popSoundUrls,
+    clickSoundUrl,
     selectScaleFrequencies,
+    levelBgmUrl,
   });
 
   const victoryRainSystem = createVictoryRainSystem({
@@ -377,9 +598,9 @@ function createGameRuntime() {
     colors,
     bubbleRadiusScale,
     bubbleBaseRadius,
-    emitDuration: 0.78,
-    spawnRate: 74,
-    maxBubbles: 56,
+    emitDuration: 0.9,
+    spawnRate: 108,
+    maxBubbles: 88,
   });
 
   const collisionSystem = createCollisionSystem({
@@ -390,7 +611,6 @@ function createGameRuntime() {
   const sliceSystem = createSliceSystem({
     camera,
     raycaster,
-    colors,
     minSliceSegment: rules.minSliceSegment,
     sliceGridCellSize: 1.2,
   });
@@ -405,7 +625,8 @@ function createGameRuntime() {
     },
     getCurrentLevelIndex: () => state.currentLevelIndex,
     onAllLevelsCleared: (levelCount) => {
-      const reward = getLevelWinReward(levelCount - 1) + 10;
+      refundStaminaOnWin();
+      const reward = getLevelWinReward(levelCount - 1);
       state.highestPassedLevelIndex = LEVELS.length - 1;
       state.currentPlayableLevelIndex = LEVELS.length - 1;
       state.selectedHomeLevelIndex = LEVELS.length - 1;
@@ -436,6 +657,7 @@ function createGameRuntime() {
       victoryRainSystem.update(dt);
     },
     onShowLevelWinOverlay: (current, next) => {
+      refundStaminaOnWin();
       const nextLevelIndex = Math.max(0, next - 1);
       const reward = getLevelWinReward(current - 1);
       grantLevelWinProgress(nextLevelIndex);
@@ -521,20 +743,183 @@ function loadBubbleTuning() {
   }
 }
 
-function clampNumber(value, min, max, fallback) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return THREE.MathUtils.clamp(n, min, max);
+function readLevel1TutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+
+  try {
+    return window.localStorage.getItem(level1TutorialSeenStorageKey) === "1";
+  } catch (_err) {
+    return false;
+  }
 }
 
-function clampLevelIndex(index, fallback = 0) {
-  const maxIndex = Math.max(0, LEVELS.length - 1);
-  const fallbackIndex = Number.isFinite(Number(fallback)) ? Math.floor(Number(fallback)) : 0;
-  const n = Number(index);
-  if (!Number.isFinite(n)) {
-    return THREE.MathUtils.clamp(fallbackIndex, 0, maxIndex);
+function persistLevel1TutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+
+  try {
+    window.localStorage.setItem(level1TutorialSeenStorageKey, "1");
+  } catch (_err) {}
+}
+
+function isGuideFruitValid(fruit) {
+  return Boolean(fruit && fruit.active && !fruit.sliced && fruit.group?.visible !== false);
+}
+
+function pickLevelGuidePair() {
+  const byColor = new Map();
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!isGuideFruitValid(fruit)) continue;
+    const bucket = byColor.get(fruit.colorId);
+    if (bucket) bucket.push(fruit);
+    else byColor.set(fruit.colorId, [fruit]);
   }
-  return THREE.MathUtils.clamp(Math.floor(n), 0, maxIndex);
+
+  let best = null;
+  let bestScore = -Infinity;
+  const targetDist = 2.6;
+  for (const bucket of byColor.values()) {
+    if (bucket.length < 2) continue;
+    for (let i = 0; i < bucket.length - 1; i += 1) {
+      for (let j = i + 1; j < bucket.length; j += 1) {
+        const a = bucket[i];
+        const b = bucket[j];
+        const dx = a.group.position.x - b.group.position.x;
+        const dy = a.group.position.y - b.group.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1.2 || dist > 5.4) continue;
+        const sizeBonus = Math.max(a.radius, b.radius) * 0.35;
+        const score = 5 - Math.abs(dist - targetDist) + sizeBonus;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { startFruit: a, endFruit: b };
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+function worldToGuidePoint(world, outVec3) {
+  if (!renderer || !phoneFrameEl) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const frameRect = phoneFrameEl.getBoundingClientRect();
+  outVec3.copy(world).project(camera);
+  const x = ((outVec3.x + 1) * 0.5) * rect.width + rect.left - frameRect.left;
+  const y = ((-outVec3.y + 1) * 0.5) * rect.height + rect.top - frameRect.top;
+  return { x, y };
+}
+
+function stopLevel1Guide() {
+  levelGuideState.active = false;
+  levelGuideState.phase = "swipe";
+  levelGuideState.startFruit = null;
+  levelGuideState.endFruit = null;
+  levelGuideState.anchorX = 0;
+  levelGuideState.anchorY = 0;
+  gameUI.hideLevelGuide();
+}
+
+function tryActivateLevel1Guide() {
+  const pair = pickLevelGuidePair();
+  if (!pair) {
+    stopLevel1Guide();
+    return false;
+  }
+
+  levelGuideState.active = true;
+  levelGuideState.phase = "swipe";
+  levelGuideState.startFruit = pair.startFruit;
+  levelGuideState.endFruit = pair.endFruit;
+  levelGuideState.cycleStartedAt = performance.now();
+  gameUI.showLevelGuide();
+  gameUI.setLevelGuideHandVisible(true);
+  return true;
+}
+
+function updateLevel1Guide(now) {
+  if (!levelGuideState.active) return;
+  if (!state.started || state.gameOver || state.levelTransitioning || state.currentLevelIndex !== 0) {
+    stopLevel1Guide();
+    return;
+  }
+
+  if (levelGuideState.phase === "swipe") {
+    if (state.sliceCommitted) {
+      levelGuideState.phase = "await-warning";
+      gameUI.setLevelGuideHandVisible(false);
+      gameUI.hideLevelGuideTip();
+    }
+  }
+
+  if (levelGuideState.phase === "swipe") {
+    if (!isGuideFruitValid(levelGuideState.startFruit) || !isGuideFruitValid(levelGuideState.endFruit)) {
+      if (!tryActivateLevel1Guide()) return;
+    }
+
+    const start = worldToGuidePoint(levelGuideState.startFruit.group.position, guideProjectA);
+    const end = worldToGuidePoint(levelGuideState.endFruit.group.position, guideProjectB);
+    if (!start || !end) return;
+
+    levelGuideState.anchorX = start.x;
+    levelGuideState.anchorY = start.y;
+
+    const seg = levelGuideState.segmentMs;
+    const hold = levelGuideState.holdMs;
+    const cycle = seg * 2 + hold * 2;
+    const elapsed = (now - levelGuideState.cycleStartedAt) % cycle;
+
+    let p = 0;
+    let scale = 0.98;
+    if (elapsed < seg) {
+      p = elapsed / seg;
+    } else if (elapsed < seg + hold) {
+      p = 1;
+      scale = 1.06;
+    } else if (elapsed < seg + hold + seg) {
+      p = 1 - (elapsed - seg - hold) / seg;
+    } else {
+      p = 0;
+      scale = 1.06;
+    }
+
+    const x = THREE.MathUtils.lerp(start.x, end.x, p);
+    const y = THREE.MathUtils.lerp(start.y, end.y, p);
+    gameUI.setLevelGuidePosition(x, y, scale);
+    gameUI.setLevelGuideTipPosition(start.x, start.y - 38);
+    return;
+  }
+
+  if (levelGuideState.phase === "await-warning") {
+    let burstAnimating = false;
+    for (let i = 0; i < fruits.length; i += 1) {
+      const fruit = fruits[i];
+      if (!fruit?.active || !fruit.sliced) continue;
+      if (fruit.burstState === "PRE_BURST" || fruit.burstState === "BURST") {
+        burstAnimating = true;
+        break;
+      }
+    }
+
+    if (!state.pointerDown && state.pendingPops.length === 0 && !burstAnimating) {
+      levelGuideState.phase = "warn";
+      gameUI.showLevelGuideTip("Touching a different color will clear immediately. Watch out!", "warning");
+    }
+  }
+
+}
+
+function maybeShowLevel1Guide(levelIndex) {
+  if (levelIndex !== 0 || level1TutorialSeen) {
+    stopLevel1Guide();
+    return;
+  }
+
+  tryActivateLevel1Guide();
+  gameUI.showLevelGuideTip("Keep slicing the same color to clear them together!");
+  level1TutorialSeen = true;
+  persistLevel1TutorialSeen();
 }
 
 function readHomeUiTuning() {
@@ -562,498 +947,602 @@ function readHomeUiTuning() {
 }
 
 function applyHomeUiTuning(values) {
-  const rootStyle = document.documentElement.style;
-  rootStyle.setProperty("--home-energy-text-size", `${values.energyTextSize}px`);
-  rootStyle.setProperty("--home-energy-text-x", `${values.energyTextX}px`);
-  rootStyle.setProperty("--home-energy-text-y", `${values.energyTextY}px`);
-  rootStyle.setProperty("--home-coin-text-size", `${values.coinTextSize}px`);
-  rootStyle.setProperty("--home-coin-icon-x", `${values.coinIconX}px`);
-  rootStyle.setProperty("--home-coin-icon-y", `${values.coinIconY}px`);
-  rootStyle.setProperty("--home-coin-text-x", `${values.coinTextX}px`);
-  rootStyle.setProperty("--home-coin-text-y", `${values.coinTextY}px`);
+  layoutViewport.applyHomeUiTuning(values);
 }
 
-function setHomeUiInputs(values) {
-  if (homeUiEnergySizeEl) homeUiEnergySizeEl.value = String(values.energyTextSize);
-  if (homeUiEnergyXEl) homeUiEnergyXEl.value = String(values.energyTextX);
-  if (homeUiEnergyYEl) homeUiEnergyYEl.value = String(values.energyTextY);
-  if (homeUiCoinSizeEl) homeUiCoinSizeEl.value = String(values.coinTextSize);
-  if (homeUiCoinIconXEl) homeUiCoinIconXEl.value = String(values.coinIconX);
-  if (homeUiCoinIconYEl) homeUiCoinIconYEl.value = String(values.coinIconY);
-  if (homeUiCoinXEl) homeUiCoinXEl.value = String(values.coinTextX);
-  if (homeUiCoinYEl) homeUiCoinYEl.value = String(values.coinTextY);
+function readUiLayoutDebugTuning() {
+  const fallback = { ...defaultUiLayoutDebugTuning };
+  if (typeof window === "undefined" || !window.localStorage) return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(uiLayoutDebugStorageKey);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return {
+      winWidth: clampNumber(parsed.winWidth, -80, 180, fallback.winWidth),
+      winHeight: clampNumber(parsed.winHeight, -120, 220, fallback.winHeight),
+      winX: clampNumber(parsed.winX, -140, 140, fallback.winX),
+      winY: clampNumber(parsed.winY, -140, 140, fallback.winY),
+      winScale: clampNumber(parsed.winScale, 0.7, 1.35, fallback.winScale),
+      titleY: clampNumber(parsed.titleY, -80, 100, fallback.titleY),
+      titleScale: clampNumber(parsed.titleScale, 0.7, 1.5, fallback.titleScale),
+      perfectY: clampNumber(parsed.perfectY, -100, 100, fallback.perfectY),
+      perfectScale: clampNumber(parsed.perfectScale, 0.6, 1.4, fallback.perfectScale),
+      rewardY: clampNumber(parsed.rewardY, -100, 100, fallback.rewardY),
+      rewardScale: clampNumber(parsed.rewardScale, 0.6, 1.5, fallback.rewardScale),
+      coinNumX: clampNumber(parsed.coinNumX, -120, 120, fallback.coinNumX),
+      coinNumY: clampNumber(parsed.coinNumY, -120, 120, fallback.coinNumY),
+      actionsY: clampNumber(parsed.actionsY, -100, 120, fallback.actionsY),
+      continueScale: clampNumber(parsed.continueScale, 0.75, 1.45, fallback.continueScale),
+    };
+  } catch (_err) {
+    return fallback;
+  }
 }
 
-function syncHomeUiLabels() {
-  if (homeUiEnergySizeValueEl && homeUiEnergySizeEl) homeUiEnergySizeValueEl.textContent = homeUiEnergySizeEl.value;
-  if (homeUiEnergyXValueEl && homeUiEnergyXEl) homeUiEnergyXValueEl.textContent = homeUiEnergyXEl.value;
-  if (homeUiEnergyYValueEl && homeUiEnergyYEl) homeUiEnergyYValueEl.textContent = homeUiEnergyYEl.value;
-  if (homeUiCoinSizeValueEl && homeUiCoinSizeEl) homeUiCoinSizeValueEl.textContent = homeUiCoinSizeEl.value;
-  if (homeUiCoinIconXValueEl && homeUiCoinIconXEl) homeUiCoinIconXValueEl.textContent = homeUiCoinIconXEl.value;
-  if (homeUiCoinIconYValueEl && homeUiCoinIconYEl) homeUiCoinIconYValueEl.textContent = homeUiCoinIconYEl.value;
-  if (homeUiCoinXValueEl && homeUiCoinXEl) homeUiCoinXValueEl.textContent = homeUiCoinXEl.value;
-  if (homeUiCoinYValueEl && homeUiCoinYEl) homeUiCoinYValueEl.textContent = homeUiCoinYEl.value;
+function applyUiLayoutDebugTuning(values) {
+  layoutViewport.applyUiLayoutDebugTuning(values);
 }
 
-function collectHomeUiValues() {
-  return {
-    energyTextSize: clampNumber(homeUiEnergySizeEl?.value, 14, 42, defaultHomeUiTuning.energyTextSize),
-    energyTextX: clampNumber(homeUiEnergyXEl?.value, -80, 80, defaultHomeUiTuning.energyTextX),
-    energyTextY: clampNumber(homeUiEnergyYEl?.value, -40, 40, defaultHomeUiTuning.energyTextY),
-    coinTextSize: clampNumber(homeUiCoinSizeEl?.value, 14, 42, defaultHomeUiTuning.coinTextSize),
-    coinIconX: clampNumber(homeUiCoinIconXEl?.value, -30, 40, defaultHomeUiTuning.coinIconX),
-    coinIconY: clampNumber(homeUiCoinIconYEl?.value, -30, 30, defaultHomeUiTuning.coinIconY),
-    coinTextX: clampNumber(homeUiCoinXEl?.value, -80, 80, defaultHomeUiTuning.coinTextX),
-    coinTextY: clampNumber(homeUiCoinYEl?.value, -40, 40, defaultHomeUiTuning.coinTextY),
-  };
+function readHudDebugTuning() {
+  const fallback = { ...defaultHudDebugTuning };
+  if (typeof window === "undefined" || !window.localStorage) return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(hudDebugStorageKey);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return {
+      hudLevelOffsetX: clampNumber(parsed.hudLevelOffsetX, -40, 40, fallback.hudLevelOffsetX),
+    };
+  } catch (_err) {
+    return fallback;
+  }
 }
 
-function saveHomeUiValues(values) {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(homeUiTuningStorageKey, JSON.stringify(values));
+function applyHudDebugTuning(values) {
+  layoutViewport.applyHudDebugTuning(values);
 }
 
-function hideHomeUiPanel() {
-  homeUiPanelEl?.classList.add("hidden");
+function saveGameSettings() {
+  settingsUi.saveGameSettings();
 }
 
-function bindHomeUiPanel() {
-  const hasAll = homeUiPanelEl
-    && homeUiEnergySizeEl && homeUiEnergyXEl && homeUiEnergyYEl
-    && homeUiCoinSizeEl && homeUiCoinIconXEl && homeUiCoinIconYEl
-    && homeUiCoinXEl && homeUiCoinYEl;
-  if (!hasAll) return;
+function applyGameSettings() {
+  settingsUi.applyGameSettings();
+}
 
-  const saved = readHomeUiTuning();
-  setHomeUiInputs(saved);
-  syncHomeUiLabels();
-  applyHomeUiTuning(saved);
+function syncSettingsUi() {
+  settingsUi.syncSettingsUi();
+}
 
-  const onInput = () => {
-    const values = collectHomeUiValues();
-    applyHomeUiTuning(values);
-    syncHomeUiLabels();
-  };
+function showHomeSettingsModal() {
+  settingsUi.showHomeSettingsModal();
+}
 
-  homeUiEnergySizeEl.addEventListener("input", onInput);
-  homeUiEnergyXEl.addEventListener("input", onInput);
-  homeUiEnergyYEl.addEventListener("input", onInput);
-  homeUiCoinSizeEl.addEventListener("input", onInput);
-  homeUiCoinIconXEl.addEventListener("input", onInput);
-  homeUiCoinIconYEl.addEventListener("input", onInput);
-  homeUiCoinXEl.addEventListener("input", onInput);
-  homeUiCoinYEl.addEventListener("input", onInput);
+function hideHomeSettingsModal() {
+  settingsUi.hideHomeSettingsModal();
+}
 
-  homeUiSaveBtn?.addEventListener("click", () => {
-    const values = collectHomeUiValues();
-    saveHomeUiValues(values);
-    hideHomeUiPanel();
-    gameUI.showCommentary("主界面样式已保存", 900);
-  });
+function setGameplaySettingsMenuOpen(open) {
+  settingsUi.setGameplaySettingsMenuOpen(open);
+}
 
-  homeUiCloseBtn?.addEventListener("click", () => {
-    const savedValues = readHomeUiTuning();
-    setHomeUiInputs(savedValues);
-    applyHomeUiTuning(savedValues);
-    syncHomeUiLabels();
-    hideHomeUiPanel();
-  });
+function hideGameplaySettingsMenu() {
+  settingsUi.hideGameplaySettingsMenu();
+}
 
-  homeUiResetBtn?.addEventListener("click", () => {
-    const defaults = { ...defaultHomeUiTuning };
-    setHomeUiInputs(defaults);
-    applyHomeUiTuning(defaults);
-    syncHomeUiLabels();
-    saveHomeUiValues(defaults);
-    gameUI.showCommentary("已恢复默认样式", 900);
-  });
+function showGameplayExitModal() {
+  settingsUi.showGameplayExitModal();
+}
 
-  homeSettingsBtn?.addEventListener("click", () => {
-    homeUiPanelEl.classList.toggle("hidden");
-  });
+function hideGameplayExitModal() {
+  settingsUi.hideGameplayExitModal();
+}
+
+function syncGameplaySettingsButtons() {
+  settingsUi.syncGameplaySettingsButtons();
+}
+
+function exitGameplayToHome() {
+  hideOutOfMovesBanner();
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  state.started = false;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.pointerDown = false;
+  state.pendingWinReward = 0;
+  state.rewardAppliedThisRound = true;
+  clearQueuedSelections();
+  gameUI.closeResult();
+  clearBoardEntities();
+  showHomeScreen();
+}
+
+function bindGameplaySettingsMenu() {
+  settingsUi.bindGameplaySettingsMenu();
+}
+
+function clearGameplayDataOnly() {
+  if (typeof window !== "undefined" && window.localStorage) {
+    window.localStorage.removeItem(levelProgressStorageKey);
+    window.localStorage.removeItem(coinStorageKey);
+    window.localStorage.removeItem(staminaStorageKey);
+    window.localStorage.removeItem(gameSettingsStorageKey);
+    window.localStorage.removeItem(level1TutorialSeenStorageKey);
+  }
+
+  level1TutorialSeen = false;
+  stopLevel1Guide();
+
+  hydrateLevelProgress();
+  hydrateCoinBalance();
+  hydrateStamina();
+  gameSettings.musicEnabled = defaultGameSettings.musicEnabled;
+  gameSettings.sfxEnabled = defaultGameSettings.sfxEnabled;
+  applyGameSettings();
+  syncSettingsUi();
+  syncGameplaySettingsButtons();
+  syncCoinUi();
+  syncStaminaUi();
+
+  state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
+  if (state.inHome) {
+    renderHomeScreen();
+  }
+
+  gameUI.showCommentary("Gameplay data cleared (TopBar and bubble tuning kept).", 1400);
+}
+
+function bindHomeSettingsModal() {
+  settingsUi.bindHomeSettingsModal();
 }
 
 function hydrateLevelProgress() {
-  if (typeof window === "undefined" || !window.localStorage) {
-    state.currentPlayableLevelIndex = 0;
-    state.highestPassedLevelIndex = -1;
-    state.selectedHomeLevelIndex = 0;
-    return;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(levelProgressStorageKey);
-    if (!raw) {
-      state.currentPlayableLevelIndex = 0;
-      state.highestPassedLevelIndex = -1;
-      state.selectedHomeLevelIndex = 0;
-      return;
-    }
-
-    const parsed = JSON.parse(raw);
-    const playable = clampLevelIndex(parsed.currentPlayableLevelIndex, 0);
-    const passedRaw = Number(parsed.highestPassedLevelIndex);
-    const passed = Number.isFinite(passedRaw) ? Math.floor(passedRaw) : -1;
-    state.currentPlayableLevelIndex = playable;
-    state.highestPassedLevelIndex = THREE.MathUtils.clamp(passed, -1, LEVELS.length - 1);
-    state.selectedHomeLevelIndex = playable;
-  } catch (_err) {
-    state.currentPlayableLevelIndex = 0;
-    state.highestPassedLevelIndex = -1;
-    state.selectedHomeLevelIndex = 0;
-  }
+  persistence.hydrateLevelProgress();
 }
 
 function persistLevelProgress() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  const payload = {
-    currentPlayableLevelIndex: state.currentPlayableLevelIndex,
-    highestPassedLevelIndex: state.highestPassedLevelIndex,
-  };
-  window.localStorage.setItem(levelProgressStorageKey, JSON.stringify(payload));
+  persistence.persistLevelProgress();
 }
 
 function hydrateCoinBalance() {
-  if (typeof window === "undefined" || !window.localStorage) {
-    state.coins = 0;
+  persistence.hydrateCoinBalance();
+}
+
+function hydrateStamina() {
+  persistence.hydrateStamina();
+}
+
+function persistStamina() {
+  persistence.persistStamina();
+}
+
+function settleStaminaRecovery(now = Date.now()) {
+  persistence.settleStaminaRecovery(now);
+}
+
+function syncStaminaUi() {
+  settleStaminaRecovery();
+  if (homeEnergyTextEl) {
+    homeEnergyTextEl.textContent = `${state.stamina}/${staminaMax}`;
+  }
+  state.staminaUiSyncAt = Date.now();
+}
+
+function tryConsumeStaminaForLevelEntry() {
+  settleStaminaRecovery();
+  if (state.stamina <= 0) {
+    syncStaminaUi();
+    showHomeCenterTip("Not enough stamina", 1200);
+    return false;
+  }
+
+  state.stamina = Math.max(0, state.stamina - 1);
+  state.staminaLastRecoverAt = Date.now();
+  persistStamina();
+  syncStaminaUi();
+  return true;
+}
+
+function refundStaminaOnWin() {
+  settleStaminaRecovery();
+  if (state.stamina >= staminaMax) return;
+
+  state.stamina = Math.min(staminaMax, state.stamina + 1);
+  if (state.stamina >= staminaMax) {
+    state.staminaLastRecoverAt = Date.now();
+  }
+  persistStamina();
+  syncStaminaUi();
+}
+
+function restoreStaminaAfterFailedEntry() {
+  if (state.stamina >= staminaMax) return;
+  state.stamina = Math.min(staminaMax, state.stamina + 1);
+  if (state.stamina >= staminaMax) {
+    state.staminaLastRecoverAt = Date.now();
+  }
+  persistStamina();
+  syncStaminaUi();
+}
+
+function fillStaminaToMax() {
+  state.stamina = staminaMax;
+  state.staminaLastRecoverAt = Date.now();
+  persistStamina();
+  syncStaminaUi();
+}
+
+function formatCountdownMmSs(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(seconds).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
+function getStaminaRecoverCountdownMs(now = Date.now()) {
+  if (state.stamina >= staminaMax) return 0;
+  const safeNow = Number.isFinite(now) ? Math.floor(now) : Date.now();
+  const elapsed = Math.max(0, safeNow - state.staminaLastRecoverAt);
+  const remainder = elapsed % staminaRecoverIntervalMs;
+  return staminaRecoverIntervalMs - remainder;
+}
+
+function hideHomeCenterTip() {
+  homeScreenController.hideHomeCenterTip();
+}
+
+function showHomeCenterTip(text, durationMs = 1200) {
+  homeScreenController.showHomeCenterTip(text, durationMs);
+}
+
+function hideHomeEnergyRecoverTip() {
+  homeScreenController.hideHomeEnergyRecoverTip();
+}
+
+function ensureOutOfMovesContinueElements() {
+  if (!phoneFrameEl) return;
+
+  if (!outOfMovesContinueMaskEl) {
+    const mask = document.createElement("div");
+    mask.id = "out-of-moves-continue-mask";
+    mask.className = "hidden";
+    mask.setAttribute("aria-hidden", "true");
+    phoneFrameEl.appendChild(mask);
+    outOfMovesContinueMaskEl = mask;
+  }
+
+  if (!outOfMovesContinueModalEl) {
+    const modal = document.createElement("div");
+    modal.id = "out-of-moves-continue-modal";
+    modal.className = "hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", "Continue modal");
+    modal.innerHTML = `
+      <button id="out-of-moves-continue-close" class="out-of-moves-continue-close" type="button" aria-label="Close">✕</button>
+      <div class="out-of-moves-continue-body">
+        <div class="out-of-moves-continue-title">Continue?</div>
+        <div class="out-of-moves-continue-center">
+          <div class="out-of-moves-continue-badge">+<span id="out-of-moves-continue-moves">3</span></div>
+          <p class="out-of-moves-continue-desc">Spend coins to add moves and keep playing!</p>
+        </div>
+        <button id="out-of-moves-continue-buy" class="out-of-moves-continue-buy" type="button">
+          <span class="out-of-moves-continue-buy-text">Play On</span>
+          <img class="out-of-moves-continue-buy-coin" src="./assets/images/currency128_Coin.png" alt="Coin" />
+          <span id="out-of-moves-continue-cost" class="out-of-moves-continue-buy-cost">50</span>
+        </button>
+      </div>
+    `;
+    phoneFrameEl.appendChild(modal);
+    outOfMovesContinueModalEl = modal;
+  }
+
+  outOfMovesContinueCloseEl = document.getElementById("out-of-moves-continue-close");
+  outOfMovesContinueMovesEl = document.getElementById("out-of-moves-continue-moves");
+  outOfMovesContinueCostEl = document.getElementById("out-of-moves-continue-cost");
+  outOfMovesContinueBuyEl = document.getElementById("out-of-moves-continue-buy");
+}
+
+function bindHomeEnergyTip() {
+  homeScreenController.bindHomeEnergyTip();
+}
+
+function clearOutOfMovesBannerTimer() {
+  if (!state.outOfMovesBannerTimer) return;
+  window.clearTimeout(state.outOfMovesBannerTimer);
+  state.outOfMovesBannerTimer = 0;
+}
+
+function clearOutOfMovesBannerAnimation() {
+  if (!state.outOfMovesBannerAnimation) return;
+  state.outOfMovesBannerAnimation.cancel();
+  state.outOfMovesBannerAnimation = null;
+}
+
+function hideOutOfMovesBanner() {
+  clearOutOfMovesBannerAnimation();
+  clearOutOfMovesBannerTimer();
+  if (!outOfMovesBannerEl) return;
+  outOfMovesBannerEl.classList.remove("show");
+  outOfMovesBannerEl.classList.add("hidden");
+  outOfMovesBannerEl.style.opacity = "";
+  outOfMovesBannerEl.style.transform = "";
+}
+
+function playOutOfMovesBanner(onDone) {
+  if (!outOfMovesBannerEl) {
+    onDone?.();
     return;
   }
 
-  const raw = window.localStorage.getItem(coinStorageKey);
-  const parsed = Number(raw);
-  state.coins = Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
-}
+  hideOutOfMovesBanner();
+  outOfMovesBannerEl.classList.remove("hidden");
+  outOfMovesBannerEl.style.opacity = "1";
+  outOfMovesBannerEl.style.transform = "translateY(-50%)";
 
-function persistCoinBalance() {
-  if (typeof window === "undefined" || !window.localStorage) return;
-  window.localStorage.setItem(coinStorageKey, String(Math.max(0, Math.floor(state.coins))));
-}
-
-function syncCoinUi() {
-  const safe = Math.max(0, Math.floor(state.coins));
-  gameUI.setCoins(safe);
-  if (homeCoinEl) homeCoinEl.textContent = String(safe);
-}
-
-function addCoins(value) {
-  const gain = Math.max(0, Math.floor(value));
-  if (gain <= 0) return;
-  state.coins += gain;
-  persistCoinBalance();
-  syncCoinUi();
-}
-
-function getLevelWinReward(levelIndex) {
-  const idx = Math.max(0, Math.floor(levelIndex));
-  return levelWinRewardBase + idx * 2;
-}
-
-function playWinCoinFly() {
-  settlePendingWinReward(true);
-}
-
-function settlePendingWinReward(playFx = false) {
-  if (state.rewardAppliedThisRound) return;
-  const reward = Math.max(0, Math.floor(state.pendingWinReward));
-  if (reward <= 0) {
-    state.rewardAppliedThisRound = true;
+  if (typeof outOfMovesBannerEl.animate === "function") {
+    const animation = outOfMovesBannerEl.animate(
+      [
+        { transform: "translateY(-260%)", opacity: 0, offset: 0 },
+        { transform: "translateY(-50%)", opacity: 1, offset: 0.24 },
+        { transform: "translateY(-50%)", opacity: 1, offset: 0.62 },
+        { transform: "translateY(220%)", opacity: 0, offset: 1 },
+      ],
+      {
+        duration: outOfMovesBannerDurationMs,
+        easing: "cubic-bezier(0.22, 0.82, 0.22, 1)",
+        fill: "both",
+      }
+    );
+    state.outOfMovesBannerAnimation = animation;
+    animation.onfinish = () => {
+      state.outOfMovesBannerAnimation = null;
+      hideOutOfMovesBanner();
+      onDone?.();
+    };
+    animation.oncancel = () => {
+      state.outOfMovesBannerAnimation = null;
+    };
     return;
   }
 
-  if (!playFx || gameUI.isCoinFlyPlaying()) {
-    addCoins(reward);
-    state.rewardAppliedThisRound = true;
-    state.pendingWinReward = 0;
+  outOfMovesBannerEl.classList.remove("show");
+  void outOfMovesBannerEl.offsetWidth;
+  outOfMovesBannerEl.classList.add("show");
+  state.outOfMovesBannerTimer = window.setTimeout(() => {
+    hideOutOfMovesBanner();
+    onDone?.();
+  }, outOfMovesBannerDurationMs);
+}
+
+function syncOutOfMovesContinueModalUi() {
+  if (outOfMovesContinueMovesEl) outOfMovesContinueMovesEl.textContent = String(outOfMovesContinueMoves);
+  if (outOfMovesContinueCostEl) outOfMovesContinueCostEl.textContent = String(outOfMovesContinueCost);
+}
+
+function setOutOfMovesContinueCoinTopbarVisible(show) {
+  if (show) {
+    setGameplayCoinTopbarVisible(true);
+    gameplayTopbarEl?.classList.add("is-floating-over-continue");
     return;
   }
 
-  state.rewardAppliedThisRound = true;
-  const originRect = gameUI.getResultRewardRect();
-  gameUI.playCoinFly(reward, {
-    originRect,
-    onEachCoin: (part) => addCoins(part),
-    onDone: () => {
-      state.pendingWinReward = 0;
-    },
+  gameplayTopbarEl?.classList.remove("is-floating-over-continue");
+  setGameplayCoinTopbarVisible(false);
+}
+
+function ensureGameplayCenterTipEl() {
+  if (gameplayCenterTipEl) return gameplayCenterTipEl;
+  if (!phoneFrameEl) return null;
+  const el = document.createElement("div");
+  el.id = "gameplay-center-tip";
+  el.className = "gameplay-center-tip";
+  phoneFrameEl.appendChild(el);
+  gameplayCenterTipEl = el;
+  return gameplayCenterTipEl;
+}
+
+function clearGameplayCenterTip() {
+  if (state.gameplayCenterTipTimer) {
+    window.clearTimeout(state.gameplayCenterTipTimer);
+    state.gameplayCenterTipTimer = 0;
+  }
+  gameplayCenterTipEl?.classList.remove("show");
+}
+
+function showGameplayCenterTip(text, durationMs = 1200) {
+  const tipEl = ensureGameplayCenterTipEl();
+  if (!tipEl) return;
+  clearGameplayCenterTip();
+  tipEl.textContent = text;
+  tipEl.classList.add("show");
+  state.gameplayCenterTipTimer = window.setTimeout(() => {
+    tipEl.classList.remove("show");
+    state.gameplayCenterTipTimer = 0;
+  }, durationMs);
+}
+
+function hideOutOfMovesContinueModal() {
+  outOfMovesContinueMaskEl?.classList.add("hidden");
+  outOfMovesContinueModalEl?.classList.add("hidden");
+  setOutOfMovesContinueCoinTopbarVisible(false);
+  clearGameplayCenterTip();
+  state.outOfMovesContinueOpen = false;
+}
+
+function openOutOfMovesContinueModal() {
+  ensureOutOfMovesContinueElements();
+  if (!outOfMovesContinueMaskEl || !outOfMovesContinueModalEl || !outOfMovesContinueBuyEl || !outOfMovesContinueCloseEl) {
+    state.outOfMovesContinuePending = false;
+    state.levelTransitioning = false;
+    endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`);
+    return;
+  }
+  syncOutOfMovesContinueModalUi();
+  outOfMovesContinueMaskEl.classList.remove("hidden");
+  outOfMovesContinueModalEl.classList.remove("hidden");
+  setOutOfMovesContinueCoinTopbarVisible(true);
+  state.outOfMovesContinueOpen = true;
+}
+
+function resolveOutOfMovesAsLose() {
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  state.levelTransitioning = false;
+  endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`);
+}
+
+function continueAfterOutOfMoves() {
+  if (state.outOfMovesContinueUsedInLevel) {
+    resolveOutOfMovesAsLose();
+    return;
+  }
+
+  if (!trySpendCoins(outOfMovesContinueCost)) {
+    syncOutOfMovesContinueModalUi();
+    showGameplayCenterTip("Not enough coins", 1200);
+    return;
+  }
+
+  state.stepLimit = Math.max(1, state.stepLimit + outOfMovesContinueMoves);
+  state.outOfMovesContinueUsedInLevel = true;
+  state.gameOver = false;
+  state.levelTransitioning = false;
+  state.outOfMovesContinuePending = false;
+  hideOutOfMovesContinueModal();
+  syncOutOfMovesContinueModalUi();
+  updateStepsHud();
+    gameUI.showCommentary(`+${outOfMovesContinueMoves} moves`, 1000);
+}
+
+function triggerOutOfMovesContinueFlow() {
+  if (state.outOfMovesContinuePending || state.outOfMovesContinueOpen || state.gameOver) return;
+  if (state.outOfMovesContinueUsedInLevel) {
+    endGame(`Level ${state.currentLevelIndex + 1} failed: out of moves`, { showOutOfMovesBanner: true });
+    return;
+  }
+  state.pointerDown = false;
+  state.levelTransitioning = true;
+  state.outOfMovesContinuePending = true;
+  clearQueuedSelections();
+  trail?.reset();
+  playOutOfMovesBanner(() => {
+    openOutOfMovesContinueModal();
   });
 }
 
+function bindOutOfMovesContinueModal() {
+  ensureOutOfMovesContinueElements();
+  outOfMovesContinueBuyEl?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    continueAfterOutOfMoves();
+  });
+
+  outOfMovesContinueCloseEl?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    resolveOutOfMovesAsLose();
+  });
+}
+
+function persistCoinBalance() {
+  rewardFlow.persistCoinBalance();
+}
+
+function syncCoinUi() {
+  rewardFlow.syncCoinUi();
+  syncOutOfMovesContinueModalUi();
+}
+
+function addCoins(value) {
+  rewardFlow.addCoins(value);
+}
+
+function trySpendCoins(value) {
+  return rewardFlow.trySpendCoins(value);
+}
+
+function getLevelWinReward(levelIndex) {
+  return rewardFlow.getLevelWinReward(levelIndex);
+}
+
+function setGameplayCoinTopbarVisible(show) {
+  rewardFlow.setGameplayCoinTopbarVisible(show);
+}
+
+function playWinCoinFly() {
+  rewardFlow.playWinCoinFly();
+}
+
+function settlePendingWinReward(playFx = false) {
+  rewardFlow.settlePendingWinReward(playFx);
+}
+
 function bindHomeLevelButtons() {
-  const onTap = (ev) => {
-    const button = ev.currentTarget;
-    if (!(button instanceof HTMLElement)) return;
-
-    const raw = Number(button.dataset.levelIndex);
-    if (!Number.isInteger(raw) || raw < 0 || raw >= LEVELS.length) return;
-
-    const current = clampLevelIndex(state.currentPlayableLevelIndex);
-    if (raw > current) {
-      gameUI.showCommentary(`第${raw + 1}关尚未解锁`, 900);
-      return;
-    }
-
-    gameUI.showCommentary(`当前可挑战：第${current + 1}关`, 900);
-  };
-
-  homeLevelPrevBtn?.addEventListener("click", onTap);
-  homeLevelCurrentBtn?.addEventListener("click", onTap);
-  homeLevelNextBtn?.addEventListener("click", onTap);
-}
-
-function renderHomeBubble(button, index, role) {
-  if (!button) return;
-
-  if (!Number.isInteger(index) || index < 0 || index >= LEVELS.length) {
-    button.dataset.levelIndex = "";
-    button.textContent = "";
-    button.className = "home-level-bubble";
-    button.disabled = true;
-    return;
-  }
-
-  const level = LEVELS[index];
-  const classes = ["home-level-bubble", "live", role];
-  if (level.difficulty === "hard") classes.push("hard");
-  if (level.difficulty === "medium") classes.push("medium");
-  if (role === "upcoming" && index > state.currentPlayableLevelIndex) classes.push("locked");
-
-  button.dataset.levelIndex = String(index);
-  button.className = classes.join(" ");
-  button.disabled = false;
-  button.textContent = String(index + 1);
-
-  const oldTag = button.querySelector(".home-level-tag");
-  if (oldTag) oldTag.remove();
-
-  if (level.difficulty === "medium" || level.difficulty === "hard") {
-    const tag = document.createElement("span");
-    tag.className = `home-level-tag ${level.difficulty}`;
-    tag.textContent = level.difficulty === "hard" ? "HARD" : "MED";
-    button.appendChild(tag);
-  }
-}
-
-function pickHomeBubbleColorId(level, fallbackIndex) {
-  const configured = Math.floor(level?.homeBubbleColorId ?? -1);
-  if (configured >= 0 && configured < colors.length) {
-    return configured;
-  }
-
-  const difficulty = String(level?.difficulty ?? "easy").toLowerCase();
-  if (difficulty === "hard") return homeHardColorId;
-  if (difficulty === "medium") return homeMediumColorId;
-
-  const step = Math.max(0, Math.floor((level?.id ?? fallbackIndex + 1) - 1));
-  return homeEasyColorIds[step % homeEasyColorIds.length];
-}
-
-function clearHomeBubbles() {
-  for (const bubble of homeBubbles) {
-    scene.remove(bubble.group);
-  }
-  homeBubbles.length = 0;
-}
-
-function rebuildHomeBubbles(specs) {
-  if (!renderer || !trail) return;
-  clearHomeBubbles();
-  for (let i = 0; i < specs.length; i += 1) {
-    const spec = specs[i];
-    if (!spec || !spec.anchorEl || !spec.level) continue;
-    const colorId = pickHomeBubbleColorId(spec.level, spec.levelIndex);
-    const entity = new BubbleEntity({
-      id: -100 - i,
-      colorId,
-      radius: 1,
-      vx: 0,
-      vy: 0,
-      baseColor: new THREE.Color(colors[colorId].base),
-    });
-    entity.homeAnchorEl = spec.anchorEl;
-    entity.homeLevelIndex = spec.levelIndex;
-    entity.homeColorId = colorId;
-    entity.selectRing.visible = false;
-    scene.add(entity.group);
-    homeBubbles.push(entity);
-  }
-}
-
-function syncHomeBubbleLayout() {
-  if (!renderer || !state.inHome) return;
-
-  for (const bubble of homeBubbles) {
-    const anchor = bubble.homeAnchorEl;
-    if (!anchor) continue;
-
-    const rect = anchor.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      bubble.group.visible = false;
-      continue;
-    }
-
-    const centerX = rect.left + rect.width * 0.5;
-    const centerY = rect.top + rect.height * 0.5;
-    const center = screenToWorld(centerX, centerY);
-    const edge = screenToWorld(centerX + rect.width * 0.5, centerY);
-    const radius = Math.max(0.32, center.distanceTo(edge));
-
-    bubble.group.visible = true;
-    bubble.radius = radius;
-    bubble.baseScale = radius / bubbleBaseRadius;
-    bubble.bubble.scale.setScalar(bubble.baseScale * bubble.selectionScale);
-    bubble.selectRing.scale.setScalar(radius);
-    bubble.selectRing.position.z = radius * 0.04;
-    bubble.vel.set(0, 0, 0);
-    bubble.setPosition(center.x, center.y, 0);
-  }
+  homeScreenController.bindHomeLevelButtons();
 }
 
 function updateHomeBubbles(dt) {
-  if (!state.inHome || !homeBubbles.length) return;
-  syncHomeBubbleLayout();
-  for (const bubble of homeBubbles) {
-    bubble.update(dt, homeBubbleBounds);
-  }
+  homeScreenController.updateHomeBubbles(dt);
 }
 
 function renderHomeScreen() {
-  const current = clampLevelIndex(state.currentPlayableLevelIndex);
-  state.selectedHomeLevelIndex = current;
-
-  const nextIndex = current + 1;
-  const next2Index = current + 2;
-  renderHomeBubble(homeLevelPrevBtn, current, "current");
-  renderHomeBubble(homeLevelCurrentBtn, nextIndex, "upcoming");
-  renderHomeBubble(homeLevelNextBtn, next2Index, "upcoming");
-
-  rebuildHomeBubbles([
-    { anchorEl: homeLevelPrevBtn, levelIndex: current, level: LEVELS[current] },
-    { anchorEl: homeLevelCurrentBtn, levelIndex: nextIndex, level: LEVELS[nextIndex] },
-    { anchorEl: homeLevelNextBtn, levelIndex: next2Index, level: LEVELS[next2Index] },
-  ]);
-
+  homeScreenController.renderHomeScreen();
 }
 
 function showHomeScreen() {
-  state.inHome = true;
-  setGameHudVisible(false);
-  if (homeScreenEl) homeScreenEl.classList.remove("hidden");
-  renderHomeScreen();
+  homeScreenController.showHomeScreen();
 }
 
 function hideHomeScreen() {
-  state.inHome = false;
-  setGameHudVisible(true);
-  if (homeScreenEl) homeScreenEl.classList.add("hidden");
-  hideHomeUiPanel();
-  clearHomeBubbles();
+  homeScreenController.hideHomeScreen();
 }
 
 function setGameHudVisible(visible) {
-  const hidden = !visible;
-  hudEl?.classList.toggle("hidden", hidden);
-  coinStatusEl?.classList.toggle("hidden", hidden);
-  levelTestRootEl?.classList.toggle("hidden", hidden);
-  commentaryEl?.classList.toggle("hidden", hidden);
-  if (hidden) {
-    levelTestPanelEl?.classList.add("hidden");
-  }
+  layoutViewport.setGameHudVisible(visible);
 }
 
 function clearBoardEntities() {
-  burstSystem.clear();
-  state.pendingPops.length = 0;
-  clearQueuedSelections();
-  for (const fruit of fruits) scene.remove(fruit.group);
-  fruits.length = 0;
-  victoryRainSystem.reset();
-  trail.reset();
+  roundState.clearBoardEntities();
 }
 
 function grantLevelWinProgress(nextLevelIndex) {
-  const justCleared = state.currentLevelIndex;
-  state.highestPassedLevelIndex = Math.max(state.highestPassedLevelIndex, justCleared);
-  state.currentPlayableLevelIndex = clampLevelIndex(nextLevelIndex);
-  state.selectedHomeLevelIndex = state.currentPlayableLevelIndex;
-  persistLevelProgress();
+  sessionFlow.grantLevelWinProgress(nextLevelIndex);
 }
 
 function retryCurrentLevelFromResult() {
-  if (!state.started) return;
-  gameUI.closeResult();
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  const loaded = loadLevel(state.currentLevelIndex);
-  if (!loaded) {
-    state.started = false;
-    showHomeScreen();
-  }
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  sessionFlow.retryCurrentLevelFromResult();
 }
 
 function backHomeFromResult() {
-  settlePendingWinReward(false);
-  gameUI.closeResult();
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  clearBoardEntities();
-  showHomeScreen();
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  sessionFlow.backHomeFromResult();
 }
 
 function startNextLevel(nextLevelIndex) {
-  settlePendingWinReward(false);
-  gameUI.closeResult();
-  const next = clampLevelIndex(nextLevelIndex);
-  state.started = true;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  const loaded = loadLevel(next);
-  if (!loaded) {
-    backHomeFromResult();
-  }
-}
-
-function completeLevelAndBackHome(nextLevelIndex) {
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-
-  grantLevelWinProgress(nextLevelIndex);
-  gameUI.closeResult();
-
-  clearBoardEntities();
-  showHomeScreen();
-}
-
-function completeAllLevelsAndBackHome(levelCount) {
-  state.started = false;
-  state.gameOver = false;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.highestPassedLevelIndex = LEVELS.length - 1;
-  state.currentPlayableLevelIndex = LEVELS.length - 1;
-  state.selectedHomeLevelIndex = LEVELS.length - 1;
-  persistLevelProgress();
-  gameUI.closeResult();
-
-  clearBoardEntities();
-  showHomeScreen();
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  sessionFlow.startNextLevel(nextLevelIndex);
 }
 
 function init() {
+  ensureOutOfMovesContinueElements();
   hydrateLevelProgress();
   hydrateCoinBalance();
+  hydrateStamina();
+  applyHomeUiTuning(readHomeUiTuning());
+  applyUiLayoutDebugTuning(uiLayoutDebugTuning);
+  applyHudDebugTuning(hudDebugTuning);
+  applyGameSettings();
   syncCoinUi();
+  syncStaminaUi();
   state.inHome = true;
   updatePhoneAspect();
   setGameHudVisible(false);
@@ -1061,10 +1550,19 @@ function init() {
   setupHomeFloatBubbles();
   renderHomeScreen();
 
-  startBtn.addEventListener("click", startGame);
-  restartBtn.addEventListener("click", startGame);
+  startBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    startGame();
+  });
+  restartBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    startGame();
+  });
   bindHomeLevelButtons();
-  bindHomeUiPanel();
+  bindHomeEnergyTip();
+  bindHomeSettingsModal();
+  bindGameplaySettingsMenu();
+  bindOutOfMovesContinueModal();
   gameUI.closeResult();
   setupLevelTestControls();
 
@@ -1073,11 +1571,8 @@ function init() {
     window.visualViewport.addEventListener("resize", resize);
     window.visualViewport.addEventListener("scroll", resize);
   }
-  appEl.addEventListener("pointerdown", onPointerDown);
-  appEl.addEventListener("pointermove", onPointerMove);
-  appEl.addEventListener("pointerup", onPointerUp);
-  appEl.addEventListener("pointercancel", onPointerUp);
-  appEl.style.touchAction = "none";
+  window.addEventListener("pointerdown", onPointerDown);
+  window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
@@ -1085,27 +1580,39 @@ function init() {
 }
 
 function setupLevelTestControls() {
-  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestNextStepBtn || !levelTestExportStepBtn || !levelTestHexToggleEl) {
+  if (!levelTestToggleBtn || !levelTestPanelEl || !levelTestSelectEl || !levelTestJumpBtn) {
     return;
   }
 
-  levelTestHexToggleEl.checked = state.showHexOverlay;
-  levelTestNextStepBtn.textContent = hexTestFlow.getLabel();
+  let addCoinsBtn = levelTestAddCoinsBtn;
+  if (!addCoinsBtn) {
+    const host = document.getElementById("level-test");
+    if (host) {
+      addCoinsBtn = document.createElement("button");
+      addCoinsBtn.id = "level-test-add-coins";
+      addCoinsBtn.className = "tool-btn";
+      addCoinsBtn.type = "button";
+      addCoinsBtn.textContent = "Test +50 Coins";
+      host.insertBefore(addCoinsBtn, levelTestToggleBtn);
+    }
+  }
 
   levelTestSelectEl.innerHTML = "";
   for (let i = 0; i < LEVELS.length; i += 1) {
     const level = LEVELS[i];
     const option = document.createElement("option");
     option.value = String(i);
-    option.textContent = `第${i + 1}关 ${level.name}`;
+    option.textContent = `Level ${i + 1} ${level.name}`;
     levelTestSelectEl.appendChild(option);
   }
 
   levelTestToggleBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
     levelTestPanelEl.classList.toggle("hidden");
   });
 
-  levelTestSelectEl.addEventListener("change", () => {
+  levelTestJumpBtn.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
     const targetIndex = Number(levelTestSelectEl.value);
     if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= LEVELS.length) {
       return;
@@ -1113,149 +1620,11 @@ function setupLevelTestControls() {
     jumpToLevelForTest(targetIndex);
   });
 
-  levelTestHexToggleEl.addEventListener("change", () => {
-    state.showHexOverlay = levelTestHexToggleEl.checked;
-    updateHexOverlayColors();
+  addCoinsBtn?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    addCoins(50);
+    gameUI.showCommentary("Test: +50 coins added", 1200);
   });
-
-  levelTestNextStepBtn.addEventListener("click", () => {
-    if (!state.started || state.inHome) {
-      gameUI.showCommentary("请先开始战斗再测试流程", 900);
-      return;
-    }
-    if (!state.showHexOverlay) {
-      state.showHexOverlay = true;
-      if (levelTestHexToggleEl) levelTestHexToggleEl.checked = true;
-      updateHexOverlayColors();
-    }
-    gameUI.showCommentary(`执行${hexTestFlow.getLabel()}`, 500);
-    levelTestNextStepBtn.textContent = hexTestFlow.runNext();
-  });
-
-  levelTestExportStepBtn.addEventListener("click", () => {
-    void calculateAndExportTheoryStep();
-  });
-}
-
-function loadXlsxBrowserLibrary() {
-  if (window.XLSX) return Promise.resolve(window.XLSX);
-  if (xlsxLoaderPromise) return xlsxLoaderPromise;
-
-  xlsxLoaderPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-    script.async = true;
-    script.onload = () => {
-      if (window.XLSX) resolve(window.XLSX);
-      else reject(new Error("XLSX loader failed"));
-    };
-    script.onerror = () => reject(new Error("无法加载 xlsx 库"));
-    document.head.appendChild(script);
-  });
-
-  return xlsxLoaderPromise;
-}
-
-async function getLevelsWorkbookHandle() {
-  if (levelsXlsxHandle) return levelsXlsxHandle;
-  if (typeof window.showOpenFilePicker !== "function") {
-    throw new Error("当前浏览器不支持文件写入API");
-  }
-
-  const [handle] = await window.showOpenFilePicker({
-    multiple: false,
-    types: [
-      {
-        description: "Excel Workbook",
-        accept: {
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-        },
-      },
-    ],
-    excludeAcceptAllOption: false,
-  });
-  levelsXlsxHandle = handle;
-  return handle;
-}
-
-async function writeTheoryStepToWorkbook(levelId, stepCount) {
-  const XLSX = await loadXlsxBrowserLibrary();
-  const handle = await getLevelsWorkbookHandle();
-  const file = await handle.getFile();
-  const raw = await file.arrayBuffer();
-  const workbook = XLSX.read(raw, { type: "array" });
-  const sheetName = workbook.SheetNames.includes("Levels") ? "Levels" : workbook.SheetNames[0];
-  if (!sheetName) throw new Error("工作簿中没有可用sheet");
-
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  const normalize = (v) => String(v ?? "").trim().toLowerCase();
-  const headerRowIndex = rows.findIndex((row) => Array.isArray(row) && row.some((c) => normalize(c) === "id"));
-  if (headerRowIndex < 0) throw new Error("未找到id列");
-
-  const headerRow = rows[headerRowIndex];
-  const idCol = headerRow.findIndex((c) => normalize(c) === "id");
-  let theoryCol = headerRow.findIndex((c) => normalize(c) === "intheorystep");
-  if (theoryCol < 0) {
-    theoryCol = headerRow.length;
-    headerRow[theoryCol] = "inTheoryStep";
-  }
-
-  let targetRow = -1;
-  for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
-    const row = rows[r];
-    if (!Array.isArray(row)) continue;
-    if (Number(row[idCol]) === Number(levelId)) {
-      targetRow = r;
-      break;
-    }
-  }
-  if (targetRow < 0) throw new Error(`未找到关卡 id=${levelId}`);
-
-  rows[targetRow][theoryCol] = Number(stepCount);
-  workbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
-
-  const output = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
-  const writable = await handle.createWritable();
-  await writable.write(output);
-  await writable.close();
-}
-
-async function calculateAndExportTheoryStep() {
-  if (!state.started || state.inHome) {
-    gameUI.showCommentary("请先开始战斗再计算步数", 1000);
-    return;
-  }
-
-  if (!hexOverlayCenters.length) {
-    rebuildHexOverlay();
-    updateHexOverlayColors();
-  }
-
-  const simFruits = [];
-  for (let i = 0; i < fruits.length; i += 1) {
-    const fruit = fruits[i];
-    if (!fruit?.active || fruit.sliced) continue;
-    simFruits.push({
-      x: fruit.group.position.x,
-      y: fruit.group.position.y,
-      z: fruit.group.position.z + (fruit.bubble?.position.z ?? 0),
-      radius: fruit.radius,
-      colorId: fruit.colorId,
-      active: true,
-    });
-  }
-
-  const stepCount = calculateTheoryStepsRecursive({ centers: hexOverlayCenters, fruits: simFruits });
-  const levelId = state.activeLevel?.id ?? state.currentLevelIndex + 1;
-
-  try {
-    await writeTheoryStepToWorkbook(levelId, stepCount);
-    gameUI.showCommentary(`理论步数=${stepCount}，已写入 Levels.xlsx`, 1300);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    gameUI.showCommentary(`导出失败：${message}`, 1400);
-  }
 }
 
 function setLevelTestSelection(index) {
@@ -1272,11 +1641,8 @@ function jumpToLevelForTest(index) {
 
   state.levelTransitioning = false;
   loadLevel(index);
-  hexTestFlow.reset();
-  updateHexOverlayColors();
-  if (levelTestNextStepBtn) levelTestNextStepBtn.textContent = hexTestFlow.getLabel();
   if (levelTestPanelEl) levelTestPanelEl.classList.add("hidden");
-  gameUI.showCommentary(`测试模式：已切到第${index + 1}关`, 1400);
+  gameUI.showCommentary(`Test mode: switched to Level ${index + 1}`, 1400);
 }
 
 async function setupRenderer() {
@@ -1305,7 +1671,6 @@ async function createRenderer() {
 
   const webgpu = new THREE.WebGPURenderer({ antialias: true, forceWebGL: false });
   await webgpu.init();
-  if (titleEl) titleEl.textContent = "切泡泡 (WebGPU)";
   return webgpu;
 }
 
@@ -1317,148 +1682,40 @@ function showWebGpuUnsupported() {
   layer.style.color = "#ffffff";
   layer.style.fontWeight = "800";
   layer.style.lineHeight = "1.7";
-  layer.innerHTML = "<div style=\"font-size:28px;\">无法启动</div><div style=\"margin-top:10px;font-size:15px;opacity:0.92;\">当前浏览器/设备不支持 WebGPU。<br/>请使用支持 WebGPU 的新版 Chrome 或 Edge。</div>";
+  layer.innerHTML = "<div style=\"font-size:28px;\">Cannot Start</div><div style=\"margin-top:10px;font-size:15px;opacity:0.92;\">This browser/device does not support WebGPU.<br/>Please use a newer Chrome or Edge with WebGPU support.</div>";
   appEl.appendChild(layer);
 }
 
 function startGame() {
-  gameAudio.ensureAudioUnlocked();
-  void gameAudio.preloadPopAudio();
-  gameAudio.resetSelectToneProgression();
-
-  const startIndex = clampLevelIndex(state.currentPlayableLevelIndex);
-
-  state.started = true;
-  state.gameOver = false;
-  state.inHome = false;
-  state.levelTransitioning = false;
-  state.currentLevelIndex = startIndex;
-  state.activeLevel = null;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  clearQueuedSelections();
-  state.sliceHitIds.clear();
-  state.sliceQueue.length = 0;
-  state.pendingPops.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-  state.stepLimit = 0;
-  state.stepsUsed = 0;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  levelFlow.reset();
-  burstSystem.clear();
-  victoryRainSystem.reset();
-
-  trail.reset();
-
-  hideHomeScreen();
-  gameUI.hideGameOver();
-  gameUI.closeResult();
-
-  if (hasBubbleTuningOverride) {
-    gameUI.showCommentary("已应用调试页同步参数。", 1300);
-  }
-
-  const loaded = loadLevel(startIndex);
-  if (!loaded) {
-    state.started = false;
-    state.inHome = true;
-    showHomeScreen();
-    gameUI.showCommentary("关卡加载失败，请重试。", 1200);
-  }
+  hideOutOfMovesContinueModal();
+  state.outOfMovesContinuePending = false;
+  sessionFlow.startGame();
 }
 
 function loadLevel(index) {
-  const level = levelRuntime.getNormalizedLevel(index);
-  if (!level) return false;
-
-  state.currentLevelIndex = index;
-  state.selectedHomeLevelIndex = index;
-  state.activeLevel = level;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  state.sliceColorId = null;
-  state.sliceBroken = false;
-  state.sliceCommitted = false;
-  gameAudio.resetSelectToneProgression();
-  clearQueuedSelections();
-  state.pendingPops.length = 0;
-  state.lastPoint = null;
-  state.nowPoint = null;
-  state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
-  state.stepsUsed = 0;
-  state.pendingWinReward = 0;
-  state.rewardAppliedThisRound = true;
-  levelFlow.reset();
-  burstSystem.clear();
-  victoryRainSystem.reset();
-  setLevelTestSelection(index);
-  updateStepsHud();
-
-  trail.reset();
-
-  gameUI.setSliceStatus(`状态: 第${index + 1}关`);
-  gameUI.showCommentary(
-    `第${index + 1}/${LEVELS.length}关 · ${level.name} · 颜色${level.colorIds.length}种 数量${level.fruitCount} · 步数${state.stepLimit}`,
-    2400
-  );
-
-  resetFruits(level);
-  return true;
+  return sessionFlow.loadLevel(index);
 }
 
 function resetFruits(level) {
-  burstSystem.clear();
-  state.pendingPops.length = 0;
-  for (const fruit of fruits) scene.remove(fruit.group);
-  fruits.length = 0;
-
-  const defs = level?.fruits ?? [];
-  for (let i = 0; i < defs.length; i += 1) {
-    const def = defs[i];
-    const colorIndex = THREE.MathUtils.clamp(def.colorId, 0, colors.length - 1);
-    const fruit = new BubbleEntity({
-      id: i,
-      colorId: colorIndex,
-      radius: THREE.MathUtils.clamp(def.radius ?? 0.42, 0.84, 1.86),
-      vx: def.vx ?? 0,
-      vy: def.vy ?? 0,
-      baseColor: new THREE.Color(colors[colorIndex].base),
-    });
-    const spawnMargin = fruit.radius + 0.06;
-    fruit.setPosition(
-      THREE.MathUtils.clamp(def.x, bounds.left - boundsClampExpand + spawnMargin, bounds.right + boundsClampExpand - spawnMargin),
-      THREE.MathUtils.clamp(def.y, bounds.bottom - boundsClampExpand + spawnMargin, bounds.top + boundsClampExpand - spawnMargin),
-      0
-    );
-    fruits.push(fruit);
-    scene.add(fruit.group);
-  }
+  sessionFlow.resetFruits(level);
 }
 
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
-  if (ev.button !== undefined && ev.button !== 0) return;
   if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
-    gameUI.showCommentary("本关步数已用尽。", 1000);
+    gameUI.showCommentary("Out of moves for this level.", 1000);
     return;
   }
 
   gameAudio.ensureAudioUnlocked();
+  if (levelGuideState.active && levelGuideState.phase === "warn") {
+    stopLevel1Guide();
+  }
   void gameAudio.preloadPopAudio();
   gameAudio.resetSelectToneProgression();
 
-  const captureTarget = appEl || renderer.domElement;
-  if (captureTarget?.setPointerCapture && ev.pointerId !== undefined) {
-    try {
-      captureTarget.setPointerCapture(ev.pointerId);
-    } catch (_err) {
-      // ignore capture failures
-    }
-  }
+  const rect = renderer.domElement.getBoundingClientRect();
+  if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
 
   state.pointerDown = true;
   state.sliceColorId = null;
@@ -1475,7 +1732,6 @@ function onPointerDown(ev) {
 
   trail.reset();
   trail.push(world, state.lastMoveAt);
-  gameUI.setSliceStatus("状态: 划线中");
 }
 
 function onPointerMove(ev) {
@@ -1494,25 +1750,14 @@ function onPointerMove(ev) {
     trail,
     consumeStep,
     settleQueuedSlices,
-    setSliceStatus: gameUI.setSliceStatus,
-    showCommentary: gameUI.showCommentary,
     resetSelectToneProgression: gameAudio.resetSelectToneProgression,
     playSelectTone: gameAudio.playSelectTone,
+    playErrorTone: gameAudio.playErrorTone,
   });
 }
 
-function onPointerUp(ev) {
+function onPointerUp() {
   if (!state.pointerDown) return;
-  const captureTarget = appEl || renderer?.domElement;
-  if (captureTarget?.releasePointerCapture) {
-    try {
-      if (ev?.pointerId !== undefined && captureTarget.hasPointerCapture?.(ev.pointerId)) {
-        captureTarget.releasePointerCapture(ev.pointerId);
-      }
-    } catch (_err) {
-      // ignore release failures
-    }
-  }
   state.pointerDown = false;
   state.lastPoint = null;
   state.nowPoint = null;
@@ -1522,274 +1767,20 @@ function onPointerUp(ev) {
   if (state.keepFullTrailDuringDrag) trail.reset();
 
   if (state.gameOver) return;
-  if (state.sliceBroken) gameUI.setSliceStatus("状态: 断刀");
-  else if (state.sliceColorId !== null) gameUI.setSliceStatus(`状态: 本刀锁定${colors[state.sliceColorId].name}`);
-  else gameUI.setSliceStatus("状态: 空挥");
-
-}
-
-function createHexRingGeometry(radius, borderWidth) {
-  const innerRadius = Math.max(0.001, radius - Math.max(0.001, borderWidth));
-  const shape = new THREE.Shape();
-  const hole = new THREE.Path();
-
-  for (let i = 0; i < 6; i += 1) {
-    const angle = (Math.PI / 3) * i;
-    const x = Math.cos(angle) * radius;
-    const y = Math.sin(angle) * radius;
-    if (i === 0) shape.moveTo(x, y);
-    else shape.lineTo(x, y);
-  }
-  shape.closePath();
-
-  for (let i = 5; i >= 0; i -= 1) {
-    const angle = (Math.PI / 3) * i;
-    const x = Math.cos(angle) * innerRadius;
-    const y = Math.sin(angle) * innerRadius;
-    if (i === 5) hole.moveTo(x, y);
-    else hole.lineTo(x, y);
-  }
-  hole.closePath();
-  shape.holes.push(hole);
-
-  return new THREE.ShapeGeometry(shape);
-}
-
-function getHexLabelMaterial(label) {
-  const key = String(label);
-  const cached = hexOverlayLabelMaterials.get(key);
-  if (cached) return cached;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    const fallback = new THREE.SpriteMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
-    hexOverlayLabelMaterials.set(key, fallback);
-    return fallback;
-  }
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.font = "700 34px sans-serif";
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "rgba(0,0,0,0.92)";
-  ctx.fillStyle = "rgba(255,255,255,0.98)";
-  ctx.strokeText(key, 32, 34);
-  ctx.fillText(key, 32, 34);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    opacity: 0.82,
-    depthTest: false,
-    depthWrite: false,
-  });
-  hexOverlayLabelMaterials.set(key, material);
-  return material;
-}
-
-function drawHexOverlay(centers, radius) {
-  const count = centers.length;
-  if (!count) {
-    return { mesh: null, borderMesh: null, labelGroup: null };
-  }
-
-  const fillGeometry = new THREE.CircleGeometry(radius, 6);
-  const fillMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: hexOverlayOpacity,
-    vertexColors: true,
-    depthWrite: false,
-    depthTest: false,
-    side: THREE.DoubleSide,
-  });
-
-  const mesh = new THREE.InstancedMesh(fillGeometry, fillMaterial, count);
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.renderOrder = 60;
-
-  const matrix = new THREE.Matrix4();
-  for (let i = 0; i < count; i += 1) {
-    const center = centers[i];
-    matrix.makeTranslation(center.x, center.y, 0.8);
-    mesh.setMatrixAt(i, matrix);
-    mesh.setColorAt(i, hexOverlayDefaultColor);
-    hexOverlayTopColorIds[i] = -1;
-    hexOverlayTopZValues[i] = Number.NEGATIVE_INFINITY;
-  }
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  mesh.userData.topColorIds = hexOverlayTopColorIds;
-  mesh.userData.topZValues = hexOverlayTopZValues;
-
-  const borderGeometry = createHexRingGeometry(radius, hexOverlayBorderWidth);
-  const borderMaterial = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    transparent: true,
-    opacity: hexOverlayBorderOpacity,
-    depthWrite: false,
-    depthTest: false,
-    side: THREE.DoubleSide,
-  });
-  const borderMesh = new THREE.InstancedMesh(borderGeometry, borderMaterial, count);
-  borderMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  borderMesh.renderOrder = 61;
-  for (let i = 0; i < count; i += 1) {
-    const center = centers[i];
-    matrix.makeTranslation(center.x, center.y, 0.801);
-    borderMesh.setMatrixAt(i, matrix);
-  }
-  borderMesh.instanceMatrix.needsUpdate = true;
-
-  const labelGroup = new THREE.Group();
-  labelGroup.renderOrder = 62;
-  const labelScale = radius * 1.15;
-  const defaultLabelMaterial = getHexLabelMaterial("-1");
-  for (let i = 0; i < count; i += 1) {
-    const center = centers[i];
-    const sprite = new THREE.Sprite(defaultLabelMaterial);
-    sprite.position.set(center.x, center.y, 0.802);
-    sprite.scale.set(labelScale, labelScale, 1);
-    sprite.renderOrder = 62;
-    sprite.userData.label = "-1";
-    hexOverlayLabelSprites.push(sprite);
-    labelGroup.add(sprite);
-  }
-
-  return { mesh, borderMesh, labelGroup };
-}
-
-function rebuildHexOverlay() {
-  if (hexOverlayMesh) {
-    scene.remove(hexOverlayMesh);
-    hexOverlayMesh.geometry.dispose();
-    hexOverlayMesh.material.dispose();
-    hexOverlayMesh = null;
-  }
-  if (hexOverlayBorderMesh) {
-    scene.remove(hexOverlayBorderMesh);
-    hexOverlayBorderMesh.geometry.dispose();
-    hexOverlayBorderMesh.material.dispose();
-    hexOverlayBorderMesh = null;
-  }
-  if (hexOverlayLabelGroup) {
-    scene.remove(hexOverlayLabelGroup);
-    hexOverlayLabelGroup.clear();
-    hexOverlayLabelGroup = null;
-  }
-  hexOverlayLabelSprites.length = 0;
-  hexOverlayTopColorIds.length = 0;
-  hexOverlayTopZValues.length = 0;
-  hexTestFlow.reset();
-
-  hexOverlayCenters.length = 0;
-  const r = hexOverlayRadius;
-  const stepX = r * 1.5;
-  const stepY = Math.sqrt(3) * r;
-  const minX = bounds.left - r;
-  const maxX = bounds.right + r;
-  const minY = bounds.bottom - r;
-  const maxY = bounds.top + r;
-
-  let col = 0;
-  for (let x = minX; x <= maxX + stepX; x += stepX, col += 1) {
-    const offsetY = col % 2 === 0 ? 0 : stepY * 0.5;
-    let row = 0;
-    for (let y = minY + offsetY; y <= maxY + stepY; y += stepY, row += 1) {
-      hexOverlayCenters.push({ x, y, col, row });
-    }
-  }
-
-  const overlay = drawHexOverlay(hexOverlayCenters, r);
-  hexOverlayMesh = overlay.mesh;
-  hexOverlayBorderMesh = overlay.borderMesh;
-  hexOverlayLabelGroup = overlay.labelGroup;
-  if (hexOverlayMesh) scene.add(hexOverlayMesh);
-  if (hexOverlayBorderMesh) scene.add(hexOverlayBorderMesh);
-  if (hexOverlayLabelGroup) scene.add(hexOverlayLabelGroup);
-}
-
-function updateHexOverlayColors() {
-  if (!hexOverlayMesh) return;
-  hexOverlayMesh.visible = state.started && !state.inHome && state.showHexOverlay;
-  if (hexOverlayBorderMesh) hexOverlayBorderMesh.visible = hexOverlayMesh.visible;
-  if (hexOverlayLabelGroup) hexOverlayLabelGroup.visible = hexOverlayMesh.visible;
-  if (!hexOverlayMesh.visible) return;
-
-  for (let i = 0; i < hexOverlayCenters.length; i += 1) {
-    const center = hexOverlayCenters[i];
-    let bestSurfaceZ = Number.NEGATIVE_INFINITY;
-    let bestDistSq = Infinity;
-    let pickedColorHex = null;
-    let pickedColorId = -1;
-    let pickedSurfaceZ = Number.NEGATIVE_INFINITY;
-
-    for (let j = 0; j < fruits.length; j += 1) {
-      const fruit = fruits[j];
-      if (!fruit?.active || fruit.sliced || !fruit.bubble.visible) continue;
-
-      const dx = center.x - fruit.group.position.x;
-      const dy = center.y - fruit.group.position.y;
-      const distSq = dx * dx + dy * dy;
-      const hitRadius = fruit.radius;
-      const hitRadiusSq = hitRadius * hitRadius;
-      if (distSq > hitRadiusSq) continue;
-
-      const centerZ = fruit.group.position.z + (fruit.bubble?.position.z ?? 0);
-      const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
-      const surfaceZ = centerZ + localSurfaceZ;
-
-      if (surfaceZ > bestSurfaceZ || (surfaceZ === bestSurfaceZ && distSq < bestDistSq)) {
-        bestSurfaceZ = surfaceZ;
-        bestDistSq = distSq;
-        pickedColorHex = colors[fruit.colorId]?.base ?? null;
-        pickedColorId = fruit.colorId;
-        pickedSurfaceZ = surfaceZ;
-      }
-    }
-
-    hexOverlayTopColorIds[i] = pickedColorId;
-    hexOverlayTopZValues[i] = pickedSurfaceZ;
-
-    if (pickedColorHex === null) {
-      hexOverlayMesh.setColorAt(i, hexOverlayDefaultColor);
-    } else {
-      if (hexOverlayHighlighted.has(i)) {
-        hexOverlayInvertColor.setHex(pickedColorHex);
-        hexOverlayWorkColor.setRGB(1 - hexOverlayInvertColor.r, 1 - hexOverlayInvertColor.g, 1 - hexOverlayInvertColor.b);
-      } else {
-        hexOverlayWorkColor.setHex(pickedColorHex);
-      }
-      hexOverlayMesh.setColorAt(i, hexOverlayWorkColor);
-    }
-
-    const sprite = hexOverlayLabelSprites[i];
-    if (sprite) {
-      const label = String(pickedColorId);
-      if (sprite.userData.label !== label) {
-        sprite.userData.label = label;
-        sprite.material = getHexLabelMaterial(label);
-      }
-    }
-  }
-
-  if (hexOverlayMesh.instanceColor) hexOverlayMesh.instanceColor.needsUpdate = true;
 }
 
 function tick() {
   if (!renderer) return;
   const dt = Math.min(clock.getDelta(), 1 / 30);
   const now = performance.now();
+  const wallNow = Date.now();
 
   updateTrail(now);
   processPendingPops(dt);
   updateHomeBubbles(dt);
+  if (state.inHome && wallNow - state.staminaUiSyncAt >= 1000) {
+    syncStaminaUi();
+  }
 
   collisionSystem.resolve(fruits);
   burstSystem.update(dt);
@@ -1801,7 +1792,7 @@ function tick() {
     if (fruit.active && !fruit.sliced) remaining += 1;
   }
 
-  updateHexOverlayColors();
+  updateLevel1Guide(now);
 
   renderer.render(scene, camera);
 
@@ -1810,13 +1801,14 @@ function tick() {
   if (
     state.started
     && !state.gameOver
+    && !state.outOfMovesContinuePending
     && state.stepLimit > 0
     && state.stepsUsed >= state.stepLimit
     && remaining > 0
     && !state.pointerDown
     && state.pendingPops.length === 0
   ) {
-    endGame(`第${state.currentLevelIndex + 1}关失败：步数用尽`);
+    triggerOutOfMovesContinueFlow();
   }
 }
 
@@ -1833,53 +1825,15 @@ function updateTrail(now) {
 }
 
 function settleQueuedSlices() {
-  if (!state.sliceQueue.length) return;
-
-  let gain = 0;
-  for (let i = 0; i < state.sliceQueue.length; i += 1) {
-    const entry = state.sliceQueue[i];
-    const fruit = entry.fruit;
-    if (!fruit || !fruit.active || fruit.sliced) continue;
-
-    fruit.setSelected(false);
-    state.pendingPops.push({
-      fruit,
-      sliceDir: entry.sliceDir,
-      speed: entry.speed,
-      delay: gain * slicePopStaggerStep,
-    });
-    gain += 1;
-  }
-
-  clearQueuedSelections();
+  roundState.settleQueuedSlices();
 }
 
 function processPendingPops(dt) {
-  if (!state.pendingPops.length) return;
-  for (let i = 0; i < state.pendingPops.length; ) {
-    const item = state.pendingPops[i];
-    item.delay -= dt;
-    if (item.delay > 0) {
-      i += 1;
-      continue;
-    }
-
-    const fruit = item.fruit;
-    if (fruit && fruit.active && !fruit.sliced) {
-      fruit.pop(item.sliceDir, item.speed);
-      gameAudio.playRandomPopAudio();
-    }
-    state.pendingPops.splice(i, 1);
-  }
+  roundState.processPendingPops(dt);
 }
 
 function clearQueuedSelections() {
-  for (let i = 0; i < state.sliceQueue.length; i += 1) {
-    const fruit = state.sliceQueue[i].fruit;
-    if (fruit) fruit.setSelected(false);
-  }
-  state.sliceQueue.length = 0;
-  state.sliceHitIds.clear();
+  roundState.clearQueuedSelections();
 }
 
 function consumeStep() {
@@ -1891,7 +1845,8 @@ function consumeStep() {
 function updateStepsHud() {
   if (!stepsEl) return;
   const remaining = Math.max(0, state.stepLimit - state.stepsUsed);
-  stepsEl.textContent = `步数: ${remaining}`;
+  stepsEl.textContent = `MOVE:${remaining}`;
+  if (hudLevelEl) hudLevelEl.textContent = `LV:${state.currentLevelIndex + 1}`;
 }
 
 function screenToWorld(clientX, clientY) {
@@ -1907,569 +1862,13 @@ function screenToWorld(clientX, clientY) {
 }
 
 function resize() {
-  if (!renderer) {
-    return;
-  }
-  updatePhoneAspect();
-  const rect = appEl.getBoundingClientRect();
-  renderer.setSize(rect.width, rect.height, false);
-
-  const aspect = rect.width / rect.height;
-  camera.aspect = aspect;
-  camera.updateProjectionMatrix();
-
-  const worldHalfH = rules.worldHeight / 2;
-  const worldHalfW = worldHalfH * aspect;
-  bounds.left = -worldHalfW + rules.playAreaInset;
-  bounds.right = worldHalfW - rules.playAreaInset;
-  bounds.top = worldHalfH - rules.playAreaInset;
-  bounds.bottom = -worldHalfH + rules.playAreaInset;
-  levelRuntime.clearCache();
-  rebuildHexOverlay();
+  layoutViewport.resize();
 }
 
 function updatePhoneAspect() {
-  if (!phoneFrameEl) return;
-
-  const visualViewport = window.visualViewport;
-  const viewportWidth = visualViewport?.width ?? window.innerWidth;
-  const viewportHeight = visualViewport?.height ?? window.innerHeight;
-  if (!viewportWidth || !viewportHeight) return;
-
-  const rawAspect = viewportWidth / viewportHeight;
-  const shouldLockToIphonePreview = viewportWidth >= desktopAspectSwitchWidth;
-  const targetAspect = shouldLockToIphonePreview
-    ? iphoneAspectBase
-    : THREE.MathUtils.clamp(rawAspect, portraitAspectMin, portraitAspectMax);
-
-  document.documentElement.style.setProperty("--phone-aspect-live", `${targetAspect}`);
+  layoutViewport.updatePhoneAspect();
 }
 
-function endGame(reason) {
-  if (state.gameOver) return;
-  state.gameOver = true;
-  state.levelTransitioning = false;
-  state.pointerDown = false;
-  levelFlow.reset();
-  burstSystem.clear();
-  clearQueuedSelections();
-  state.pendingPops.length = 0;
-  victoryRainSystem.reset();
-  trail.reset();
-
-  gameUI.openResult("lose", {
-    level: state.currentLevelIndex + 1,
-    score: Math.max(0, state.stepLimit - state.stepsUsed),
-    reward: 0,
-    canNext: false,
-    isFinal: false,
-  });
-  gameUI.setSliceStatus(`状态: ${reason}`);
-}
-
-function createBubbleMaterial(baseColor) {
-  const accentColor = baseColor.clone().offsetHSL(0, -0.12, 0.26);
-  const springUniform = uniform(0);
-  const crackGlowUniform = uniform(0);
-  const contactDirUniform = uniform(new THREE.Vector3(1, 0, 0));
-  const contactStrengthUniform = uniform(0);
-  const tintUniform = uniform(baseColor.clone());
-  const accentUniform = uniform(accentColor.clone());
-
-  const flowSpeedUniform = uniform(bubbleTuning.flow);
-  const wobbleAmplitudeUniform = uniform(bubbleTuning.wobble);
-  const dyeContrastUniform = uniform(bubbleTuning.dye);
-  const edgeGlowUniform = uniform(bubbleTuning.edge);
-  const iridescenceUniform = uniform(bubbleTuning.iri);
-  const dyeEnabledUniform = uniform(bubbleTuning.toggleDye ? 1.0 : 0.0);
-  const edgeEnabledUniform = uniform(bubbleTuning.toggleEdge ? 1.0 : 0.0);
-  const iridescenceEnabledUniform = uniform(bubbleTuning.toggleIri ? 1.0 : 0.0);
-  const iridescenceBaseUniform = uniform(90.0);
-  const iridescenceSpanUniform = uniform(520.0);
-
-  const material = new THREE.MeshPhysicalNodeMaterial({
-    transmission: bubbleTuning.transmission,
-    thickness: 1.35,
-    roughness: bubbleTuning.roughness,
-    metalness: 0.0,
-    clearcoat: bubbleTuning.clearcoat,
-    clearcoatRoughness: 0.16,
-    ior: 1.2,
-    envMapIntensity: 0.72,
-    transparent: true,
-    opacity: 0.9,
-  });
-
-  const flow = time.mul(flowSpeedUniform);
-  const rippleA = positionLocal.x.mul(2.9).add(flow).sin();
-  const rippleB = positionLocal.y.mul(3.2).add(flow.mul(1.18)).cos();
-  const rippleC = positionLocal.z.mul(2.5).add(flow.mul(0.86)).sin();
-  const wobble = rippleA.add(rippleB).add(rippleC).mul(wobbleAmplitudeUniform);
-
-  const dyeA = positionLocal.x.mul(3.6).add(flow.mul(0.66)).sin();
-  const dyeB = positionLocal.y.mul(4.1).add(flow.mul(0.93)).cos();
-  const dyeC = positionLocal.z.mul(3.1).add(flow.mul(0.53)).sin();
-  const dyeMix = dyeA.add(dyeB).add(dyeC).mul(0.34).add(0.5).clamp(0.0, 1.0);
-
-  const squishX = springUniform.mul(0.52).add(1.0);
-  const squishY = springUniform.mul(-1.02).add(1.0);
-  const squishZ = springUniform.mul(0.52).add(1.0);
-
-  const contactMask = normalLocal.dot(contactDirUniform).max(0.0);
-  const contactDent = contactDirUniform.mul(contactMask.mul(contactStrengthUniform).mul(-0.32));
-
-  material.positionNode = positionLocal
-    .add(normalLocal.mul(wobble))
-    .add(contactDent)
-    .mul(vec3(squishX, squishY, squishZ));
-
-  const dyeBlend = dyeMix.pow(dyeContrastUniform);
-  const dyeColor = tintUniform.mix(accentUniform, dyeBlend);
-  material.colorNode = tintUniform.mix(dyeColor, dyeEnabledUniform);
-
-  const viewDot = normalView.dot(positionViewDirection.negate()).abs().clamp(0.0, 1.0);
-  const edgeGlow = viewDot.mul(-1.0).add(1.0).pow(2.8);
-  material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform.add(crackGlowUniform)).mul(edgeEnabledUniform));
-
-  material.iridescenceNode = iridescenceUniform.mul(iridescenceEnabledUniform);
-  material.iridescenceIORNode = uniform(1.3);
-  material.iridescenceThicknessNode = dyeMix.mul(iridescenceSpanUniform).add(iridescenceBaseUniform);
-
-  return {
-    material,
-    springUniform,
-    crackGlowUniform,
-    contactDirUniform,
-    contactStrengthUniform,
-    tintUniform,
-    accentUniform,
-  };
-}
-
-class BubbleEntity {
-  constructor({ id, colorId, radius, vx = 0, vy = 0, baseColor }) {
-    this.id = id;
-    this.colorId = colorId;
-    this.radius = radius;
-    this.baseColor = baseColor.clone();
-    this.active = true;
-    this.sliced = false;
-    this.life = 0;
-    this.selected = false;
-    this.wrongFlash = 0;
-    this.wrongShake = 0;
-    this.selectionScale = 1;
-    this.selectionTarget = 1;
-    this.selectionVel = 0;
-
-    this.vel = new THREE.Vector3(vx, vy, 0);
-    this.springVal = 0;
-    this.springVel = 0;
-    this.springTension = bubbleTuning.springTension;
-    this.springDamping = bubbleTuning.springDamping;
-    this.contactStrength = 0;
-    this.contactDir = new THREE.Vector3(1, 0, 0);
-
-    this.group = new THREE.Group();
-
-    const nodeMaterialData = createBubbleMaterial(baseColor);
-    this.bubbleMaterial = nodeMaterialData.material;
-    this.springUniform = nodeMaterialData.springUniform;
-    this.crackGlowUniform = nodeMaterialData.crackGlowUniform;
-    this.contactDirUniform = nodeMaterialData.contactDirUniform;
-    this.contactStrengthUniform = nodeMaterialData.contactStrengthUniform;
-    this.tintUniform = nodeMaterialData.tintUniform;
-    this.accentUniform = nodeMaterialData.accentUniform;
-    this.baseScale = this.radius / bubbleBaseRadius;
-    this.baseOpacity = 0.9;
-
-    this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
-    this.bubble.scale.setScalar(this.baseScale);
-    this.bubble.userData.fruit = this;
-    this.selectRing = this.createSelectRing();
-
-    this.burstState = BubbleBurstState.IDLE;
-    this.stateElapsed = 0;
-    this.preBurstDuration = 0.09;
-    this.burstDuration = 0.18;
-    this.dissipateDuration = 1.6;
-    this.resetDelay = 0.2;
-    this.preBurstScaleMax = 1.08;
-    this.burstPointsVisible = false;
-
-    this.minBurstBubbleCount = 2;
-    this.maxBurstBubbleCount = 5;
-    this.activeBurstBubbleCount = 0;
-
-    this.group.add(this.bubble, this.selectRing);
-    this.resetBurstArtifacts();
-    this.setBaseColor(this.baseColor);
-  }
-
-  setBaseColor(color) {
-    if (!color) return;
-    this.baseColor.copy(color);
-    const accent = color.clone().offsetHSL(0, -0.12, 0.26);
-    if (this.tintUniform?.value) this.tintUniform.value.copy(color);
-    if (this.accentUniform?.value) this.accentUniform.value.copy(accent);
-  }
-
-  createSelectRing() {
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(1.06, 1.22, 42),
-      new THREE.MeshBasicMaterial({
-        color: 0xff5c5c,
-        transparent: true,
-        opacity: 0.0,
-        depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide,
-      })
-    );
-    ring.visible = false;
-    ring.scale.setScalar(this.radius);
-    ring.position.z = this.radius * 0.04;
-    return ring;
-  }
-
-  setPosition(x, y, z) {
-    this.group.position.set(x, y, z);
-  }
-
-  pop(sliceDir, speed) {
-    if (this.sliced) return;
-    this.setSelected(false);
-    this.sliced = true;
-    this.life = 0;
-    this.wrongFlash = 0;
-    this.wrongShake = 0;
-    this.springVel -= THREE.MathUtils.clamp(speed * 0.05, 0.08, 0.2);
-    this.crackGlowUniform.value = 0.12;
-    this.bubble.visible = true;
-    this.bubble.scale.setScalar(this.baseScale);
-    this.bubbleMaterial.opacity = this.baseOpacity;
-    this.resetBurstArtifacts();
-    this.setBurstState(BubbleBurstState.PRE_BURST);
-  }
-
-  update(dt, worldBounds) {
-    if (!this.active) return;
-
-    this.springVel += (0 - this.springVal) * this.springTension;
-    this.springVel *= this.springDamping;
-    this.springVal += this.springVel;
-    this.springUniform.value = this.springVal;
-    this.contactStrength = Math.max(0, this.contactStrength - dt * 3.2);
-    this.contactStrengthUniform.value = this.contactStrength;
-    this.contactDirUniform.value.copy(this.contactDir);
-
-    if (!this.sliced) {
-      this.group.position.addScaledVector(this.vel, dt);
-
-      const leftLimit = worldBounds.left - boundsClampExpand + this.radius;
-      if (this.group.position.x < leftLimit) {
-        const overlap = leftLimit - this.group.position.x;
-        this.group.position.x = leftLimit;
-        if (this.vel.x < 0) this.vel.x = 0;
-        this.vel.y *= wallSlideDamping;
-        this.applyWallContact(1, 0, overlap);
-      }
-
-      const rightLimit = worldBounds.right + boundsClampExpand - this.radius;
-      if (this.group.position.x > rightLimit) {
-        const overlap = this.group.position.x - rightLimit;
-        this.group.position.x = rightLimit;
-        if (this.vel.x > 0) this.vel.x = 0;
-        this.vel.y *= wallSlideDamping;
-        this.applyWallContact(-1, 0, overlap);
-      }
-
-      const bottomLimit = worldBounds.bottom - boundsClampExpand + this.radius;
-      if (this.group.position.y < bottomLimit) {
-        const overlap = bottomLimit - this.group.position.y;
-        this.group.position.y = bottomLimit;
-        if (this.vel.y < 0) this.vel.y = 0;
-        this.vel.x *= wallSlideDamping;
-        this.applyWallContact(0, 1, overlap);
-      }
-
-      const topLimit = worldBounds.top + boundsClampExpand - this.radius;
-      if (this.group.position.y > topLimit) {
-        const overlap = this.group.position.y - topLimit;
-        this.group.position.y = topLimit;
-        if (this.vel.y > 0) this.vel.y = 0;
-        this.vel.x *= wallSlideDamping;
-        this.applyWallContact(0, -1, overlap);
-      }
-
-      this.vel.multiplyScalar(0.985);
-      this.updateSelectionScale(dt);
-      this.bubble.scale.setScalar(this.baseScale * this.selectionScale);
-
-      if (this.wrongFlash > 0) {
-        this.wrongFlash = Math.max(0, this.wrongFlash - dt);
-        this.wrongShake = Math.max(0, this.wrongShake - dt);
-        const t = this.wrongFlash / 0.22;
-        const shakeT = this.wrongShake / 0.22;
-        const shakeAmp = this.radius * 0.12 * shakeT;
-        const shakePhase = (1 - shakeT) * Math.PI * 12;
-        const shakeX = Math.sin(shakePhase) * shakeAmp;
-        const shakeY = Math.cos(shakePhase * 0.6) * shakeAmp * 0.25;
-
-        this.selectRing.visible = true;
-        this.selectRing.material.color.setHex(0xff5c5c);
-        this.selectRing.scale.setScalar(this.radius * (1.08 + (1 - t) * 0.1));
-        this.selectRing.material.opacity = 0.28 + t * 0.68;
-        this.bubble.position.set(shakeX, shakeY, 0);
-      } else {
-        this.selectRing.visible = false;
-        this.bubble.position.set(0, 0, 0);
-      }
-      return;
-    }
-
-    this.stateElapsed += dt;
-
-    if (this.burstState === BubbleBurstState.PRE_BURST) {
-      const t = Math.min(this.stateElapsed / this.preBurstDuration, 1);
-      const smooth = t * t * (3 - 2 * t);
-      this.bubble.visible = true;
-      this.bubble.scale.setScalar(this.baseScale * (1 + (this.preBurstScaleMax - 1) * smooth));
-      this.crackGlowUniform.value = 0.12 * smooth;
-      this.bubbleMaterial.opacity = this.baseOpacity;
-
-      if (t >= 1) {
-        this.setBurstState(BubbleBurstState.BURST);
-        this.initBurstParticles();
-      }
-      return;
-    }
-
-    if (this.burstState === BubbleBurstState.BURST) {
-      const t = Math.min(this.stateElapsed / this.burstDuration, 1);
-      this.crackGlowUniform.value = (1 - t) * 0.12;
-      this.bubbleMaterial.opacity = Math.max(0, this.baseOpacity * (1 - t * 1.85));
-      this.bubble.scale.setScalar(this.baseScale * (this.preBurstScaleMax + t * 0.03));
-
-      if (t > 0.5) this.bubble.visible = false;
-
-      if (t >= 1) {
-        this.setBurstState(BubbleBurstState.DISSIPATE);
-        this.bubbleMaterial.opacity = 0;
-      }
-      return;
-    }
-
-    if (this.burstState === BubbleBurstState.DISSIPATE) {
-      this.crackGlowUniform.value = 0;
-      this.bubble.visible = false;
-
-      if (this.stateElapsed >= this.dissipateDuration && !this.burstPointsVisible) {
-        this.setBurstState(BubbleBurstState.RESET);
-      }
-      return;
-    }
-
-    if (this.burstState === BubbleBurstState.RESET) {
-      if (this.stateElapsed >= this.resetDelay) {
-        this.active = false;
-        this.group.visible = false;
-      }
-      return;
-    }
-  }
-
-  setSelected(flag) {
-    const next = Boolean(flag) && this.active && !this.sliced;
-    const changed = next !== this.selected;
-    this.selected = next;
-    this.selectionTarget = next ? 1.05 : 1;
-
-    if (changed && next) {
-      this.selectionScale = Math.max(this.selectionScale, 1.1);
-      this.selectionVel = 0;
-    }
-
-    if (!next) {
-      this.selectRing.visible = false;
-      this.selectRing.material.opacity = 0;
-      this.selectRing.scale.setScalar(this.radius);
-      this.bubble.position.set(0, 0, 0);
-    }
-  }
-
-  updateSelectionScale(dt) {
-    const spring = 120;
-    const damping = 9;
-    this.selectionVel += (this.selectionTarget - this.selectionScale) * spring * dt;
-    this.selectionVel *= Math.exp(-damping * dt);
-    this.selectionScale += this.selectionVel * dt;
-
-    if (Math.abs(this.selectionTarget - this.selectionScale) < 0.001 && Math.abs(this.selectionVel) < 0.001) {
-      this.selectionScale = this.selectionTarget;
-      this.selectionVel = 0;
-    }
-  }
-
-  flashWrongHit() {
-    if (!this.active || this.sliced) return;
-    this.wrongFlash = 0.22;
-    this.wrongShake = 0.22;
-  }
-
-  applyContact(nx, ny, overlap) {
-    if (!this.active || this.sliced) return;
-    const strength = THREE.MathUtils.clamp(overlap / Math.max(this.radius * 1.05, 0.001), 0, 0.65);
-    const boost = Math.max(this.contactStrength * 0.7, strength);
-    this.contactStrength = boost;
-    this.contactDir.set(nx, ny, 0).normalize();
-    this.springVel -= boost * 0.09;
-  }
-
-  applyWallContact(nx, ny, overlap) {
-    this.applyContact(nx, ny, overlap * wallContactGain);
-  }
-
-  setBurstState(nextState) {
-    this.burstState = nextState;
-    this.stateElapsed = 0;
-  }
-
-  resetBurstArtifacts() {
-    this.activeBurstBubbleCount = 0;
-    this.burstPointsVisible = false;
-  }
-
-  initBurstParticles() {
-    burstSystem.spawnForEntity(this);
-  }
-}
-
-class SliceTrail {
-  constructor(maxPoints) {
-    this.baseMaxPoints = maxPoints;
-    this.maxPoints = maxPoints;
-    this.points = [];
-    this.width = 0.12;
-    this.keepFullMode = true;
-
-    this.positions = new Float32Array(0);
-    this.colors = new Float32Array(0);
-    this.indices = [];
-
-    this.geometry = new THREE.BufferGeometry();
-    this.resizeBuffers(maxPoints);
-
-    this.material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.96,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: false,
-    });
-
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
-  }
-
-  push(point, t) {
-    this.points.push({ pos: point.clone(), t });
-    if (this.points.length > this.maxPoints) {
-      if (!this.keepFullMode) {
-        this.points.shift();
-        return;
-      }
-
-      this.resizeBuffers(Math.max(this.maxPoints * 2, this.points.length));
-    }
-  }
-
-  prune(now, ttlMs) {
-    this.points = this.points.filter((p) => now - p.t <= ttlMs);
-  }
-
-  rebuild(isBroken) {
-    const n = this.points.length;
-    if (n < 2) {
-      this.geometry.setDrawRange(0, 0);
-      return;
-    }
-
-    const up = new THREE.Vector3(0, 0, 1);
-    const dir = new THREE.Vector3();
-    const side = new THREE.Vector3();
-
-    for (let i = 0; i < n; i += 1) {
-      const p = this.points[i].pos;
-      const prev = this.points[Math.max(0, i - 1)].pos;
-      const next = this.points[Math.min(n - 1, i + 1)].pos;
-      dir.copy(next).sub(prev).normalize();
-      side.crossVectors(dir, up).normalize();
-
-      const t = i / (n - 1);
-      const w = this.width * (1 - t * 0.62);
-      const hue = isBroken ? 0.01 : 0.56;
-      const color = new THREE.Color().setHSL(hue - t * 0.03, 1.0, 0.75 - t * 0.14);
-
-      const a = p.clone().addScaledVector(side, w);
-      const b = p.clone().addScaledVector(side, -w);
-
-      const ia = i * 2 * 3;
-      const ib = ia + 3;
-      this.positions[ia] = a.x;
-      this.positions[ia + 1] = a.y;
-      this.positions[ia + 2] = a.z;
-      this.positions[ib] = b.x;
-      this.positions[ib + 1] = b.y;
-      this.positions[ib + 2] = b.z;
-
-      this.colors[ia] = color.r;
-      this.colors[ia + 1] = color.g;
-      this.colors[ia + 2] = color.b;
-      this.colors[ib] = color.r * 0.8;
-      this.colors[ib + 1] = color.g * 0.8;
-      this.colors[ib + 2] = color.b * 0.8;
-    }
-
-    this.geometry.attributes.position.needsUpdate = true;
-    this.geometry.attributes.color.needsUpdate = true;
-    this.geometry.setDrawRange(0, (n - 1) * 6);
-  }
-
-  reset() {
-    this.points.length = 0;
-    this.geometry.setDrawRange(0, 0);
-  }
-
-  setKeepFullMode(flag) {
-    const keepFull = Boolean(flag);
-    this.keepFullMode = keepFull;
-
-    if (keepFull) return;
-
-    if (this.maxPoints !== this.baseMaxPoints) {
-      this.resizeBuffers(this.baseMaxPoints);
-    }
-    if (this.points.length > this.maxPoints) {
-      this.points = this.points.slice(this.points.length - this.maxPoints);
-    }
-  }
-
-  resizeBuffers(nextMaxPoints) {
-    this.maxPoints = nextMaxPoints;
-    this.positions = new Float32Array(this.maxPoints * 2 * 3);
-    this.colors = new Float32Array(this.maxPoints * 2 * 3);
-    this.indices.length = 0;
-
-    for (let i = 0; i < this.maxPoints - 1; i += 1) {
-      const o = i * 2;
-      this.indices.push(o, o + 1, o + 2, o + 1, o + 3, o + 2);
-    }
-
-    this.geometry.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute("color", new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.setIndex(this.indices);
-    this.geometry.setDrawRange(0, 0);
-  }
+function endGame(reason, options = {}) {
+  sessionFlow.endGame(reason, options);
 }

@@ -136,8 +136,8 @@ export function createVictoryRainSystem({
     pooled.lifeMax = lifeMax;
     pooled.active = true;
     pooled.vel.set(
-      (Math.random() * 2 - 1) * 0.58,
-      6.4 + Math.random() * 3.4,
+      (Math.random() * 2 - 1) * 0.72,
+      7.4 + Math.random() * 3.9,
       (Math.random() * 2 - 1) * 0.18
     );
     pooled.spin.set(

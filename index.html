@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <link rel="icon" href="data:," />
     <title>切泡泡 - three.js WebGPU</title>
-    <link rel="stylesheet" href="./src/styles.css?v=2" />
+    <link rel="stylesheet" href="./src/styles.css" />
     <script type="importmap">
       {
         "imports": {
@@ -19,35 +19,58 @@
   </head>
   <body>
     <div id="phone-frame">
-      <div id="coin-status">
-        <img class="coin-icon" src="./assets/images/currency128_Coin.png" alt="金币" />
-        <span id="coin-status-text">0</span>
+      <div id="gameplay-topbar" class="hidden" aria-hidden="true">
+        <div class="gameplay-topbar-spacer" aria-hidden="true"></div>
+        <div id="gameplay-coin-status" class="home-status home-status-coin is-hidden-in-gameplay" aria-label="金币数量">
+          <img class="home-status-badge coin" src="./assets/images/currency128_Coin.png" alt="金币" />
+          <span id="gameplay-coin-text" class="home-status-value">0</span>
+        </div>
+        <div class="gameplay-topbar-spacer gameplay-topbar-right" aria-hidden="true"></div>
       </div>
       <div id="coin-fly-layer" class="hidden" aria-hidden="true"></div>
 
-      <div id="hud">
-        <div id="score">步数: -</div>
-      </div>
-
-      <div id="level-test">
-        <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
-        <div id="level-test-panel" class="hidden">
-          <label for="level-test-select">选择关卡</label>
-          <select id="level-test-select"></select>
-
-          <fieldset class="level-test-group">
-            <legend>步数</legend>
-            <button id="level-test-next-step" class="tool-btn" type="button">测试流程1(最大联通区域)</button>
-            <button id="level-test-export-step" class="tool-btn" type="button">计算并导出步数</button>
-            <label class="level-test-switch" for="level-test-hex-toggle">
-              <input id="level-test-hex-toggle" type="checkbox" />
-              <span>显示六边形</span>
-            </label>
-          </fieldset>
+      <div id="hud" aria-label="关卡状态">
+        <div class="home-status gameplay-hud-item" aria-label="剩余步数">
+          <span id="score" class="home-status-value">MOVE:0</span>
+        </div>
+        <div class="home-status gameplay-hud-item" aria-label="当前关卡">
+          <span id="hud-level" class="home-status-value">LV:1</span>
         </div>
       </div>
 
-      <div id="commentary">开始后，先锁定一种颜色再连戳。</div>
+      <div id="gameplay-settings-mask" class="hidden" aria-hidden="true"></div>
+
+      <div id="gameplay-settings" class="hidden" aria-label="局内设置">
+        <button id="gameplay-settings-toggle" class="home-mini-btn gp-settings-btn gp-main-btn" type="button" aria-label="打开局内设置">⚙️</button>
+        <button id="gameplay-settings-music" class="gp-settings-btn gp-settings-item" type="button" aria-label="音乐">
+          <span class="gp-settings-icon" aria-hidden="true">🎵</span>
+        </button>
+        <button id="gameplay-settings-sfx" class="gp-settings-btn gp-settings-item" type="button" aria-label="音效">
+          <span class="gp-settings-icon" aria-hidden="true">🔊</span>
+        </button>
+        <button id="gameplay-settings-exit" class="gp-settings-btn gp-settings-item gp-exit-btn" type="button" aria-label="退出">
+          <span class="gp-settings-icon" aria-hidden="true">↩</span>
+        </button>
+      </div>
+
+      <div id="gameplay-exit-mask" class="hidden" aria-hidden="true"></div>
+      <div id="gameplay-exit-modal" class="hidden" role="dialog" aria-modal="true" aria-label="Quit confirmation">
+        <button id="gameplay-exit-close" class="gameplay-exit-close" type="button" aria-label="Close">✕</button>
+        <div class="gameplay-exit-title">Are You Sure?</div>
+        <div class="gameplay-exit-inner">
+          <div class="gameplay-exit-icon" aria-hidden="true">💔</div>
+          <p>Leave this level and return Home?</p>
+        </div>
+        <div class="gameplay-exit-actions">
+          <button id="gameplay-exit-cancel" class="gameplay-exit-cancel" type="button">Cancel</button>
+          <button id="gameplay-exit-confirm" class="gameplay-exit-confirm" type="button">Quit</button>
+        </div>
+      </div>
+
+      <div id="level-guide" class="hidden" aria-hidden="true">
+        <span id="level-guide-tip" class="level-guide-tip">连续划到相同泡泡，一起消除！</span>
+        <img id="level-guide-hand" class="level-guide-hand" src="./assets/images/HandPointer.png" alt="" aria-hidden="true" />
+      </div>
 
       <div id="home-screen" class="layer">
         <div id="home-topbar">
@@ -61,55 +84,28 @@
             <span id="home-coin" class="home-status-value">0</span>
           </div>
 
-          <button id="home-settings-btn" class="home-mini-btn" type="button">⚙️</button>
+          <button id="home-settings-btn" class="home-mini-btn" type="button" aria-label="打开设置">⚙️</button>
         </div>
 
-        <div id="home-ui-panel" class="hidden" aria-label="主界面样式调控">
-          <label class="home-ui-row" for="home-ui-energy-size">
-            <span>体力字大小</span>
-            <input id="home-ui-energy-size" type="range" min="14" max="42" step="1" value="22" />
-            <em id="home-ui-energy-size-value">22</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-energy-x">
-            <span>体力字X</span>
-            <input id="home-ui-energy-x" type="range" min="-80" max="80" step="1" value="0" />
-            <em id="home-ui-energy-x-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-energy-y">
-            <span>体力字Y</span>
-            <input id="home-ui-energy-y" type="range" min="-40" max="40" step="1" value="0" />
-            <em id="home-ui-energy-y-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-size">
-            <span>金币字大小</span>
-            <input id="home-ui-coin-size" type="range" min="14" max="42" step="1" value="24" />
-            <em id="home-ui-coin-size-value">24</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-icon-x">
-            <span>金币图标X</span>
-            <input id="home-ui-coin-icon-x" type="range" min="-30" max="40" step="1" value="0" />
-            <em id="home-ui-coin-icon-x-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-icon-y">
-            <span>金币图标Y</span>
-            <input id="home-ui-coin-icon-y" type="range" min="-30" max="30" step="1" value="0" />
-            <em id="home-ui-coin-icon-y-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-x">
-            <span>金币字X</span>
-            <input id="home-ui-coin-x" type="range" min="-80" max="80" step="1" value="0" />
-            <em id="home-ui-coin-x-value">0</em>
-          </label>
-          <label class="home-ui-row" for="home-ui-coin-y">
-            <span>金币字Y</span>
-            <input id="home-ui-coin-y" type="range" min="-40" max="40" step="1" value="0" />
-            <em id="home-ui-coin-y-value">0</em>
-          </label>
-
-          <div class="home-ui-actions">
-            <button id="home-ui-reset-btn" class="tool-btn" type="button">重置</button>
-            <button id="home-ui-save-btn" class="tool-btn" type="button">保存</button>
-            <button id="home-ui-close-btn" class="tool-btn" type="button">关闭</button>
+        <div id="home-settings-modal" class="hidden" aria-label="游戏设置">
+          <div class="home-settings-card" role="dialog" aria-modal="true" aria-label="游戏设置弹窗">
+            <button id="home-settings-close-btn" class="home-settings-close" type="button" aria-label="关闭设置">✕</button>
+            <div class="home-settings-title-pill">设置</div>
+            <div class="home-settings-inner">
+              <div class="home-settings-icon" aria-hidden="true">⚙️</div>
+              <label class="home-settings-row" for="setting-music-toggle">
+                <span>音乐</span>
+                <input id="setting-music-toggle" type="checkbox" checked />
+              </label>
+              <label class="home-settings-row" for="setting-sfx-toggle">
+                <span>音效</span>
+                <input id="setting-sfx-toggle" type="checkbox" checked />
+              </label>
+            </div>
+            <div class="home-settings-actions">
+              <button id="home-fill-stamina-btn" class="home-settings-test-btn" type="button">测试：体力回满</button>
+              <button id="home-clear-data-btn" class="home-clear-data-btn" type="button">清除游戏数据</button>
+            </div>
           </div>
         </div>
 
@@ -126,13 +122,19 @@
       </div>
 
       <div id="pause-overlay" class="layer hidden">断刀暂停 - 点一下继续</div>
+      <div id="out-of-moves-banner" class="hidden" aria-hidden="true">OUT OF MOVES!</div>
 
       <div id="result-mask" class="hidden" aria-hidden="true"></div>
       <div id="result-page" class="layer hidden">
         <div class="result-card panel-light">
-          <h2 id="result-page-title" class="result-title panel-title-ribbon is-lose"><span id="result-page-title-text">结果页</span></h2>
-          <img id="result-coin-icon" class="result-coin hidden" src="./assets/images/currency128_Coin.png" alt="金币" />
-          <div id="result-coin-gain" class="result-coin-gain hidden">+0</div>
+          <button id="result-win-close" class="result-win-close hidden" type="button" aria-label="Close">✕</button>
+          <h2 id="result-page-title" class="result-title is-lose"><span id="result-page-title-text">结果页</span></h2>
+          <div id="result-win-perfect" class="result-win-perfect hidden">PERFECT!</div>
+          <div id="result-reward-label" class="result-reward-label hidden">Rewards:</div>
+          <div class="result-reward-stack">
+            <img id="result-coin-icon" class="result-coin hidden" src="./assets/images/currency128_Coin.png" alt="金币" />
+            <div id="result-coin-gain" class="result-coin-gain hidden">0</div>
+          </div>
           <p id="result-page-text">当前暂无统计。</p>
           <div class="result-actions">
             <button id="result-retry-btn" type="button" class="hidden" aria-label="重试"></button>
@@ -156,6 +158,16 @@
       <div id="app"></div>
     </div>
 
-    <script type="module" src="./src/main.js?v=39"></script>
+    <div id="level-test" aria-label="Level test tools">
+      <button id="level-test-toggle" class="tool-btn" type="button">测试关卡</button>
+      <div id="level-test-panel" class="hidden">
+        <label for="level-test-select">选择关卡</label>
+        <select id="level-test-select"></select>
+        <button id="level-test-jump" class="tool-btn" type="button">切换到该关</button>
+      </div>
+    </div>
+
+
+    <script type="module" src="./src/main.js?v=33"></script>
   </body>
 </html>

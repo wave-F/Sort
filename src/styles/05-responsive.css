@@ -1,0 +1,51 @@
+@media (max-width: 430px) {
+  :root {
+    --font-scale: 0.96;
+    --space-scale: 0.96;
+    --title-scale: 0.95;
+    --label-scale: 0.96;
+  }
+}
+
+@media (max-width: 360px) {
+  :root {
+    --font-scale: 0.9;
+    --space-scale: 0.9;
+    --title-scale: 0.88;
+    --label-scale: 0.9;
+    --topbar-gap: 6px;
+  }
+}
+
+@media (max-width: 330px) {
+  :root {
+    --font-scale: 0.85;
+    --space-scale: 0.86;
+    --title-scale: 0.82;
+    --label-scale: 0.86;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  #level-test {
+    display: none;
+  }
+}
+
+html.platform-ios #level-test {
+  display: none;
+}
+
+html.platform-ios body {
+  padding: 0;
+  align-items: stretch;
+}
+
+html.platform-ios #phone-frame {
+  width: 100vw;
+  height: 100dvh;
+  aspect-ratio: auto;
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+}

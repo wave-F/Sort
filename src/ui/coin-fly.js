@@ -14,7 +14,7 @@ export function createCoinFly({ layerEl, frameEl, getTargetRect } = {}) {
 
   function playCoinFly(reward, options = {}) {
     const totalReward = Math.max(1, Math.floor(reward));
-    const count = Math.max(1, Math.min(20, totalReward));
+    const count = Math.max(1, Math.min(14, totalReward));
     if (playing || !layerEl || !frameEl) return;
     const targetRect = getTargetRect?.();
     if (!targetRect) return;
@@ -29,12 +29,10 @@ export function createCoinFly({ layerEl, frameEl, getTargetRect } = {}) {
     const half = size * 0.5;
     const dx = toX - fromX;
     const dy = toY - fromY;
-    const baseReward = Math.floor(totalReward / count);
-    const remainder = totalReward - baseReward * count;
-
     playing = true;
     layerEl.classList.remove("hidden");
-    layerEl.innerHTML = "";
+    layerEl.replaceChildren();
+    let finishedCount = 0;
 
     for (let i = 0; i < count; i += 1) {
       const coin = createCoinParticle(fromX, fromY, size);
@@ -52,48 +50,35 @@ export function createCoinFly({ layerEl, frameEl, getTargetRect } = {}) {
       const ey = toY - half;
       const revealDelay = Math.floor(Math.random() * 280);
 
-      const revealAnim = coin.animate(
-        [
-          { transform: `translate(${sx}px, ${sy}px) scale(0.72)`, opacity: 0 },
-          { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1 },
-        ],
-        {
-          duration: 70,
-          delay: revealDelay,
-          easing: "cubic-bezier(0.22, 0.8, 0.2, 1)",
-          fill: "forwards",
-        }
-      );
-
       const flyAnim = coin.animate(
         [
-          { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1, offset: 0 },
+          { transform: `translate(${sx}px, ${sy}px) scale(0.72)`, opacity: 0 },
+          { transform: `translate(${sx}px, ${sy}px) scale(1)`, opacity: 1, offset: 0.12 },
           { transform: `translate(${mx}px, ${my}px) scale(0.9)`, opacity: 1, offset: 0.62 },
           { transform: `translate(${ex}px, ${ey}px) scale(0.36)`, opacity: 0.15, offset: 1 },
         ],
         {
-          duration: 640,
-          delay: revealDelay + 160 + i * 55,
+          duration: 780,
+          delay: revealDelay + i * 42,
           easing: "cubic-bezier(0.2, 0.72, 0.28, 1)",
           fill: "forwards",
         }
       );
 
-      revealAnim.onfinish = () => {
-        coin.style.opacity = "1";
-      };
-
-      flyAnim.onfinish = () => {
-        const part = baseReward + (i === count - 1 ? remainder : 0);
-        options.onEachCoin?.(part);
+      const finalizeCoin = () => {
+        if (!coin.isConnected) return;
         coin.remove();
-        if (i === count - 1) {
+        finishedCount += 1;
+        if (finishedCount >= count) {
           layerEl.classList.add("hidden");
-          layerEl.innerHTML = "";
+          layerEl.replaceChildren();
           playing = false;
           options.onDone?.();
         }
       };
+
+      flyAnim.onfinish = finalizeCoin;
+      flyAnim.oncancel = finalizeCoin;
     }
   }
 

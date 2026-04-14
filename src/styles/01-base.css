@@ -1,0 +1,209 @@
+:root {
+  --bg-1: #142130;
+  --bg-2: #2a4460;
+  --panel: rgba(14, 24, 39, 0.72);
+  --text: #eaf4ff;
+  --accent: #ffdf73;
+  --button-1: #5cb2ff;
+  --button-2: #3a88d8;
+  --frame: #3d2616;
+  --phone-aspect-base: 430 / 932;
+  --phone-aspect-live: var(--phone-aspect-base);
+  --ui-scale: 1;
+  --font-scale: 1;
+  --space-scale: 1;
+  --title-scale: 1;
+  --label-scale: 1;
+  --phone-frame-width: 430px;
+  --home-level-boost: 1.3;
+  --home-level-offset-y: 0px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --home-energy-text-size: 22px;
+  --home-energy-text-x: 0px;
+  --home-energy-text-y: 0px;
+  --home-coin-text-size: 24px;
+  --home-coin-icon-x: 0px;
+  --home-coin-icon-y: 0px;
+  --home-coin-text-x: 0px;
+  --home-coin-text-y: 0px;
+  --hud-width: clamp(168px, calc(198px * var(--ui-scale)), 228px);
+  --hud-height: clamp(38px, calc(46px * var(--ui-scale)), 54px);
+  --home-level-size: clamp(76px, calc(90px * var(--ui-scale) * var(--home-level-boost)), 150px);
+  --home-level-size-current: clamp(100px, calc(118px * var(--ui-scale) * var(--home-level-boost)), 189px);
+  --home-level-gap: clamp(10px, calc(18px * var(--ui-scale) * var(--home-level-boost)), 30px);
+  --home-level-strip-min-h: clamp(230px, calc(322px * var(--ui-scale) * var(--home-level-boost)), 380px);
+  --home-play-font: clamp(30px, calc(42px * var(--ui-scale)), 44px);
+  --home-play-pad-y: clamp(12px, calc(16px * var(--ui-scale)), 18px);
+  --home-play-pad-x: clamp(42px, calc(58px * var(--ui-scale)), 64px);
+  --home-play-margin-top: clamp(12px, calc(24px * var(--ui-scale)), 28px);
+  --hud-level-offset-x: 0px;
+  --sp-1: calc(4px * var(--space-scale));
+  --sp-2: calc(8px * var(--space-scale));
+  --sp-3: calc(12px * var(--space-scale));
+  --sp-4: calc(16px * var(--space-scale));
+  --sp-5: calc(20px * var(--space-scale));
+  --sp-6: calc(24px * var(--space-scale));
+  --fs-xs: clamp(11px, calc(12px * var(--font-scale)), 13px);
+  --fs-sm: clamp(12px, calc(14px * var(--font-scale)), 16px);
+  --fs-md: clamp(14px, calc(16px * var(--font-scale)), 18px);
+  --fs-lg: clamp(18px, calc(22px * var(--font-scale)), 24px);
+  --fs-xl: clamp(24px, calc(32px * var(--title-scale)), 40px);
+  --topbar-gap: clamp(8px, calc(10px * var(--space-scale)), 12px);
+  --topbar-pad-x: clamp(12px, calc(16px * var(--space-scale)), 18px);
+  --topbar-pad-top: clamp(14px, calc(16px * var(--space-scale)), 18px);
+  --topbar-pad-bottom: clamp(6px, calc(8px * var(--space-scale)), 10px);
+  --status-height: clamp(42px, calc(46px * var(--ui-scale) * var(--space-scale)), 52px);
+  --status-text-size: clamp(18px, calc(24px * var(--label-scale)), 26px);
+  --control-size: clamp(36px, calc(40px * var(--space-scale)), 44px);
+  --dbg-win-x: 0px;
+  --dbg-win-y: 0px;
+  --dbg-win-scale: 1;
+  --dbg-win-width: 0px;
+  --dbg-win-height: 0px;
+  --dbg-title-y: 0px;
+  --dbg-title-scale: 1;
+  --dbg-perfect-y: 0px;
+  --dbg-perfect-scale: 1;
+  --dbg-reward-y: 0px;
+  --dbg-reward-scale: 1;
+  --dbg-actions-y: 0px;
+  --dbg-continue-scale: 1;
+  --dbg-coin-num-x: 0px;
+  --dbg-coin-num-y: 0px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--text);
+}
+
+body {
+  min-height: 100dvh;
+  background: radial-gradient(circle at 22% 10%, #4b6f94 0%, var(--bg-2) 35%, var(--bg-1) 82%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding:
+    max(12px, var(--safe-top))
+    max(12px, var(--safe-right))
+    max(12px, var(--safe-bottom))
+    max(12px, var(--safe-left));
+}
+
+#phone-frame {
+  position: relative;
+  width: min(
+    470px,
+    calc(100vw - max(12px, var(--safe-left)) - max(12px, var(--safe-right))),
+    calc((100dvh - max(12px, var(--safe-top)) - max(12px, var(--safe-bottom))) * var(--phone-aspect-live))
+  );
+  aspect-ratio: var(--phone-aspect-live);
+  height: auto;
+  overflow: hidden;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.48);
+  background: linear-gradient(180deg, #395a7b 0%, #2a4460 48%, #1a2a3d 100%);
+  border: 6px solid var(--frame);
+}
+
+#app,
+#app canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#gameplay-topbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 17;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: var(--topbar-gap);
+  padding:
+    calc(var(--topbar-pad-top) + var(--safe-top))
+    calc(var(--topbar-pad-x) + var(--safe-right))
+    var(--topbar-pad-bottom)
+    calc(var(--topbar-pad-x) + var(--safe-left));
+  pointer-events: none;
+}
+
+#gameplay-topbar.is-floating-over-result {
+  z-index: 30;
+}
+
+#gameplay-topbar.is-floating-over-continue {
+  z-index: 33;
+}
+
+#gameplay-coin-status {
+  min-height: var(--status-height);
+  width: 100%;
+}
+
+.gameplay-topbar-spacer {
+  min-height: 1px;
+}
+
+.gameplay-topbar-right {
+  width: var(--control-size);
+}
+
+#gameplay-coin-status.is-hidden-in-gameplay {
+  opacity: 0;
+}
+
+#coin-fly-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 27;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.coin-fly-item {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+#hud {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  left: calc(12px + var(--safe-left));
+  z-index: 17;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0;
+}
+
+.gameplay-hud-item {
+  min-width: clamp(118px, calc(138px * var(--ui-scale)), 156px);
+  min-height: var(--hud-height);
+  padding: 0 12px;
+}
