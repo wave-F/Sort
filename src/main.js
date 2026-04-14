@@ -1736,6 +1736,73 @@ function createHexOutlineGeometry(radius) {
   return new THREE.BufferGeometry().setFromPoints(points);
 }
 
+function createHexVertexOffsets(radius) {
+  const offsets = [];
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (Math.PI / 3) * i;
+    offsets.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  }
+  return offsets;
+}
+
+function isPointInPolygon(x, y, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const xi = points[i].x;
+    const yi = points[i].y;
+    const xj = points[j].x;
+    const yj = points[j].y;
+    const intersects = (yi > y) !== (yj > y)
+      && x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceSqPointToSegment(px, py, ax, ay, bx, by) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq <= 1e-12) {
+    const dx = px - ax;
+    const dy = py - ay;
+    return dx * dx + dy * dy;
+  }
+
+  const t = THREE.MathUtils.clamp((apx * abx + apy * aby) / lenSq, 0, 1);
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  const dx = px - cx;
+  const dy = py - cy;
+  return dx * dx + dy * dy;
+}
+
+function circleIntersectsHex(circleX, circleY, radius, hexCenterX, hexCenterY, hexOffsets) {
+  const localX = circleX - hexCenterX;
+  const localY = circleY - hexCenterY;
+  const radiusSq = radius * radius;
+
+  if (isPointInPolygon(localX, localY, hexOffsets)) return true;
+
+  for (let i = 0; i < hexOffsets.length; i += 1) {
+    const vx = hexOffsets[i].x;
+    const vy = hexOffsets[i].y;
+    const dx = localX - vx;
+    const dy = localY - vy;
+    if (dx * dx + dy * dy <= radiusSq) return true;
+  }
+
+  for (let i = 0; i < hexOffsets.length; i += 1) {
+    const a = hexOffsets[i];
+    const b = hexOffsets[(i + 1) % hexOffsets.length];
+    if (distanceSqPointToSegment(localX, localY, a.x, a.y, b.x, b.y) <= radiusSq) return true;
+  }
+
+  return false;
+}
+
 function rebuildDebugHexOverlay() {
   if (debugHexOverlayGroup) {
     scene.remove(debugHexOverlayGroup);
@@ -1798,11 +1865,7 @@ function rebuildDebugHexOverlay() {
   const minY = viewportBottom - r;
   const maxY = viewportTop + r;
 
-  const vertexOffsets = [];
-  for (let i = 0; i < 6; i += 1) {
-    const angle = (Math.PI / 3) * i;
-    vertexOffsets.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
-  }
+  const vertexOffsets = createHexVertexOffsets(r);
 
   function isHexFullyInsideBounds(centerX, centerY) {
     for (let i = 0; i < vertexOffsets.length; i += 1) {
@@ -1870,6 +1933,8 @@ function updateDebugHexOverlayColors() {
   syncHexOverlayToggleUI();
   if (!debugHexOverlayGroup || !debugHexOverlayGroup.visible) return;
 
+  const hexOffsets = createHexVertexOffsets(debugHexRadius);
+
   for (let i = 0; i < debugHexOverlayCenters.length; i += 1) {
     const center = debugHexOverlayCenters[i];
     let bestSurfaceZ = Number.NEGATIVE_INFINITY;
@@ -1880,11 +1945,20 @@ function updateDebugHexOverlayColors() {
       const fruit = fruits[j];
       if (!fruit?.active || fruit.sliced || !fruit.bubble.visible) continue;
 
+      const hit = circleIntersectsHex(
+        fruit.group.position.x,
+        fruit.group.position.y,
+        fruit.radius,
+        center.x,
+        center.y,
+        hexOffsets
+      );
+      if (!hit) continue;
+
       const dx = center.x - fruit.group.position.x;
       const dy = center.y - fruit.group.position.y;
       const distSq = dx * dx + dy * dy;
       const hitRadiusSq = fruit.radius * fruit.radius;
-      if (distSq > hitRadiusSq) continue;
 
       const centerZ = fruit.group.position.z + (fruit.bubble?.position.z ?? 0);
       const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
