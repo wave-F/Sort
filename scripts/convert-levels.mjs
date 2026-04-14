@@ -6,7 +6,7 @@ import xlsx from "xlsx";
 const INPUT_RELATIVE = path.join("src", "excel", "Levels.xlsx");
 const OUTPUT_RELATIVE = path.join("src", "config", "levels.json");
 const REQUIRED_COLUMNS = ["id", "name", "difficulty", "colorkindcount", "fruitcountrange", "radiusrange", "speedrange", "seed", "step"];
-const OPTIONAL_COLUMNS = ["homebubblecolorid", "intheorystep", "lockedbubbles"];
+const OPTIONAL_COLUMNS = ["homebubblecolorid", "intheorystep", "lockedbubbles", "doublelayerbubbles", "nestedbubbles"];
 const AVAILABLE_COLOR_IDS = [0, 1, 2, 3, 4, 5, 6, 7];
 const BOUNDS = {
   left: -2.6325,
@@ -14,6 +14,7 @@ const BOUNDS = {
   top: 4.82,
   bottom: -4.82,
 };
+const DEFAULT_DOUBLE_LAYER_INNER_SCALE = 0.6;
 
 function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -105,6 +106,14 @@ function findHeaderRow(rows) {
     const header = row.map(normalize);
     return REQUIRED_COLUMNS.every((key) => header.includes(key));
   });
+}
+
+function findOptionalColumn(header, keys) {
+  for (const key of keys) {
+    const index = header.indexOf(key);
+    if (index >= 0) return index;
+  }
+  return -1;
 }
 
 function createSeededRandom(seed) {
@@ -329,10 +338,50 @@ function buildLockTargetByIndex(fruitCount, lockedBubbles) {
   return targets;
 }
 
+function buildDoubleLayerMask(fruitCount, doubleLayerBubbles) {
+  if (!Array.isArray(doubleLayerBubbles) || doubleLayerBubbles.length === 0) return 0n;
+  let mask = 0n;
+  for (const item of doubleLayerBubbles) {
+    const index = Math.floor(Number(item?.index));
+    if (!Number.isInteger(index) || index < 0 || index >= fruitCount) continue;
+    mask |= 1n << BigInt(index);
+  }
+  return mask;
+}
+
+function buildDoubleLayerInnerScaleByIndex(fruitCount, doubleLayerBubbles) {
+  const scales = new Array(fruitCount).fill(1);
+  if (!Array.isArray(doubleLayerBubbles)) return scales;
+
+  for (const item of doubleLayerBubbles) {
+    const index = Math.floor(Number(item?.index));
+    if (!Number.isInteger(index) || index < 0 || index >= fruitCount) continue;
+    const rawScale = Number(item?.innerScale);
+    const scale = Number.isFinite(rawScale) && rawScale > 0 && rawScale < 1
+      ? rawScale
+      : DEFAULT_DOUBLE_LAYER_INNER_SCALE;
+    scales[index] = scale;
+  }
+
+  return scales;
+}
+
+function getEffectiveRadiusForState({ fruit, index, layerMask, doubleLayerMask, innerScaleByIndex }) {
+  const bit = 1n << BigInt(index);
+  const isDoubleLayer = (doubleLayerMask & bit) !== 0n;
+  if (!isDoubleLayer) return fruit.radius;
+  const outerLayerIntact = (layerMask & bit) !== 0n;
+  if (outerLayerIntact) return fruit.radius;
+  return fruit.radius * innerScaleByIndex[index];
+}
+
 function collectColorComponentsForState({
   fruits,
   colorId,
   aliveMask,
+  layerMask,
+  doubleLayerMask,
+  innerScaleByIndex,
   removedCount,
   lockTargetByIndex,
   cellSize,
@@ -348,10 +397,19 @@ function collectColorComponentsForState({
     const selectable = unlockTarget <= 0 || removedCount >= unlockTarget;
     if (!selectable) continue;
 
+    const effectiveRadius = getEffectiveRadiusForState({
+      fruit: fruits[i],
+      index: i,
+      layerMask,
+      doubleLayerMask,
+      innerScaleByIndex,
+    });
+    const fruitWithRadius = { ...fruits[i], radius: effectiveRadius };
+
     if (fruits[i].colorId === colorId) {
-      targets.push({ ...fruits[i], index: i });
+      targets.push({ ...fruitWithRadius, index: i });
     } else {
-      blockers.push(fruits[i]);
+      blockers.push(fruitWithRadius);
     }
   }
 
@@ -427,6 +485,8 @@ function collectColorComponentsForState({
 
 function estimateMinStepsBaseline(fruits) {
   const allAliveMask = (1n << BigInt(fruits.length)) - 1n;
+  const noDoubleLayerMask = 0n;
+  const noDoubleLayerScales = new Array(fruits.length).fill(1);
   const lockTargetByIndex = new Array(fruits.length).fill(0);
   const colorIds = [...new Set(fruits.map((f) => f.colorId))];
   let total = 0;
@@ -436,6 +496,9 @@ function estimateMinStepsBaseline(fruits) {
       fruits,
       colorId,
       aliveMask: allAliveMask,
+      layerMask: noDoubleLayerMask,
+      doubleLayerMask: noDoubleLayerMask,
+      innerScaleByIndex: noDoubleLayerScales,
       removedCount: 0,
       lockTargetByIndex,
       cellSize: 0.1,
@@ -446,10 +509,12 @@ function estimateMinStepsBaseline(fruits) {
   return Math.max(total, colorIds.length);
 }
 
-function estimateMinSteps(fruits, lockedBubbles = []) {
+function estimateMinSteps(fruits, lockedBubbles = [], doubleLayerBubbles = []) {
   const fruitCount = fruits.length;
   if (!fruitCount) return 0;
-  if (!Array.isArray(lockedBubbles) || lockedBubbles.length === 0) {
+  const hasLocks = Array.isArray(lockedBubbles) && lockedBubbles.length > 0;
+  const hasDoubleLayers = Array.isArray(doubleLayerBubbles) && doubleLayerBubbles.length > 0;
+  if (!hasLocks && !hasDoubleLayers) {
     return estimateMinStepsBaseline(fruits);
   }
   if (fruitCount > 20) {
@@ -458,7 +523,12 @@ function estimateMinSteps(fruits, lockedBubbles = []) {
 
   const colorIds = [...new Set(fruits.map((f) => f.colorId))];
   const lockTargetByIndex = buildLockTargetByIndex(fruitCount, lockedBubbles);
-  if (!lockTargetByIndex.some((v) => v > 0)) {
+  const initialLayerMask = buildDoubleLayerMask(fruitCount, doubleLayerBubbles);
+  const innerScaleByIndex = buildDoubleLayerInnerScaleByIndex(fruitCount, doubleLayerBubbles);
+  const doubleLayerMask = initialLayerMask;
+  const hasEffectiveLocks = lockTargetByIndex.some((v) => v > 0);
+  const hasEffectiveDoubleLayers = initialLayerMask !== 0n;
+  if (!hasEffectiveLocks && !hasEffectiveDoubleLayers) {
     return estimateMinStepsBaseline(fruits);
   }
   const allAliveMask = (1n << BigInt(fruitCount)) - 1n;
@@ -466,9 +536,10 @@ function estimateMinSteps(fruits, lockedBubbles = []) {
   let exploredStates = 0;
   const maxSearchStates = 120000;
 
-  function solve(aliveMask) {
+  function solve(aliveMask, layerMask) {
     if (aliveMask === 0n) return 0;
-    const key = aliveMask.toString();
+    const normalizedLayerMask = layerMask & aliveMask;
+    const key = `${aliveMask.toString()}|${normalizedLayerMask.toString()}`;
     const cached = memo.get(key);
     if (cached !== undefined) return cached;
 
@@ -485,6 +556,9 @@ function estimateMinSteps(fruits, lockedBubbles = []) {
         fruits,
         colorId,
         aliveMask,
+        layerMask: normalizedLayerMask,
+        doubleLayerMask,
+        innerScaleByIndex,
         removedCount,
         lockTargetByIndex,
         cellSize: 0.1,
@@ -504,12 +578,24 @@ function estimateMinSteps(fruits, lockedBubbles = []) {
 
     let best = Infinity;
     for (const component of moves) {
-      let nextMask = aliveMask;
+      let nextAliveMask = aliveMask;
+      let nextLayerMask = normalizedLayerMask;
+      let stateChanged = false;
       for (const index of component) {
-        nextMask &= ~(1n << BigInt(index));
+        const bit = 1n << BigInt(index);
+        if ((nextAliveMask & bit) === 0n) continue;
+        if ((nextLayerMask & bit) !== 0n) {
+          nextLayerMask &= ~bit;
+          stateChanged = true;
+        } else {
+          nextAliveMask &= ~bit;
+          stateChanged = true;
+        }
       }
 
-      const next = solve(nextMask);
+      if (!stateChanged) continue;
+
+      const next = solve(nextAliveMask, nextLayerMask);
       if (Number.isFinite(next)) {
         best = Math.min(best, 1 + next);
       }
@@ -520,7 +606,7 @@ function estimateMinSteps(fruits, lockedBubbles = []) {
   }
 
   try {
-    const solved = solve(allAliveMask);
+    const solved = solve(allAliveMask, initialLayerMask);
     if (!Number.isFinite(solved)) return estimateMinStepsBaseline(fruits);
     return solved;
   } catch (error) {
@@ -610,6 +696,45 @@ function parseLockedBubbles(raw, rowNum) {
   return [...byIndex.values()].sort((a, b) => a.index - b.index);
 }
 
+function parseDoubleLayerBubbles(raw, rowNum) {
+  if (raw == null) return [];
+  const text = String(raw).trim();
+  if (!text) return [];
+
+  if (text.startsWith("[")) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_err) {
+      throw new Error(`Invalid doubleLayerBubbles JSON at row ${rowNum}`);
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new Error(`Invalid doubleLayerBubbles JSON at row ${rowNum}, expected array`);
+    }
+
+    const byIndex = new Map();
+    for (const item of parsed) {
+      const index = Math.floor(Number(item?.index ?? item));
+      if (!Number.isInteger(index) || index < 0) continue;
+      byIndex.set(index, { index });
+    }
+    return [...byIndex.values()].sort((a, b) => a.index - b.index);
+  }
+
+  const byIndex = new Map();
+  const parts = text.split(/[;,|]/).map((part) => part.trim()).filter(Boolean);
+  for (const part of parts) {
+    const index = Math.floor(Number(part));
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error(`Invalid doubleLayerBubbles token at row ${rowNum}: ${part}`);
+    }
+    byIndex.set(index, { index });
+  }
+
+  return [...byIndex.values()].sort((a, b) => a.index - b.index);
+}
+
 export function convertLevels(projectRoot = process.cwd()) {
   const inputPath = path.join(projectRoot, INPUT_RELATIVE);
   const outputPath = path.join(projectRoot, OUTPUT_RELATIVE);
@@ -639,6 +764,8 @@ export function convertLevels(projectRoot = process.cwd()) {
   const header = rows[headerRowIndex].map(normalize);
   const requiredCol = Object.fromEntries(REQUIRED_COLUMNS.map((key) => [key, header.indexOf(key)]));
   const optionalCol = Object.fromEntries(OPTIONAL_COLUMNS.map((key) => [key, header.indexOf(key)]));
+  optionalCol.doublelayerbubbles = findOptionalColumn(header, ["doublelayerbubbles", "nestedbubbles"]);
+  optionalCol.nestedbubbles = optionalCol.doublelayerbubbles;
   const col = { ...requiredCol, ...optionalCol };
 
   const levels = [];
@@ -663,6 +790,10 @@ export function convertLevels(projectRoot = process.cwd()) {
     );
     const lockedBubbles = parseLockedBubbles(
       col.lockedbubbles >= 0 ? row[col.lockedbubbles] : null,
+      excelRowNum
+    );
+    const doubleLayerBubbles = parseDoubleLayerBubbles(
+      col.doublelayerbubbles >= 0 ? row[col.doublelayerbubbles] : null,
       excelRowNum
     );
 
@@ -696,7 +827,7 @@ export function convertLevels(projectRoot = process.cwd()) {
       speedMin: speedRange[0],
       speedMax: speedRange[1],
     });
-    const minSteps = estimateMinSteps(previewFruits, lockedBubbles);
+    const minSteps = estimateMinSteps(previewFruits, lockedBubbles, doubleLayerBubbles);
     const stepLimit = stepLimitFromSheet;
 
     levels.push({
@@ -713,6 +844,7 @@ export function convertLevels(projectRoot = process.cwd()) {
       minSteps,
       stepLimit,
       lockedBubbles,
+      doubleLayerBubbles,
     });
   }
 

@@ -127,6 +127,10 @@ export function createBubbleEntityClass({
       this.unlockTarget = 0;
       this.unlockProgress = 0;
       this.unlockFlash = 0;
+      this.layerCount = 1;
+      this.layerRemaining = 1;
+      this.layerBreakFlash = 0;
+      this.doubleLayerInnerScale = 0.6;
 
       this.vel = new THREE.Vector3(vx, vy, 0);
       this.springVal = 0;
@@ -154,6 +158,7 @@ export function createBubbleEntityClass({
       this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
       this.bubble.scale.setScalar(this.baseScale);
       this.bubble.userData.fruit = this;
+      this.outerShell = this.createOuterShell();
       this.selectRing = this.createSelectRing();
       this.lockCore = this.createLockCore();
       this.lockCounter = this.createLockCounter();
@@ -171,7 +176,7 @@ export function createBubbleEntityClass({
       this.maxBurstBubbleCount = 5;
       this.activeBurstBubbleCount = 0;
 
-      this.group.add(this.bubble, this.selectRing, this.lockCore, this.lockCounter.sprite);
+      this.group.add(this.bubble, this.outerShell, this.selectRing, this.lockCore, this.lockCounter.sprite);
       this.resetBurstArtifacts();
       this.setBaseColor(this.baseColor);
     }
@@ -182,6 +187,33 @@ export function createBubbleEntityClass({
       const accent = color.clone().offsetHSL(0, 0.1, 0.2);
       if (this.tintUniform?.value) this.tintUniform.value.copy(color);
       if (this.accentUniform?.value) this.accentUniform.value.copy(accent);
+      if (this.outerShell?.material?.color) this.outerShell.material.color.copy(color);
+    }
+
+    setLayerCount(count) {
+      const safeCount = Math.max(1, Math.floor(Number(count) || 1));
+      this.layerCount = safeCount;
+      this.layerRemaining = safeCount;
+      this.layerBreakFlash = 0;
+      if (!this.outerShell) return;
+      this.outerShell.visible = this.active && !this.sliced && this.layerRemaining > 1;
+      this.outerShell.material.opacity = 0.28;
+      this.outerShell.scale.setScalar(this.baseScale);
+      this.outerShell.rotation.set(0, 0, 0);
+      this.bubble.scale.setScalar(this.baseScale * this.selectionScale * this.getInnerBubbleVisualScaleFactor());
+    }
+
+    consumeOuterLayer(speed) {
+      if (!this.active || this.sliced || this.layerRemaining <= 1) return false;
+      this.layerRemaining = Math.max(1, this.layerRemaining - 1);
+      this.layerBreakFlash = 0.18;
+      this.springVel -= THREE.MathUtils.clamp(speed * 0.03, 0.04, 0.12);
+      this.crackGlowUniform.value = Math.max(this.crackGlowUniform.value, 0.06);
+      return true;
+    }
+
+    getInnerBubbleVisualScaleFactor() {
+      return this.layerCount > 1 ? this.doubleLayerInnerScale : 1;
     }
 
     createSelectRing() {
@@ -200,6 +232,29 @@ export function createBubbleEntityClass({
       ring.scale.setScalar(this.radius);
       ring.position.z = this.radius * 0.04;
       return ring;
+    }
+
+    createOuterShell() {
+      const shell = new THREE.Mesh(
+        new THREE.SphereGeometry(1.14, 28, 28),
+        new THREE.MeshPhysicalMaterial({
+          color: this.baseColor,
+          transparent: true,
+          opacity: 0.28,
+          transmission: 0.98,
+          roughness: 0.05,
+          thickness: 0.32,
+          clearcoat: 1,
+          clearcoatRoughness: 0.08,
+          ior: 1.08,
+          envMapIntensity: 0.82,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        })
+      );
+      shell.visible = false;
+      shell.scale.setScalar(this.baseScale);
+      return shell;
     }
 
     createLockCore() {
@@ -360,6 +415,10 @@ export function createBubbleEntityClass({
 
     pop(sliceDir, speed) {
       if (this.sliced || this.locked) return;
+      if (this.layerRemaining > 1) {
+        this.consumeOuterLayer(speed);
+        return;
+      }
       this.setSelected(false);
       this.sliced = true;
       this.life = 0;
@@ -368,7 +427,7 @@ export function createBubbleEntityClass({
       this.springVel -= THREE.MathUtils.clamp(speed * 0.05, 0.08, 0.2);
       this.crackGlowUniform.value = 0.12;
       this.bubble.visible = true;
-      this.bubble.scale.setScalar(this.baseScale);
+      this.bubble.scale.setScalar(this.baseScale * this.getInnerBubbleVisualScaleFactor());
       this.bubbleMaterial.opacity = this.baseOpacity;
       this.resetBurstArtifacts();
       this.setBurstState(BubbleBurstState.PRE_BURST);
@@ -385,6 +444,7 @@ export function createBubbleEntityClass({
       this.contactStrength = Math.max(0, this.contactStrength - dt * 3.2);
       this.contactStrengthUniform.value = this.contactStrength;
       this.contactDirUniform.value.copy(this.contactDir);
+      if (this.layerBreakFlash > 0) this.layerBreakFlash = Math.max(0, this.layerBreakFlash - dt);
 
       if (!this.sliced) {
         this.group.position.addScaledVector(this.vel, dt);
@@ -427,7 +487,8 @@ export function createBubbleEntityClass({
 
         this.vel.multiplyScalar(0.985);
         this.updateSelectionScale(dt);
-        this.bubble.scale.setScalar(this.baseScale * this.selectionScale);
+        this.bubble.scale.setScalar(this.baseScale * this.selectionScale * this.getInnerBubbleVisualScaleFactor());
+        this.updateOuterShellVisual();
 
         if (this.wrongFlash > 0) {
           this.wrongFlash = Math.max(0, this.wrongFlash - dt);
@@ -454,12 +515,14 @@ export function createBubbleEntityClass({
 
       this.stateElapsed += dt;
       this.updateLockVisual(dt);
+      if (this.outerShell) this.outerShell.visible = false;
 
       if (this.burstState === BubbleBurstState.PRE_BURST) {
         const t = Math.min(this.stateElapsed / this.preBurstDuration, 1);
         const smooth = t * t * (3 - 2 * t);
+        const innerFactor = this.getInnerBubbleVisualScaleFactor();
         this.bubble.visible = true;
-        this.bubble.scale.setScalar(this.baseScale * (1 + (this.preBurstScaleMax - 1) * smooth));
+        this.bubble.scale.setScalar(this.baseScale * innerFactor * (1 + (this.preBurstScaleMax - 1) * smooth));
         this.crackGlowUniform.value = 0.12 * smooth;
         this.bubbleMaterial.opacity = this.baseOpacity;
 
@@ -472,9 +535,10 @@ export function createBubbleEntityClass({
 
       if (this.burstState === BubbleBurstState.BURST) {
         const t = Math.min(this.stateElapsed / this.burstDuration, 1);
+        const innerFactor = this.getInnerBubbleVisualScaleFactor();
         this.crackGlowUniform.value = (1 - t) * 0.12;
         this.bubbleMaterial.opacity = Math.max(0, this.baseOpacity * (1 - t * 1.85));
-        this.bubble.scale.setScalar(this.baseScale * (this.preBurstScaleMax + t * 0.03));
+        this.bubble.scale.setScalar(this.baseScale * innerFactor * (this.preBurstScaleMax + t * 0.03));
 
         if (t > 0.5) this.bubble.visible = false;
 
@@ -567,6 +631,42 @@ export function createBubbleEntityClass({
       this.unlockFlash = 0.34;
       this.updateLockCounterTexture(0);
       return true;
+    }
+
+    updateOuterShellVisual() {
+      const shell = this.outerShell;
+      if (!shell) return;
+
+      if (this.layerRemaining > 1) {
+        if (this.layerBreakFlash > 0) {
+          const t = this.layerBreakFlash / 0.18;
+          shell.visible = true;
+          shell.material.opacity = 0.28 * t;
+          shell.scale.setScalar(this.baseScale * (1 + (1 - t) * 0.18));
+          shell.rotation.z = (1 - t) * 0.42;
+          shell.rotation.y = (1 - t) * 0.22;
+        } else {
+          shell.visible = true;
+          shell.material.opacity = 0.28;
+          shell.scale.setScalar(this.baseScale);
+          shell.rotation.set(0, 0, 0);
+        }
+        return;
+      }
+
+      if (this.layerBreakFlash > 0) {
+        const t = this.layerBreakFlash / 0.18;
+        shell.visible = true;
+        shell.material.opacity = 0.28 * t;
+        shell.scale.setScalar(this.baseScale * (1 + (1 - t) * 0.18));
+        shell.rotation.z = (1 - t) * 0.42;
+        shell.rotation.y = (1 - t) * 0.22;
+      } else {
+        shell.visible = false;
+        shell.material.opacity = 0.28;
+        shell.scale.setScalar(this.baseScale);
+        shell.rotation.set(0, 0, 0);
+      }
     }
 
     updateLockVisual(dt) {

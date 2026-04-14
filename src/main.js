@@ -37,6 +37,9 @@ const levelGuideTipEl = document.getElementById("level-guide-tip");
 const lockGuideEl = document.getElementById("lock-guide");
 const lockGuideSpotlightEl = document.getElementById("lock-guide-spotlight");
 const lockGuideTipEl = document.getElementById("lock-guide-tip");
+const doubleLayerGuideEl = document.getElementById("double-layer-guide");
+const doubleLayerGuideSpotlightEl = document.getElementById("double-layer-guide-spotlight");
+const doubleLayerGuideTipEl = document.getElementById("double-layer-guide-tip");
 const homeScreenEl = document.getElementById("home-screen");
 const homeLevelPrevBtn = document.getElementById("home-level-prev");
 const homeLevelCurrentBtn = document.getElementById("home-level-current");
@@ -143,6 +146,7 @@ const uiLayoutDebugStorageKey = "fruit_ui_layout_debug_v1";
 const hudDebugStorageKey = "fruit_hud_debug_v1";
 const level1TutorialSeenStorageKey = "fruit_level1_tutorial_seen_v1";
 const lockTutorialSeenStorageKey = "fruit_lock_tutorial_seen_v1";
+const doubleLayerTutorialSeenStorageKey = "fruit_double_layer_tutorial_seen_v1";
 const staminaMax = 5;
 const staminaRecoverIntervalMs = 25 * 60 * 1000;
 const outOfMovesBannerDurationMs = 1800;
@@ -249,6 +253,7 @@ const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 let level1TutorialSeen = readLevel1TutorialSeen();
 let lockTutorialSeen = readLockTutorialSeen();
+let doubleLayerTutorialSeen = readDoubleLayerTutorialSeen();
 const gameSettings = readGameSettings({ storageKey: gameSettingsStorageKey, defaultSettings: defaultGameSettings });
 const uiLayoutDebugTuning = readUiLayoutDebugTuning();
 const hudDebugTuning = readHudDebugTuning();
@@ -348,6 +353,8 @@ const guideProjectA = new THREE.Vector3();
 const guideProjectB = new THREE.Vector3();
 const lockGuideProject = new THREE.Vector3();
 const lockGuideProjectEdge = new THREE.Vector3();
+const doubleLayerGuideProject = new THREE.Vector3();
+const doubleLayerGuideProjectEdge = new THREE.Vector3();
 
 const levelGuideState = {
   active: false,
@@ -365,6 +372,13 @@ const lockGuideState = {
   active: false,
   targetFruit: null,
 };
+
+const doubleLayerGuideState = {
+  active: false,
+  targetFruit: null,
+};
+
+const DEFAULT_DOUBLE_LAYER_INNER_SCALE = 0.6;
 
 scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
 const key = new THREE.DirectionalLight(0xffffff, bubbleTuning.lightKey);
@@ -582,6 +596,7 @@ const sessionFlow = createSessionFlowController({
   onAfterLevelLoaded: (index) => {
     maybeShowLevel1Guide(index);
     maybeShowLockGuide();
+    maybeShowDoubleLayerGuide();
     if (state.showHexOverlay) {
       if (!debugHexOverlayCenters.length) rebuildDebugHexOverlay();
       updateDebugHexOverlayColors();
@@ -903,6 +918,24 @@ function persistLockTutorialSeen() {
   } catch (_err) {}
 }
 
+function readDoubleLayerTutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+
+  try {
+    return window.localStorage.getItem(doubleLayerTutorialSeenStorageKey) === "1";
+  } catch (_err) {
+    return false;
+  }
+}
+
+function persistDoubleLayerTutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+
+  try {
+    window.localStorage.setItem(doubleLayerTutorialSeenStorageKey, "1");
+  } catch (_err) {}
+}
+
 function isGuideFruitValid(fruit) {
   return Boolean(fruit && fruit.active && !fruit.sliced && fruit.group?.visible !== false);
 }
@@ -969,14 +1002,40 @@ function isLockGuideFruitValid(fruit) {
 function stopLockGuide() {
   lockGuideState.active = false;
   lockGuideState.targetFruit = null;
-  state.lockTutorialActive = false;
+  if (!doubleLayerGuideState.active) state.lockTutorialActive = false;
   lockGuideEl?.classList.add("hidden");
+}
+
+function isDoubleLayerGuideFruitValid(fruit) {
+  return Boolean(
+    fruit
+      && fruit.active
+      && !fruit.sliced
+      && fruit.group?.visible !== false
+      && Math.max(1, Math.floor(Number(fruit.layerCount) || 1)) > 1
+      && Math.max(1, Math.floor(Number(fruit.layerRemaining ?? fruit.layerCount) || 1)) > 1
+  );
+}
+
+function stopDoubleLayerGuide() {
+  doubleLayerGuideState.active = false;
+  doubleLayerGuideState.targetFruit = null;
+  if (!lockGuideState.active) state.lockTutorialActive = false;
+  doubleLayerGuideEl?.classList.add("hidden");
 }
 
 function findFirstLockedFruit() {
   for (let i = 0; i < fruits.length; i += 1) {
     const fruit = fruits[i];
     if (isLockGuideFruitValid(fruit)) return fruit;
+  }
+  return null;
+}
+
+function findFirstDoubleLayerFruit() {
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (isDoubleLayerGuideFruitValid(fruit)) return fruit;
   }
   return null;
 }
@@ -1015,6 +1074,40 @@ function updateLockGuideOverlay() {
   }
 }
 
+function updateDoubleLayerGuideOverlay() {
+  if (!doubleLayerGuideState.active || !doubleLayerGuideState.targetFruit) return;
+  const fruit = doubleLayerGuideState.targetFruit;
+  if (!isDoubleLayerGuideFruitValid(fruit) || !state.started || state.inHome || state.gameOver) {
+    stopDoubleLayerGuide();
+    return;
+  }
+
+  const point = worldToGuidePoint(fruit.group.position, doubleLayerGuideProject);
+  if (!point) return;
+
+  doubleLayerGuideProjectEdge.copy(fruit.group.position);
+  doubleLayerGuideProjectEdge.x += fruit.radius;
+  const edgePoint = worldToGuidePoint(doubleLayerGuideProjectEdge, guideProjectB);
+  const projectedRadius = edgePoint ? Math.hypot(edgePoint.x - point.x, edgePoint.y - point.y) : fruit.radius * 32;
+
+  const diameter = Math.max(84, projectedRadius * 2.22);
+  if (doubleLayerGuideEl) {
+    doubleLayerGuideEl.style.setProperty("--double-layer-guide-x", `${point.x.toFixed(2)}px`);
+    doubleLayerGuideEl.style.setProperty("--double-layer-guide-y", `${point.y.toFixed(2)}px`);
+    doubleLayerGuideEl.style.setProperty("--double-layer-guide-r", `${(diameter * 0.5).toFixed(2)}px`);
+  }
+  if (doubleLayerGuideSpotlightEl) {
+    doubleLayerGuideSpotlightEl.style.left = `${point.x.toFixed(2)}px`;
+    doubleLayerGuideSpotlightEl.style.top = `${point.y.toFixed(2)}px`;
+    doubleLayerGuideSpotlightEl.style.width = `${diameter.toFixed(1)}px`;
+    doubleLayerGuideSpotlightEl.style.height = `${diameter.toFixed(1)}px`;
+  }
+  if (doubleLayerGuideTipEl) {
+    doubleLayerGuideTipEl.style.left = `${point.x.toFixed(2)}px`;
+    doubleLayerGuideTipEl.style.top = `${(point.y - diameter * 0.56).toFixed(2)}px`;
+  }
+}
+
 function showLockGuide(targetFruit) {
   if (!targetFruit || !lockGuideEl) return;
   lockGuideState.active = true;
@@ -1025,6 +1118,10 @@ function showLockGuide(targetFruit) {
 }
 
 function maybeShowLockGuide() {
+  if (doubleLayerGuideState.active) {
+    stopLockGuide();
+    return;
+  }
   if (lockTutorialSeen) {
     stopLockGuide();
     return;
@@ -1043,6 +1140,40 @@ function maybeShowLockGuide() {
   }
 
   showLockGuide(target);
+}
+
+function showDoubleLayerGuide(targetFruit) {
+  if (!targetFruit || !doubleLayerGuideEl) return;
+  doubleLayerGuideState.active = true;
+  doubleLayerGuideState.targetFruit = targetFruit;
+  state.lockTutorialActive = true;
+  doubleLayerGuideEl.classList.remove("hidden");
+  updateDoubleLayerGuideOverlay();
+}
+
+function maybeShowDoubleLayerGuide() {
+  if (lockGuideState.active) {
+    stopDoubleLayerGuide();
+    return;
+  }
+  if (doubleLayerTutorialSeen) {
+    stopDoubleLayerGuide();
+    return;
+  }
+
+  const hasDoubleLayerConfig = Array.isArray(state.activeLevel?.doubleLayerBubbles) && state.activeLevel.doubleLayerBubbles.length > 0;
+  if (!hasDoubleLayerConfig) {
+    stopDoubleLayerGuide();
+    return;
+  }
+
+  const target = findFirstDoubleLayerFruit();
+  if (!target) {
+    stopDoubleLayerGuide();
+    return;
+  }
+
+  showDoubleLayerGuide(target);
 }
 
 function stopLevel1Guide() {
@@ -1306,12 +1437,15 @@ function clearGameplayDataOnly() {
     window.localStorage.removeItem(gameSettingsStorageKey);
     window.localStorage.removeItem(level1TutorialSeenStorageKey);
     window.localStorage.removeItem(lockTutorialSeenStorageKey);
+    window.localStorage.removeItem(doubleLayerTutorialSeenStorageKey);
   }
 
   level1TutorialSeen = false;
   lockTutorialSeen = false;
+  doubleLayerTutorialSeen = false;
   stopLevel1Guide();
   stopLockGuide();
+  stopDoubleLayerGuide();
 
   hydrateLevelProgress();
   hydrateCoinBalance();
@@ -1520,6 +1654,7 @@ function renderHomeScreen() {
 
 function showHomeScreen() {
   stopLockGuide();
+  stopDoubleLayerGuide();
   homeScreenController.showHomeScreen();
 }
 
@@ -1602,6 +1737,14 @@ function init() {
     persistLockTutorialSeen();
     lockTutorialSeen = true;
     stopLockGuide();
+    maybeShowDoubleLayerGuide();
+  });
+
+  doubleLayerGuideEl?.addEventListener("pointerdown", () => {
+    if (!doubleLayerGuideState.active) return;
+    persistDoubleLayerTutorialSeen();
+    doubleLayerTutorialSeen = true;
+    stopDoubleLayerGuide();
   });
 
   setupRenderer();
@@ -1914,6 +2057,11 @@ function buildActiveFruitSnapshot() {
       locked: Boolean(fruit.locked),
       unlockRuleType: fruit.unlockRuleType,
       unlockTarget: fruit.unlockTarget,
+      layerCount: Math.max(1, Math.floor(Number(fruit.layerCount) || 1)),
+      layerRemaining: Math.max(1, Math.floor(Number(fruit.layerRemaining ?? fruit.layerCount) || 1)),
+      doubleLayerInnerScale: Number.isFinite(Number(fruit.doubleLayerInnerScale))
+        ? Number(fruit.doubleLayerInnerScale)
+        : DEFAULT_DOUBLE_LAYER_INNER_SCALE,
     });
   }
   return snapshot;
@@ -2362,17 +2510,19 @@ function updateDebugHexOverlayColors() {
 
       const fx = fruit.group.position.x;
       const fy = fruit.group.position.y;
+      const effectiveRadius = getFruitEffectiveRadiusForHex(fruit);
+      if (effectiveRadius <= 0) continue;
       const dx = center.x - fx;
       const dy = center.y - fy;
 
-      const quickReach = fruit.radius + hexOuterRadius;
+      const quickReach = effectiveRadius + hexOuterRadius;
       if (Math.abs(dx) > quickReach || Math.abs(dy) > quickReach) continue;
       if (dx * dx + dy * dy > quickReach * quickReach) continue;
 
       const hit = circleIntersectsHex(
         fx,
         fy,
-        fruit.radius,
+        effectiveRadius,
         center.x,
         center.y,
         hexOffsets
@@ -2380,7 +2530,7 @@ function updateDebugHexOverlayColors() {
       if (!hit) continue;
 
       const distSq = dx * dx + dy * dy;
-      const hitRadiusSq = fruit.radius * fruit.radius;
+      const hitRadiusSq = effectiveRadius * effectiveRadius;
 
       const centerZ = fruit.group.position.z + (fruit.bubble?.position.z ?? 0);
       const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
@@ -2402,6 +2552,21 @@ function updateDebugHexOverlayColors() {
   if (debugHexOverlayFillMesh?.instanceColor) {
     debugHexOverlayFillMesh.instanceColor.needsUpdate = true;
   }
+}
+
+function getFruitEffectiveRadiusForHex(fruit) {
+  const baseRadius = Math.max(0, Number(fruit?.radius) || 0);
+  if (baseRadius <= 0) return 0;
+
+  const layerCount = Math.max(1, Math.floor(Number(fruit?.layerCount) || 1));
+  const layerRemaining = Math.max(1, Math.floor(Number(fruit?.layerRemaining ?? layerCount) || 1));
+  if (layerCount <= 1 || layerRemaining > 1) return baseRadius;
+
+  const configuredScale = Number(fruit?.doubleLayerInnerScale);
+  const innerScale = Number.isFinite(configuredScale) && configuredScale > 0 && configuredScale < 1
+    ? configuredScale
+    : DEFAULT_DOUBLE_LAYER_INNER_SCALE;
+  return baseRadius * innerScale;
 }
 
 async function setupRenderer() {
@@ -2555,6 +2720,7 @@ function tick() {
   }
 
   updateLockGuideOverlay();
+  updateDoubleLayerGuideOverlay();
   updateDebugBubbleIndexLabels();
 
   updateLevel1Guide(now);

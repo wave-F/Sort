@@ -2,6 +2,23 @@ export const HEX_TEST_FLOW1_LABEL = "测试流程1(最大联通区域)";
 export const HEX_TEST_FLOW2_LABEL = "测试流程2(可达区域)";
 export const HEX_TEST_FLOW3_LABEL = "测试流程3(消除)";
 
+const DEFAULT_DOUBLE_LAYER_INNER_SCALE = 0.6;
+
+function getEffectiveFruitRadius(fruit) {
+  const baseRadius = Math.max(0, Number(fruit?.radius) || 0);
+  if (baseRadius <= 0) return 0;
+
+  const layerCount = Math.max(1, Math.floor(Number(fruit?.layerCount) || 1));
+  const layerRemaining = Math.max(1, Math.floor(Number(fruit?.layerRemaining ?? layerCount) || 1));
+  if (layerCount <= 1 || layerRemaining > 1) return baseRadius;
+
+  const configuredScale = Number(fruit?.doubleLayerInnerScale);
+  const innerScale = Number.isFinite(configuredScale) && configuredScale > 0 && configuredScale < 1
+    ? configuredScale
+    : DEFAULT_DOUBLE_LAYER_INNER_SCALE;
+  return baseRadius * innerScale;
+}
+
 function getHexNeighborCells(col, row) {
   if (col % 2 === 0) {
     return [
@@ -50,7 +67,8 @@ function computeTopColorIdsByZ(centers, simFruits) {
       const dx = center.x - fruit.x;
       const dy = center.y - fruit.y;
       const distSq = dx * dx + dy * dy;
-      const hitRadiusSq = fruit.radius * fruit.radius;
+      const hitRadius = getEffectiveFruitRadius(fruit);
+      const hitRadiusSq = hitRadius * hitRadius;
       if (distSq > hitRadiusSq) continue;
 
       const localSurfaceZ = Math.sqrt(Math.max(0, hitRadiusSq - distSq));
@@ -157,6 +175,7 @@ function findReachableSameColorRegion(centers, topColorIds, seedRegion, targetCo
 
 function eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, targetColorId) {
   let removed = 0;
+  let changed = 0;
 
   for (let i = 0; i < simFruits.length; i += 1) {
     const fruit = simFruits[i];
@@ -164,7 +183,8 @@ function eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, targe
     if (fruit.locked) continue;
     if (fruit.colorId !== targetColorId) continue;
 
-    const hitRadiusSq = fruit.radius * fruit.radius;
+    const hitRadius = getEffectiveFruitRadius(fruit);
+    const hitRadiusSq = hitRadius * hitRadius;
     let covered = false;
     for (const idx of selectedHexes) {
       const center = centers[idx];
@@ -178,11 +198,20 @@ function eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, targe
     }
 
     if (!covered) continue;
+
+    const layerRemaining = Math.max(1, Math.floor(Number(fruit.layerRemaining) || 1));
+    if (layerRemaining > 1) {
+      fruit.layerRemaining = layerRemaining - 1;
+      changed += 1;
+      continue;
+    }
+
     fruit.active = false;
     removed += 1;
+    changed += 1;
   }
 
-  return removed;
+  return { removed, changed };
 }
 
 function countActiveFruits(simFruits) {
@@ -205,6 +234,8 @@ export function calculateTheoryStepsRecursive({ centers, fruits, totalClears = 0
         locked: Boolean(f.locked),
         unlockRuleType: String(f.unlockRuleType ?? ""),
         unlockTarget: Math.max(0, Math.floor(Number(f.unlockTarget) || 0)),
+        layerCount: Math.max(1, Math.floor(Number(f.layerCount) || 1)),
+        layerRemaining: Math.max(1, Math.floor(Number(f.layerRemaining ?? f.layerCount) || 1)),
       }))
     : [];
 
@@ -225,8 +256,8 @@ export function calculateTheoryStepsRecursive({ centers, fruits, totalClears = 0
     const selectedHexes = new Set(flow1.region);
     for (const idx of flow2) selectedHexes.add(idx);
 
-    const removed = eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, flow1.colorId);
-    if (removed <= 0) return stepCount;
+    const { removed, changed } = eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, flow1.colorId);
+    if (changed <= 0) return stepCount;
     const nextTotalClears = totalClears + removed;
     applyTotalClearsToSimLocks(simFruits, nextTotalClears);
     return recurse(stepCount + 1, depth + 1, nextTotalClears);
@@ -385,6 +416,7 @@ export function createHexTestFlowController({
     for (const idx of flow2Region) selectedHexes.add(idx);
 
     let removed = 0;
+    let peeled = 0;
     for (let i = 0; i < fruits.length; i += 1) {
       const fruit = fruits[i];
       if (!fruit?.active || fruit.sliced) continue;
@@ -392,7 +424,8 @@ export function createHexTestFlowController({
       if (fruit.colorId !== flow1ColorId) continue;
 
       let shouldRemove = false;
-      const hitRadiusSq = fruit.radius * fruit.radius;
+      const hitRadius = getEffectiveFruitRadius(fruit);
+      const hitRadiusSq = hitRadius * hitRadius;
       for (const idx of selectedHexes) {
         const center = hexOverlayCenters[idx];
         if (!center) continue;
@@ -406,6 +439,19 @@ export function createHexTestFlowController({
       }
 
       if (!shouldRemove) continue;
+
+      const layerRemaining = Math.max(1, Math.floor(Number(fruit.layerRemaining) || 1));
+      if (layerRemaining > 1) {
+        fruit.setSelected?.(false);
+        if (typeof fruit.consumeOuterLayer === "function") {
+          fruit.consumeOuterLayer(1);
+        } else {
+          fruit.layerRemaining = layerRemaining - 1;
+        }
+        peeled += 1;
+        continue;
+      }
+
       fruit.setSelected(false);
       fruit.sliced = true;
       fruit.active = false;
@@ -425,7 +471,7 @@ export function createHexTestFlowController({
     reset();
     rebuildHexOverlay();
     updateHexOverlayColors();
-    gameUI.showCommentary(`流程3：已消除 ${removed} 个同色泡泡`, 1000);
+    gameUI.showCommentary(`流程3：消外层 ${peeled}，消除 ${removed} 个同色泡泡`, 1100);
   }
 
   function runNext() {

@@ -329,6 +329,11 @@ export function createLevelRuntime({
             },
           }))
         : [],
+      doubleLayerBubbles: Array.isArray(level.doubleLayerBubbles)
+        ? level.doubleLayerBubbles.map((item) => ({
+            index: item.index,
+          }))
+        : [],
       radiusRange,
       speedRange,
       stepLimit,
@@ -350,6 +355,9 @@ export function createLevelRuntime({
               value: item.unlock?.value,
             },
           }))
+        : [],
+      doubleLayerBubbles: Array.isArray(level.doubleLayerBubbles)
+        ? level.doubleLayerBubbles.map((item) => ({ index: item.index }))
         : [],
       radiusRange: { min: level.radiusRange.min, max: level.radiusRange.max },
       speedRange: { min: level.speedRange.min, max: level.speedRange.max },

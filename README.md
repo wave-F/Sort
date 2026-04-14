@@ -38,6 +38,7 @@ npm run excel:watch
 - `radiusRange`：半径范围（如 `0.22,0.42`）
 - `speedRange`：速度范围（如 `0,0.28`）
 - `seed`：布局随机种子（固定可复现）
+- `doubleLayerBubbles`（可选）：双层泡泡索引列表（0 基），如 `1,4,9`；也支持 JSON 数组
 
 导出时会根据 `seed + colorKindCount + fruitCountRange` 自动生成 `colorCounts/fruitCount`，并估算 `minSteps`，再按难度计算步数上限：
 - `easy`: `stepLimit = minSteps + 4`

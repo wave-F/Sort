@@ -77,6 +77,14 @@ export function createSessionFlowController({
       target.setLockRule(item.unlock);
       target.applyTotalClears(state.totalClearsThisLevel ?? 0);
     }
+
+    const doubleLayerBubbles = Array.isArray(level?.doubleLayerBubbles) ? level.doubleLayerBubbles : [];
+    for (let i = 0; i < doubleLayerBubbles.length; i += 1) {
+      const item = doubleLayerBubbles[i];
+      const bubbleIndex = Math.floor(item?.index ?? -1);
+      if (bubbleIndex < 0 || bubbleIndex >= fruits.length) continue;
+      fruits[bubbleIndex].setLayerCount(2);
+    }
   }
 
   function loadLevel(index) {

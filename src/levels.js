@@ -76,6 +76,19 @@ function normalizeLockedBubbles(rawLockedBubbles) {
   return normalized;
 }
 
+function normalizeDoubleLayerBubbles(rawDoubleLayerBubbles) {
+  if (!Array.isArray(rawDoubleLayerBubbles)) return [];
+
+  const unique = new Set();
+  for (const item of rawDoubleLayerBubbles) {
+    const index = Math.floor(asNumber(item?.index ?? item, -1));
+    if (index < 0) continue;
+    unique.add(index);
+  }
+
+  return [...unique].sort((a, b) => a - b).map((index) => ({ index }));
+}
+
 function normalizeLevel(rawLevel, index) {
   const id = Math.floor(asNumber(rawLevel?.id, index + 1));
   const stepLimit = Math.max(1, Math.floor(asNumber(rawLevel?.stepLimit, 8)));
@@ -88,6 +101,7 @@ function normalizeLevel(rawLevel, index) {
   const colorCounts = normalizeColorCounts(rawLevel?.colorCounts);
   const fruits = normalizeFruits(rawLevel?.fruits);
   const lockedBubbles = normalizeLockedBubbles(rawLevel?.lockedBubbles);
+  const doubleLayerBubbles = normalizeDoubleLayerBubbles(rawLevel?.doubleLayerBubbles);
 
   if (!colorCounts.length) {
     throw new Error(`Invalid levels config: level id=${id} has empty colorCounts`);
@@ -102,6 +116,7 @@ function normalizeLevel(rawLevel, index) {
     seed,
     colorCounts,
     lockedBubbles,
+    doubleLayerBubbles,
     radiusRange: normalizeRange(rawLevel?.radiusRange, 0.34, 0.44),
     speedRange: normalizeRange(rawLevel?.speedRange, 0, 0.16),
     fruits,
