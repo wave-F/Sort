@@ -141,7 +141,7 @@ export function createBubbleEntityClass({
       this.contactStrengthUniform = nodeMaterialData.contactStrengthUniform;
       this.tintUniform = nodeMaterialData.tintUniform;
       this.accentUniform = nodeMaterialData.accentUniform;
-      this.baseScale = this.radius / bubbleBaseRadius;
+      this.baseScale = this.radius;
       this.baseOpacity = 0.9;
 
       this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
