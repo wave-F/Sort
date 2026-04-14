@@ -1599,8 +1599,11 @@ function init() {
     window.visualViewport.addEventListener("resize", resize);
     window.visualViewport.addEventListener("scroll", resize);
   }
-  window.addEventListener("pointerdown", onPointerDown);
-  window.addEventListener("pointermove", onPointerMove);
+  appEl.addEventListener("pointerdown", onPointerDown);
+  appEl.addEventListener("pointermove", onPointerMove);
+  appEl.addEventListener("pointerup", onPointerUp);
+  appEl.addEventListener("pointercancel", onPointerUp);
+  appEl.style.touchAction = "none";
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
@@ -2049,6 +2052,7 @@ function resetFruits(level) {
 
 function onPointerDown(ev) {
   if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+  if (ev.button !== undefined && ev.button !== 0) return;
   if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
     gameUI.showCommentary("Out of moves for this level.", 1000);
     return;
@@ -2060,9 +2064,6 @@ function onPointerDown(ev) {
   }
   void gameAudio.preloadPopAudio();
   gameAudio.resetSelectToneProgression();
-
-  const rect = renderer.domElement.getBoundingClientRect();
-  if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return;
 
   state.pointerDown = true;
   state.sliceColorId = null;
