@@ -10,6 +10,7 @@ export function createLayoutViewportController({
   getRenderer,
   onHideGameplaySettingsMenu,
   onHideGameplayExitModal,
+  onSetTopStatusVisible,
 } = {}) {
   function applyHomeUiTuning(values) {
     const rootStyle = document.documentElement.style;
@@ -86,10 +87,7 @@ export function createLayoutViewportController({
   function setGameHudVisible(visible) {
     const hidden = !visible;
     elements.hudEl?.classList.toggle("hidden", hidden);
-    elements.gameplayTopbarEl?.classList.toggle("hidden", hidden);
-    elements.gameplayTopbarEl?.classList.remove("is-floating-over-result");
-    elements.gameplayCoinStatusEl?.classList.toggle("hidden", hidden);
-    elements.gameplayCoinStatusEl?.classList.toggle("is-hidden-in-gameplay", visible);
+    onSetTopStatusVisible?.(visible);
     elements.gameplaySettingsRootEl?.classList.toggle("hidden", hidden);
     elements.gameplaySettingsMaskEl?.classList.toggle("hidden", true);
     elements.gameplayExitMaskEl?.classList.toggle("hidden", true);

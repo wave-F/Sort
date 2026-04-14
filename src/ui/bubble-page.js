@@ -1,11 +1,10 @@
 export function createBubblePageController({
   state,
   phoneFrameEl,
-  gameplayTopbarEl,
   outOfMovesBannerEl,
   initialElements,
   constants,
-  onSetGameplayCoinTopbarVisible,
+  onSetContinueCoinTopbarVisible,
   onTrySpendCoins,
   onUpdateStepsHud,
   onShowCommentary,
@@ -148,14 +147,7 @@ export function createBubblePageController({
   }
 
   function setOutOfMovesContinueCoinTopbarVisible(show) {
-    if (show) {
-      onSetGameplayCoinTopbarVisible?.(true);
-      gameplayTopbarEl?.classList.add("is-floating-over-continue");
-      return;
-    }
-
-    gameplayTopbarEl?.classList.remove("is-floating-over-continue");
-    onSetGameplayCoinTopbarVisible?.(false);
+    onSetContinueCoinTopbarVisible?.(show);
   }
 
   function ensureGameplayCenterTipEl() {

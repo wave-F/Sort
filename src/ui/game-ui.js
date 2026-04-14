@@ -1,4 +1,3 @@
-import { createResultPage } from "./result-page.js";
 import { createCoinStatus } from "./coin-status.js";
 import { createCoinFly } from "./coin-fly.js";
 
@@ -9,19 +8,11 @@ export function createGameUI({
   levelGuideTipEl,
   gameOverEl,
   gameOverTitleEl,
-  resultPage,
+  resultController,
   coinStatus,
   coinFly,
-  onResultRetry,
-  onResultNext,
-  onResultBack,
 } = {}) {
-  const result = createResultPage({
-    ...(resultPage || {}),
-    onRetry: onResultRetry,
-    onNext: onResultNext,
-    onBack: onResultBack,
-  });
+  const result = resultController;
   const coins = createCoinStatus(coinStatus);
   const fly = createCoinFly({
     ...(coinFly || {}),
@@ -98,15 +89,15 @@ export function createGameUI({
   }
 
   function openResult(outcome, options) {
-    result.openResult(outcome, options);
+    result?.openResult(outcome, options);
   }
 
   function closeResult() {
-    result.closeResult();
+    result?.closeResult();
   }
 
   function getResultRewardRect() {
-    return result.getRewardAnchorRect();
+    return result?.getRewardAnchorRect?.() ?? null;
   }
 
   function playCoinFly(reward, options = {}) {

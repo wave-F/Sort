@@ -6,8 +6,10 @@ import { createSliceSystem } from "./systems/slice-system.js";
 import { createVictoryRainSystem } from "./systems/victory-rain-system.js";
 import { createBurstSystem } from "./systems/burst-system.js";
 import { createGameUI } from "./ui/game-ui.js";
+import { createResultPage } from "./ui/result-page.js";
 import { createStartPageController } from "./ui/start-page.js";
 import { createBubblePageController } from "./ui/bubble-page.js";
+import { createTopStatusBarController } from "./ui/top-status-bar.js";
 import { createGameAudio } from "./audio/game-audio.js";
 import { createLevelRuntime } from "./content/level-runtime.js";
 import { clampNumber, createLevelIndexClamper, createPersistenceController } from "./game/persistence.js";
@@ -388,14 +390,19 @@ const BubbleEntity = createBubbleEntityClass({
   createBubbleMaterialFn: createBubbleMaterialForTuning,
 });
 
+const topStatusBarController = createTopStatusBarController({
+  state,
+  topbarEl: gameplayTopbarEl,
+  coinStatusEl: gameplayCoinStatusEl,
+});
+
 const rewardFlow = createRewardFlow({
   state,
   coinStorageKey,
   levelWinRewardBase,
   getGameUI: () => gameUI,
   homeCoinEl,
-  gameplayCoinStatusEl,
-  gameplayTopbarEl,
+  onSetResultCoinTopbarVisible: (show) => topStatusBarController.setResultCoinTopbarVisible(show),
 });
 
 const layoutViewport = createLayoutViewportController({
@@ -404,8 +411,6 @@ const layoutViewport = createLayoutViewportController({
     phoneFrameEl,
     resultPageEl,
     hudEl,
-    gameplayTopbarEl,
-    gameplayCoinStatusEl,
     gameplaySettingsRootEl,
     gameplaySettingsMaskEl,
     gameplayExitMaskEl,
@@ -427,6 +432,7 @@ const layoutViewport = createLayoutViewportController({
   getRenderer: () => renderer,
   onHideGameplaySettingsMenu: hideGameplaySettingsMenu,
   onHideGameplayExitModal: hideGameplayExitModal,
+  onSetTopStatusVisible: (visible) => topStatusBarController.setHudVisible(visible),
 });
 
 const settingsUi = createSettingsUiController({
@@ -567,7 +573,6 @@ const startPageController = createStartPageController({
 const bubblePageController = createBubblePageController({
   state,
   phoneFrameEl,
-  gameplayTopbarEl,
   outOfMovesBannerEl,
   initialElements: {
     maskEl: outOfMovesContinueMaskEl,
@@ -583,7 +588,7 @@ const bubblePageController = createBubblePageController({
     continueCost: outOfMovesContinueCost,
     continueMoves: outOfMovesContinueMoves,
   },
-  onSetGameplayCoinTopbarVisible: (show) => setGameplayCoinTopbarVisible(show),
+  onSetContinueCoinTopbarVisible: (show) => topStatusBarController.setContinueCoinTopbarVisible(show),
   onTrySpendCoins: (value) => trySpendCoins(value),
   onUpdateStepsHud: () => updateStepsHud(),
   onShowCommentary: (text, durationMs) => gameUI.showCommentary(text, durationMs),
@@ -596,6 +601,34 @@ const bubblePageController = createBubblePageController({
 init();
 
 function createGameRuntime() {
+  const resultController = createResultPage({
+    maskEl: resultMaskEl,
+    cardEl: resultPageEl,
+    titleEl: resultPageTitleEl,
+    titleTextEl: resultPageTitleTextEl,
+    winCloseBtn: resultWinCloseBtn,
+    perfectEl: resultWinPerfectEl,
+    rewardLabelEl: resultRewardLabelEl,
+    descEl: resultPageTextEl,
+    rewardEl: resultCoinGainEl,
+    coinIconEl: resultCoinIconEl,
+    retryBtn: resultRetryBtn,
+    nextBtn: resultNextBtn,
+    backBtn: resultExitBtn,
+    onRetry: () => {
+      gameAudio.playUiClickAudio();
+      retryCurrentLevelFromResult();
+    },
+    onNext: () => {
+      gameAudio.playUiClickAudio();
+      levelFlow.continueToNextLevel();
+    },
+    onBack: () => {
+      gameAudio.playUiClickAudio();
+      backHomeFromResult();
+    },
+  });
+
   const gameUI = createGameUI({
     sliceStateEl,
     commentaryEl,
@@ -604,21 +637,7 @@ function createGameRuntime() {
     levelGuideTipEl,
     gameOverEl,
     gameOverTitleEl,
-    resultPage: {
-      maskEl: resultMaskEl,
-      cardEl: resultPageEl,
-      titleEl: resultPageTitleEl,
-      titleTextEl: resultPageTitleTextEl,
-      winCloseBtn: resultWinCloseBtn,
-      perfectEl: resultWinPerfectEl,
-      rewardLabelEl: resultRewardLabelEl,
-      descEl: resultPageTextEl,
-      rewardEl: resultCoinGainEl,
-      coinIconEl: resultCoinIconEl,
-      retryBtn: resultRetryBtn,
-      nextBtn: resultNextBtn,
-      backBtn: resultExitBtn,
-    },
+    resultController,
     coinStatus: {
       rootEl: gameplayCoinStatusEl,
       valueEl: gameplayCoinTextEl,
@@ -626,18 +645,6 @@ function createGameRuntime() {
     coinFly: {
       layerEl: coinFlyLayerEl,
       frameEl: phoneFrameEl,
-    },
-    onResultRetry: () => {
-      gameAudio.playUiClickAudio();
-      retryCurrentLevelFromResult();
-    },
-    onResultNext: () => {
-      gameAudio.playUiClickAudio();
-      levelFlow.continueToNextLevel();
-    },
-    onResultBack: () => {
-      gameAudio.playUiClickAudio();
-      backHomeFromResult();
     },
   });
 

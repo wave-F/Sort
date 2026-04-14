@@ -4,8 +4,7 @@ export function createRewardFlow({
   levelWinRewardBase,
   getGameUI,
   homeCoinEl,
-  gameplayCoinStatusEl,
-  gameplayTopbarEl,
+  onSetResultCoinTopbarVisible,
 } = {}) {
   function persistCoinBalance() {
     if (typeof window === "undefined" || !window.localStorage) return;
@@ -43,19 +42,7 @@ export function createRewardFlow({
   }
 
   function setGameplayCoinTopbarVisible(show) {
-    if (!gameplayCoinStatusEl || !gameplayTopbarEl) return;
-    if (show) {
-      gameplayTopbarEl.classList.remove("hidden");
-      gameplayTopbarEl.classList.add("is-floating-over-result");
-      gameplayCoinStatusEl.classList.remove("hidden");
-      gameplayCoinStatusEl.classList.remove("is-hidden-in-gameplay");
-      return;
-    }
-
-    gameplayTopbarEl.classList.remove("is-floating-over-result");
-    if (!state.inHome) {
-      gameplayCoinStatusEl.classList.add("is-hidden-in-gameplay");
-    }
+    onSetResultCoinTopbarVisible?.(show);
   }
 
   function settlePendingWinReward(playFx = false) {
