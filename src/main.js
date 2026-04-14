@@ -862,7 +862,6 @@ function pickLevelGuidePair() {
 
   let best = null;
   let bestScore = -Infinity;
-  const targetDist = 2.6;
   for (const bucket of byColor.values()) {
     if (bucket.length < 2) continue;
     for (let i = 0; i < bucket.length - 1; i += 1) {
@@ -872,12 +871,22 @@ function pickLevelGuidePair() {
         const dx = a.group.position.x - b.group.position.x;
         const dy = a.group.position.y - b.group.position.y;
         const dist = Math.hypot(dx, dy);
-        if (dist < 1.2 || dist > 5.4) continue;
-        const sizeBonus = Math.max(a.radius, b.radius) * 0.35;
-        const score = 5 - Math.abs(dist - targetDist) + sizeBonus;
+        const radiusSum = Math.max(0.001, a.radius + b.radius);
+        const normalizedDist = dist / radiusSum;
+        if (normalizedDist < 0.92 || normalizedDist > 2.35) continue;
+
+        const midX = (a.group.position.x + b.group.position.x) * 0.5;
+        const midY = (a.group.position.y + b.group.position.y) * 0.5;
+        const centerBias =
+          Math.abs(midX) / Math.max(0.001, Math.abs(bounds.right))
+          + Math.abs(midY) / Math.max(0.001, Math.abs(bounds.top));
+        const adjacencyBias = 3.4 - Math.abs(normalizedDist - 1.35) * 2.6;
+        const score = adjacencyBias - centerBias;
         if (score > bestScore) {
           bestScore = score;
-          best = { startFruit: a, endFruit: b };
+          best = a.group.position.x <= b.group.position.x
+            ? { startFruit: a, endFruit: b }
+            : { startFruit: b, endFruit: a };
         }
       }
     }
