@@ -67,6 +67,7 @@ export function createCoinFly({ layerEl, frameEl, getTargetRect } = {}) {
 
       const finalizeCoin = () => {
         if (!coin.isConnected) return;
+        options.onCoinArrive?.(i, count);
         coin.remove();
         finishedCount += 1;
         if (finishedCount >= count) {

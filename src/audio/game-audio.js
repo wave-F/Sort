@@ -1,6 +1,14 @@
 import * as THREE from "three/webgpu";
 
-export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = [], levelBgmUrl = "", clickSoundUrl = "" } = {}) {
+export function createGameAudio({
+  popSoundUrls = [],
+  selectScaleFrequencies = [],
+  levelBgmUrl = "",
+  clickSoundUrl = "",
+  gainCoinSoundUrl = "",
+  gameWinSoundUrl = "",
+  gameLoseSoundUrl = "",
+} = {}) {
   const state = {
     context: null,
     unlocked: false,
@@ -14,6 +22,12 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     levelBgm: null,
     uiClickPool: [],
     uiClickIndex: 0,
+    gainCoinPool: [],
+    gainCoinIndex: 0,
+    gameWinPool: [],
+    gameWinIndex: 0,
+    gameLosePool: [],
+    gameLoseIndex: 0,
     bgmUnlockRetryBound: false,
     bgmUnlockRetryHandler: null,
     errorLastAt: 0,
@@ -45,6 +59,69 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     if (playTask && typeof playTask.catch === "function") {
       playTask.catch(() => {});
     }
+  }
+
+  function getNextGainCoinAudio() {
+    if (!gainCoinSoundUrl || typeof Audio === "undefined") return null;
+
+    if (!state.gainCoinPool.length) {
+      for (let i = 0; i < 8; i += 1) {
+        const audio = new Audio(gainCoinSoundUrl);
+        audio.preload = "auto";
+        audio.volume = 0.32;
+        state.gainCoinPool.push(audio);
+      }
+    }
+
+    const audio = state.gainCoinPool[state.gainCoinIndex % state.gainCoinPool.length] || null;
+    state.gainCoinIndex += 1;
+    return audio;
+  }
+
+  function playGainCoinAudio() {
+    if (!state.sfxEnabled) return;
+    const gainCoinAudio = getNextGainCoinAudio();
+    if (!gainCoinAudio) return;
+    gainCoinAudio.currentTime = 0;
+    const playTask = gainCoinAudio.play();
+    if (playTask && typeof playTask.catch === "function") {
+      playTask.catch(() => {});
+    }
+  }
+
+  function getNextOneShotAudio(url, poolKey, indexKey, volume) {
+    if (!url || typeof Audio === "undefined") return null;
+    if (!state[poolKey].length) {
+      for (let i = 0; i < 4; i += 1) {
+        const audio = new Audio(url);
+        audio.preload = "auto";
+        audio.volume = volume;
+        state[poolKey].push(audio);
+      }
+    }
+
+    const audio = state[poolKey][state[indexKey] % state[poolKey].length] || null;
+    state[indexKey] += 1;
+    return audio;
+  }
+
+  function playOneShotAudio(url, poolKey, indexKey, volume) {
+    if (!state.sfxEnabled) return;
+    const audio = getNextOneShotAudio(url, poolKey, indexKey, volume);
+    if (!audio) return;
+    audio.currentTime = 0;
+    const playTask = audio.play();
+    if (playTask && typeof playTask.catch === "function") {
+      playTask.catch(() => {});
+    }
+  }
+
+  function playGameWinAudio() {
+    playOneShotAudio(gameWinSoundUrl, "gameWinPool", "gameWinIndex", 0.4);
+  }
+
+  function playGameLoseAudio() {
+    playOneShotAudio(gameLoseSoundUrl, "gameLosePool", "gameLoseIndex", 0.4);
   }
 
   function unbindBgmUnlockRetry() {
@@ -370,6 +447,9 @@ export function createGameAudio({ popSoundUrls = [], selectScaleFrequencies = []
     playLevelBgm,
     stopLevelBgm,
     playUiClickAudio,
+    playGainCoinAudio,
+    playGameWinAudio,
+    playGameLoseAudio,
     playRandomPopAudio,
     resetSelectToneProgression,
     playSelectTone,

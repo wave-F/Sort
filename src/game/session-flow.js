@@ -237,6 +237,7 @@ export function createSessionFlowController({
     gameUI.hideLevelGuide?.();
 
     const openLoseResult = () => {
+      gameAudio?.playGameLoseAudio?.();
       gameUI.openResult("lose", {
         level: state.currentLevelIndex + 1,
         score: Math.max(0, state.stepLimit - state.stepsUsed),
