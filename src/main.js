@@ -684,6 +684,7 @@ function createGameRuntime() {
     onSelectTone: () => gameHaptics.select(),
     onErrorTone: () => gameHaptics.error(),
     onPop: () => gameHaptics.pop(),
+    onGainCoin: () => gameHaptics.gainCoin(),
     onWin: () => gameHaptics.win(),
     onLose: () => gameHaptics.lose(),
   });

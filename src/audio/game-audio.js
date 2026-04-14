@@ -12,6 +12,7 @@ export function createGameAudio({
   onSelectTone,
   onErrorTone,
   onPop,
+  onGainCoin,
   onWin,
   onLose,
 } = {}) {
@@ -98,6 +99,7 @@ export function createGameAudio({
 
   function playGainCoinAudio() {
     playPoolAudio(gainCoinSoundUrl, "gainCoinPool", "gainCoinIndex", 0.32, 8);
+    onGainCoin?.();
   }
 
   function playGameWinAudio() {

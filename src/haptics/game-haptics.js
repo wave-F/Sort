@@ -104,6 +104,18 @@ export function createGameHaptics() {
     }, "win", 220);
   }
 
+  function gainCoin() {
+    fire(() => {
+      const haptics = getCustomHaptics();
+      if (haptics?.playTransient) {
+        return haptics.playTransient({ intensity: 0.34, sharpness: 0.72 });
+      }
+      if (haptics?.impact) return haptics.impact({ style: "light" });
+      fallbackVibrate(7);
+      return null;
+    }, "gainCoin", 18);
+  }
+
   function lose() {
     fire(() => {
       const haptics = getCustomHaptics();
@@ -119,6 +131,7 @@ export function createGameHaptics() {
     select,
     error,
     pop,
+    gainCoin,
     win,
     lose,
   };
