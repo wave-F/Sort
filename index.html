@@ -72,6 +72,12 @@
         <img id="level-guide-hand" class="level-guide-hand" src="./assets/images/HandPointer.png" alt="" aria-hidden="true" />
       </div>
 
+      <div id="lock-guide" class="hidden" aria-hidden="true">
+        <div id="lock-guide-mask"></div>
+        <div id="lock-guide-spotlight" aria-hidden="true"></div>
+        <div id="lock-guide-tip">锁泡泡需要先消除对应数量泡泡，才会解锁</div>
+      </div>
+
       <div id="home-screen" class="layer">
         <div id="home-topbar">
           <div class="home-status home-status-energy" aria-label="体力状态">
@@ -168,6 +174,7 @@
           <legend>步数</legend>
           <button id="level-test-next-step" class="tool-btn" type="button">测试流程1(最大联通区域)</button>
           <button id="level-test-export-step" class="tool-btn" type="button">计算并导出步数</button>
+          <button id="level-test-bubble-index" class="tool-btn" type="button">显示泡泡Index</button>
           <label class="level-test-switch" for="level-test-hex-toggle">
             <input id="level-test-hex-toggle" type="checkbox" />
             <span>显示六边形</span>

@@ -67,6 +67,16 @@ export function createSessionFlowController({
       fruits.push(fruit);
       scene.add(fruit.group);
     }
+
+    const lockedBubbles = Array.isArray(level?.lockedBubbles) ? level.lockedBubbles : [];
+    for (let i = 0; i < lockedBubbles.length; i += 1) {
+      const item = lockedBubbles[i];
+      const bubbleIndex = Math.floor(item?.index ?? -1);
+      if (bubbleIndex < 0 || bubbleIndex >= fruits.length) continue;
+      const target = fruits[bubbleIndex];
+      target.setLockRule(item.unlock);
+      target.applyTotalClears(state.totalClearsThisLevel ?? 0);
+    }
   }
 
   function loadLevel(index) {
@@ -85,6 +95,7 @@ export function createSessionFlowController({
     gameUI.hideLevelGuide?.();
     onClearQueuedSelections?.();
     state.pendingPops.length = 0;
+    state.totalClearsThisLevel = 0;
     state.lastPoint = null;
     state.nowPoint = null;
     state.stepLimit = Math.max(1, Math.floor(level.stepLimit ?? 1));
@@ -127,6 +138,7 @@ export function createSessionFlowController({
     state.sliceHitIds.clear();
     state.sliceQueue.length = 0;
     state.pendingPops.length = 0;
+    state.totalClearsThisLevel = 0;
     state.lastPoint = null;
     state.nowPoint = null;
     state.stepLimit = 0;

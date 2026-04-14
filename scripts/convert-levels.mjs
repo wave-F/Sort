@@ -6,7 +6,7 @@ import xlsx from "xlsx";
 const INPUT_RELATIVE = path.join("src", "excel", "Levels.xlsx");
 const OUTPUT_RELATIVE = path.join("src", "config", "levels.json");
 const REQUIRED_COLUMNS = ["id", "name", "difficulty", "colorkindcount", "fruitcountrange", "radiusrange", "speedrange", "seed", "step"];
-const OPTIONAL_COLUMNS = ["homebubblecolorid", "intheorystep"];
+const OPTIONAL_COLUMNS = ["homebubblecolorid", "intheorystep", "lockedbubbles"];
 const AVAILABLE_COLOR_IDS = [0, 1, 2, 3, 4, 5, 6, 7];
 const BOUNDS = {
   left: -2.6325,
@@ -303,10 +303,59 @@ function cellsInsideBubble(bubble, grid, cellSize) {
   return cells;
 }
 
-function componentCountForColor(fruits, colorId, cellSize) {
-  const targets = fruits.filter((f) => f.colorId === colorId);
-  if (!targets.length) return 0;
-  const blockers = fruits.filter((f) => f.colorId !== colorId);
+function popcountBigInt(mask) {
+  let count = 0;
+  let value = mask;
+  while (value > 0n) {
+    count += Number(value & 1n);
+    value >>= 1n;
+  }
+  return count;
+}
+
+function buildLockTargetByIndex(fruitCount, lockedBubbles) {
+  const targets = new Array(fruitCount).fill(0);
+  if (!Array.isArray(lockedBubbles)) return targets;
+
+  for (const item of lockedBubbles) {
+    const index = Math.floor(Number(item?.index));
+    if (!Number.isInteger(index) || index < 0 || index >= fruitCount) continue;
+    const unlockType = String(item?.unlock?.type ?? "").trim();
+    if (unlockType !== "totalClears") continue;
+    const unlockValue = Math.max(1, Math.floor(Number(item?.unlock?.value) || 0));
+    targets[index] = Math.max(targets[index], unlockValue);
+  }
+
+  return targets;
+}
+
+function collectColorComponentsForState({
+  fruits,
+  colorId,
+  aliveMask,
+  removedCount,
+  lockTargetByIndex,
+  cellSize,
+}) {
+  const targets = [];
+  const blockers = [];
+
+  for (let i = 0; i < fruits.length; i += 1) {
+    const bit = 1n << BigInt(i);
+    if ((aliveMask & bit) === 0n) continue;
+
+    const unlockTarget = lockTargetByIndex[i];
+    const selectable = unlockTarget <= 0 || removedCount >= unlockTarget;
+    if (!selectable) continue;
+
+    if (fruits[i].colorId === colorId) {
+      targets.push({ ...fruits[i], index: i });
+    } else {
+      blockers.push(fruits[i]);
+    }
+  }
+
+  if (!targets.length) return [];
 
   const grid = buildFreeMask(blockers, cellSize);
   const targetCells = targets.map((t) => cellsInsideBubble(t, grid, cellSize));
@@ -319,14 +368,15 @@ function componentCountForColor(fruits, colorId, cellSize) {
     }
   }
 
+  const components = [];
   const assigned = new Uint8Array(targets.length);
   const visited = new Uint8Array(grid.width * grid.height);
-  let componentCount = 0;
   const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
   for (let start = 0; start < targets.length; start += 1) {
     if (assigned[start]) continue;
-    componentCount += 1;
+
+    const component = [targets[start].index];
     const queue = [];
     let head = 0;
 
@@ -346,6 +396,7 @@ function componentCountForColor(fruits, colorId, cellSize) {
         for (const t of touched) {
           if (assigned[t]) continue;
           assigned[t] = 1;
+          component.push(targets[t].index);
           for (const seedIdx of targetCells[t]) {
             if (!visited[seedIdx]) {
               visited[seedIdx] = 1;
@@ -367,18 +418,117 @@ function componentCountForColor(fruits, colorId, cellSize) {
         queue.push(nidx);
       }
     }
+
+    components.push(component);
   }
 
-  return componentCount;
+  return components;
 }
 
-function estimateMinSteps(fruits) {
+function estimateMinStepsBaseline(fruits) {
+  const allAliveMask = (1n << BigInt(fruits.length)) - 1n;
+  const lockTargetByIndex = new Array(fruits.length).fill(0);
   const colorIds = [...new Set(fruits.map((f) => f.colorId))];
   let total = 0;
+
   for (const colorId of colorIds) {
-    total += componentCountForColor(fruits, colorId, 0.1);
+    const components = collectColorComponentsForState({
+      fruits,
+      colorId,
+      aliveMask: allAliveMask,
+      removedCount: 0,
+      lockTargetByIndex,
+      cellSize: 0.1,
+    });
+    total += components.length;
   }
+
   return Math.max(total, colorIds.length);
+}
+
+function estimateMinSteps(fruits, lockedBubbles = []) {
+  const fruitCount = fruits.length;
+  if (!fruitCount) return 0;
+  if (!Array.isArray(lockedBubbles) || lockedBubbles.length === 0) {
+    return estimateMinStepsBaseline(fruits);
+  }
+  if (fruitCount > 20) {
+    return estimateMinStepsBaseline(fruits);
+  }
+
+  const colorIds = [...new Set(fruits.map((f) => f.colorId))];
+  const lockTargetByIndex = buildLockTargetByIndex(fruitCount, lockedBubbles);
+  if (!lockTargetByIndex.some((v) => v > 0)) {
+    return estimateMinStepsBaseline(fruits);
+  }
+  const allAliveMask = (1n << BigInt(fruitCount)) - 1n;
+  const memo = new Map();
+  let exploredStates = 0;
+  const maxSearchStates = 120000;
+
+  function solve(aliveMask) {
+    if (aliveMask === 0n) return 0;
+    const key = aliveMask.toString();
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+
+    exploredStates += 1;
+    if (exploredStates > maxSearchStates) {
+      throw new Error("LOCK_MIN_STEP_SEARCH_BUDGET_EXCEEDED");
+    }
+
+    const removedCount = fruitCount - popcountBigInt(aliveMask);
+    const moves = [];
+
+    for (const colorId of colorIds) {
+      const components = collectColorComponentsForState({
+        fruits,
+        colorId,
+        aliveMask,
+        removedCount,
+        lockTargetByIndex,
+        cellSize: 0.1,
+      });
+
+      for (const component of components) {
+        moves.push(component);
+      }
+    }
+
+    if (!moves.length) {
+      memo.set(key, Infinity);
+      return Infinity;
+    }
+
+    moves.sort((a, b) => b.length - a.length);
+
+    let best = Infinity;
+    for (const component of moves) {
+      let nextMask = aliveMask;
+      for (const index of component) {
+        nextMask &= ~(1n << BigInt(index));
+      }
+
+      const next = solve(nextMask);
+      if (Number.isFinite(next)) {
+        best = Math.min(best, 1 + next);
+      }
+    }
+
+    memo.set(key, best);
+    return best;
+  }
+
+  try {
+    const solved = solve(allAliveMask);
+    if (!Number.isFinite(solved)) return estimateMinStepsBaseline(fruits);
+    return solved;
+  } catch (error) {
+    if (error && error.message === "LOCK_MIN_STEP_SEARCH_BUDGET_EXCEEDED") {
+      return estimateMinStepsBaseline(fruits);
+    }
+    throw error;
+  }
 }
 
 function validateLevels(levels) {
@@ -396,6 +546,68 @@ function validateLevels(levels) {
       throw new Error(`Level ids must be continuous from 1, got: ${ids.join(", ")}`);
     }
   }
+}
+
+function parseLockedBubbles(raw, rowNum) {
+  if (raw == null) return [];
+  const text = String(raw).trim();
+  if (!text) return [];
+
+  if (text.startsWith("[")) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_err) {
+      throw new Error(`Invalid lockedBubbles JSON at row ${rowNum}`);
+    }
+
+    if (!Array.isArray(parsed)) {
+      throw new Error(`Invalid lockedBubbles JSON at row ${rowNum}, expected array`);
+    }
+
+    const normalized = [];
+    for (const item of parsed) {
+      const index = Math.floor(Number(item?.index));
+      const unlockType = String(item?.unlock?.type ?? "totalClears").trim();
+      const unlockValue = Math.max(1, Math.floor(Number(item?.unlock?.value)));
+      if (!Number.isInteger(index) || index < 0) continue;
+      if (unlockType !== "totalClears") continue;
+      if (!Number.isFinite(unlockValue)) continue;
+      normalized.push({
+        index,
+        unlock: {
+          type: "totalClears",
+          value: unlockValue,
+        },
+      });
+    }
+    return normalized;
+  }
+
+  const byIndex = new Map();
+  const parts = text.split(/[;|]/).map((part) => part.trim()).filter(Boolean);
+  for (const part of parts) {
+    const pair = part.split(":").map((token) => token.trim());
+    if (pair.length !== 2) {
+      throw new Error(`Invalid lockedBubbles token at row ${rowNum}: ${part}`);
+    }
+
+    const index = Math.floor(Number(pair[0]));
+    const unlockValue = Math.max(1, Math.floor(Number(pair[1])));
+    if (!Number.isInteger(index) || index < 0 || !Number.isFinite(unlockValue)) {
+      throw new Error(`Invalid lockedBubbles token at row ${rowNum}: ${part}`);
+    }
+
+    byIndex.set(index, {
+      index,
+      unlock: {
+        type: "totalClears",
+        value: unlockValue,
+      },
+    });
+  }
+
+  return [...byIndex.values()].sort((a, b) => a.index - b.index);
 }
 
 export function convertLevels(projectRoot = process.cwd()) {
@@ -449,6 +661,10 @@ export function convertLevels(projectRoot = process.cwd()) {
       excelRowNum,
       id
     );
+    const lockedBubbles = parseLockedBubbles(
+      col.lockedbubbles >= 0 ? row[col.lockedbubbles] : null,
+      excelRowNum
+    );
 
     const seedRaw = row[col.seed];
     const seed = (seedRaw == null || String(seedRaw).trim() === "")
@@ -480,7 +696,7 @@ export function convertLevels(projectRoot = process.cwd()) {
       speedMin: speedRange[0],
       speedMax: speedRange[1],
     });
-    const minSteps = estimateMinSteps(previewFruits);
+    const minSteps = estimateMinSteps(previewFruits, lockedBubbles);
     const stepLimit = stepLimitFromSheet;
 
     levels.push({
@@ -496,6 +712,7 @@ export function convertLevels(projectRoot = process.cwd()) {
       speedRange,
       minSteps,
       stepLimit,
+      lockedBubbles,
     });
   }
 

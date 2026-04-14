@@ -31,7 +31,8 @@
         0.2
       ],
       "minSteps": 2,
-      "stepLimit": 5
+      "stepLimit": 6,
+      "lockedBubbles": []
     },
     {
       "id": 2,
@@ -68,7 +69,8 @@
         0.2
       ],
       "minSteps": 3,
-      "stepLimit": 6
+      "stepLimit": 6,
+      "lockedBubbles": []
     },
     {
       "id": 3,
@@ -105,7 +107,8 @@
         0.2
       ],
       "minSteps": 3,
-      "stepLimit": 8
+      "stepLimit": 8,
+      "lockedBubbles": []
     },
     {
       "id": 4,
@@ -147,7 +150,8 @@
         0.2
       ],
       "minSteps": 6,
-      "stepLimit": 7
+      "stepLimit": 7,
+      "lockedBubbles": []
     },
     {
       "id": 5,
@@ -184,7 +188,8 @@
         0.28
       ],
       "minSteps": 6,
-      "stepLimit": 7
+      "stepLimit": 7,
+      "lockedBubbles": []
     },
     {
       "id": 6,
@@ -226,7 +231,16 @@
         0.2
       ],
       "minSteps": 8,
-      "stepLimit": 11
+      "stepLimit": 11,
+      "lockedBubbles": [
+        {
+          "index": 0,
+          "unlock": {
+            "type": "totalClears",
+            "value": 3
+          }
+        }
+      ]
     },
     {
       "id": 7,
@@ -273,7 +287,8 @@
         0.2
       ],
       "minSteps": 10,
-      "stepLimit": 12
+      "stepLimit": 12,
+      "lockedBubbles": []
     },
     {
       "id": 8,
@@ -315,7 +330,8 @@
         0.2
       ],
       "minSteps": 5,
-      "stepLimit": 7
+      "stepLimit": 7,
+      "lockedBubbles": []
     },
     {
       "id": 9,
@@ -362,7 +378,8 @@
         0.2
       ],
       "minSteps": 10,
-      "stepLimit": 11
+      "stepLimit": 11,
+      "lockedBubbles": []
     },
     {
       "id": 10,
@@ -404,7 +421,8 @@
         0.32
       ],
       "minSteps": 6,
-      "stepLimit": 9
+      "stepLimit": 9,
+      "lockedBubbles": []
     },
     {
       "id": 11,
@@ -451,7 +469,8 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 9
+      "stepLimit": 9,
+      "lockedBubbles": []
     },
     {
       "id": 12,
@@ -493,7 +512,8 @@
         0.24
       ],
       "minSteps": 7,
-      "stepLimit": 9
+      "stepLimit": 9,
+      "lockedBubbles": []
     },
     {
       "id": 13,
@@ -545,7 +565,8 @@
         0.24
       ],
       "minSteps": 7,
-      "stepLimit": 10
+      "stepLimit": 10,
+      "lockedBubbles": []
     },
     {
       "id": 14,
@@ -597,7 +618,8 @@
         0.24
       ],
       "minSteps": 14,
-      "stepLimit": 15
+      "stepLimit": 15,
+      "lockedBubbles": []
     },
     {
       "id": 15,
@@ -649,7 +671,8 @@
         0.28
       ],
       "minSteps": 18,
-      "stepLimit": 13
+      "stepLimit": 13,
+      "lockedBubbles": []
     },
     {
       "id": 16,
@@ -701,7 +724,8 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 11
+      "stepLimit": 11,
+      "lockedBubbles": []
     },
     {
       "id": 17,
@@ -758,7 +782,8 @@
         0.24
       ],
       "minSteps": 11,
-      "stepLimit": 11
+      "stepLimit": 11,
+      "lockedBubbles": []
     },
     {
       "id": 18,
@@ -820,7 +845,8 @@
         0.24
       ],
       "minSteps": 18,
-      "stepLimit": 16
+      "stepLimit": 16,
+      "lockedBubbles": []
     },
     {
       "id": 19,
@@ -877,7 +903,8 @@
         0.24
       ],
       "minSteps": 14,
-      "stepLimit": 15
+      "stepLimit": 15,
+      "lockedBubbles": []
     },
     {
       "id": 20,
@@ -939,7 +966,8 @@
         0.32
       ],
       "minSteps": 17,
-      "stepLimit": 18
+      "stepLimit": 18,
+      "lockedBubbles": []
     }
   ]
 }

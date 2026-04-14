@@ -320,6 +320,15 @@ export function createLevelRuntime({
       fruitCount,
       colorIds,
       colorCounts,
+      lockedBubbles: Array.isArray(level.lockedBubbles)
+        ? level.lockedBubbles.map((item) => ({
+            index: item.index,
+            unlock: {
+              type: item.unlock?.type,
+              value: item.unlock?.value,
+            },
+          }))
+        : [],
       radiusRange,
       speedRange,
       stepLimit,
@@ -333,6 +342,15 @@ export function createLevelRuntime({
       useGeneratedFruits: Boolean(level.useGeneratedFruits),
       colorIds: level.colorIds.map((id) => id),
       colorCounts: level.colorCounts.map((item) => ({ colorId: item.colorId, count: item.count })),
+      lockedBubbles: Array.isArray(level.lockedBubbles)
+        ? level.lockedBubbles.map((item) => ({
+            index: item.index,
+            unlock: {
+              type: item.unlock?.type,
+              value: item.unlock?.value,
+            },
+          }))
+        : [],
       radiusRange: { min: level.radiusRange.min, max: level.radiusRange.max },
       speedRange: { min: level.speedRange.min, max: level.speedRange.max },
       fruits: level.fruits.map((fruit) => ({

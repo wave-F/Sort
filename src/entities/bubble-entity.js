@@ -122,6 +122,11 @@ export function createBubbleEntityClass({
       this.selectionScale = 1;
       this.selectionTarget = 1;
       this.selectionVel = 0;
+      this.locked = false;
+      this.unlockRuleType = null;
+      this.unlockTarget = 0;
+      this.unlockProgress = 0;
+      this.unlockFlash = 0;
 
       this.vel = new THREE.Vector3(vx, vy, 0);
       this.springVal = 0;
@@ -143,11 +148,15 @@ export function createBubbleEntityClass({
       this.accentUniform = nodeMaterialData.accentUniform;
       this.baseScale = this.radius;
       this.baseOpacity = 0.9;
+      this.baseTransmission = this.bubbleMaterial.transmission;
+      this.baseThickness = this.bubbleMaterial.thickness;
 
       this.bubble = new THREE.Mesh(bubbleGeometry, this.bubbleMaterial);
       this.bubble.scale.setScalar(this.baseScale);
       this.bubble.userData.fruit = this;
       this.selectRing = this.createSelectRing();
+      this.lockCore = this.createLockCore();
+      this.lockCounter = this.createLockCounter();
 
       this.burstState = BubbleBurstState.IDLE;
       this.stateElapsed = 0;
@@ -162,7 +171,7 @@ export function createBubbleEntityClass({
       this.maxBurstBubbleCount = 5;
       this.activeBurstBubbleCount = 0;
 
-      this.group.add(this.bubble, this.selectRing);
+      this.group.add(this.bubble, this.selectRing, this.lockCore, this.lockCounter.sprite);
       this.resetBurstArtifacts();
       this.setBaseColor(this.baseColor);
     }
@@ -193,12 +202,164 @@ export function createBubbleEntityClass({
       return ring;
     }
 
+    createLockCore() {
+      const group = new THREE.Group();
+
+      this.lockBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.38, 0.38, 0.34, 32),
+        new THREE.MeshStandardMaterial({
+          color: 0xcbe9ff,
+          roughness: 0.26,
+          metalness: 0.44,
+          emissive: 0x12283a,
+          emissiveIntensity: 0.18,
+        })
+      );
+      this.lockBody.position.set(0, -0.04, 0.14);
+
+      const shackleCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.2, 0, 0),
+        new THREE.Vector3(-0.2, 0.2, 0),
+        new THREE.Vector3(0, 0.33, 0),
+        new THREE.Vector3(0.2, 0.2, 0),
+        new THREE.Vector3(0.2, 0, 0),
+      ]);
+      this.lockShackle = new THREE.Mesh(
+        new THREE.TubeGeometry(shackleCurve, 48, 0.055, 14, false),
+        new THREE.MeshStandardMaterial({
+          color: 0xf2fbff,
+          roughness: 0.14,
+          metalness: 0.78,
+          emissive: 0x244d6b,
+          emissiveIntensity: 0.2,
+        })
+      );
+      this.lockShackle.position.set(0, 0.12, 0.2);
+
+      this.lockShackleStemL = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.045, 0.15, 14),
+        new THREE.MeshStandardMaterial({
+          color: 0xe6f6ff,
+          roughness: 0.16,
+          metalness: 0.74,
+          emissive: 0x244d6b,
+          emissiveIntensity: 0.18,
+        })
+      );
+      this.lockShackleStemL.position.set(-0.2, 0.04, 0.18);
+
+      this.lockShackleStemR = this.lockShackleStemL.clone();
+      this.lockShackleStemR.position.x = 0.2;
+
+      this.lockKeyHole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 0.06, 16),
+        new THREE.MeshStandardMaterial({
+          color: 0x0d1624,
+          roughness: 0.5,
+          metalness: 0.12,
+        })
+      );
+      this.lockKeyHole.rotation.x = Math.PI * 0.5;
+      this.lockKeyHole.position.set(0, -0.03, 0.24);
+
+      this.lockKeySlot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, 0.12, 0.03),
+        new THREE.MeshStandardMaterial({
+          color: 0x0d1624,
+          roughness: 0.5,
+          metalness: 0.12,
+        })
+      );
+      this.lockKeySlot.position.set(0, -0.12, 0.24);
+
+      group.add(this.lockBody);
+      group.add(this.lockShackle);
+      group.add(this.lockShackleStemL);
+      group.add(this.lockShackleStemR);
+      group.add(this.lockKeyHole);
+      group.add(this.lockKeySlot);
+      group.visible = false;
+      group.scale.set(this.radius * 0.62, this.radius * 0.62, this.radius * 0.38);
+      group.position.set(0, 0, this.radius * 0.76);
+      return group;
+    }
+
+    createLockCounter() {
+      if (typeof document === "undefined") {
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          depthTest: false,
+        }));
+        sprite.visible = false;
+        return { sprite, texture: null, canvas: null, context: null, lastText: "" };
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 96;
+      canvas.height = 96;
+      const context = canvas.getContext("2d");
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.generateMipmaps = false;
+      texture.needsUpdate = true;
+
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        depthTest: false,
+      }));
+      sprite.visible = false;
+      sprite.scale.set(this.radius * 0.44, this.radius * 0.44, 1);
+      sprite.position.set(0, -this.radius * 0.22, this.radius * 0.82);
+      return { sprite, texture, canvas, context, lastText: "" };
+    }
+
+    updateLockCounterTexture(remaining) {
+      const lockCounter = this.lockCounter;
+      if (!lockCounter?.context || !lockCounter?.canvas || !lockCounter?.texture) return;
+
+      const text = String(Math.max(0, remaining));
+      if (lockCounter.lastText === text) return;
+      lockCounter.lastText = text;
+
+      const ctx = lockCounter.context;
+      const { width, height } = lockCounter.canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      const cx = width * 0.5;
+      const cy = height * 0.5;
+      const radius = width * 0.34;
+
+      ctx.fillStyle = "rgba(13, 29, 51, 0.72)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(146, 221, 255, 0.95)";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius - 3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = "#f1fbff";
+      ctx.font = "700 44px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, cx, cy + 1);
+
+      lockCounter.texture.needsUpdate = true;
+    }
+
     setPosition(x, y, z) {
       this.group.position.set(x, y, z);
     }
 
     pop(sliceDir, speed) {
-      if (this.sliced) return;
+      if (this.sliced || this.locked) return;
       this.setSelected(false);
       this.sliced = true;
       this.life = 0;
@@ -215,6 +376,7 @@ export function createBubbleEntityClass({
 
     update(dt, worldBounds) {
       if (!this.active) return;
+      this.life += dt;
 
       this.springVel += (0 - this.springVal) * this.springTension;
       this.springVel *= this.springDamping;
@@ -286,10 +448,12 @@ export function createBubbleEntityClass({
           this.selectRing.visible = false;
           this.bubble.position.set(0, 0, 0);
         }
+        this.updateLockVisual(dt);
         return;
       }
 
       this.stateElapsed += dt;
+      this.updateLockVisual(dt);
 
       if (this.burstState === BubbleBurstState.PRE_BURST) {
         const t = Math.min(this.stateElapsed / this.preBurstDuration, 1);
@@ -340,7 +504,7 @@ export function createBubbleEntityClass({
     }
 
     setSelected(flag) {
-      const next = Boolean(flag) && this.active && !this.sliced;
+      const next = Boolean(flag) && this.active && !this.sliced && !this.locked;
       const changed = next !== this.selected;
       this.selected = next;
       this.selectionTarget = next ? 1.05 : 1;
@@ -375,6 +539,83 @@ export function createBubbleEntityClass({
       if (!this.active || this.sliced) return;
       this.wrongFlash = 0.22;
       this.wrongShake = 0.22;
+    }
+
+    setLockRule(rule) {
+      const unlockType = String(rule?.type ?? "").trim();
+      const unlockValue = Math.max(1, Math.floor(Number(rule?.value) || 0));
+      if (unlockType !== "totalClears") return;
+
+      this.locked = true;
+      this.unlockRuleType = unlockType;
+      this.unlockTarget = unlockValue;
+      this.unlockProgress = 0;
+      this.unlockFlash = 0;
+      this.setSelected(false);
+      this.updateLockCounterTexture(this.unlockTarget);
+    }
+
+    applyTotalClears(totalClears) {
+      if (!this.locked || this.unlockRuleType !== "totalClears") return false;
+
+      const total = Math.max(0, Math.floor(Number(totalClears) || 0));
+      this.unlockProgress = Math.min(total, this.unlockTarget);
+      this.updateLockCounterTexture(this.unlockTarget - this.unlockProgress);
+      if (total < this.unlockTarget) return false;
+
+      this.locked = false;
+      this.unlockFlash = 0.34;
+      this.updateLockCounterTexture(0);
+      return true;
+    }
+
+    updateLockVisual(dt) {
+      if (this.unlockFlash > 0) {
+        this.unlockFlash = Math.max(0, this.unlockFlash - dt);
+      }
+
+      if (this.locked && this.active && !this.sliced) {
+        this.lockCore.visible = true;
+        this.lockCounter.sprite.visible = true;
+
+        const pulse = 0.5 + 0.5 * Math.sin(this.life * 2.8 + this.id * 0.53);
+        const s = this.radius * (0.62 + pulse * 0.03);
+        this.lockCore.scale.set(s, s, s * 0.62);
+        this.lockCore.rotation.z = Math.sin(this.life * 0.85 + this.id * 0.17) * 0.04;
+
+        this.lockBody.material.emissiveIntensity = 0.12 + pulse * 0.16;
+        this.lockShackle.material.emissiveIntensity = 0.1 + pulse * 0.12;
+        this.lockShackleStemL.material.emissiveIntensity = 0.1 + pulse * 0.12;
+        this.lockShackleStemR.material.emissiveIntensity = 0.1 + pulse * 0.12;
+
+        this.lockCounter.sprite.material.opacity = 0.72 + pulse * 0.22;
+        this.lockCounter.sprite.position.y = -this.radius * (0.22 - pulse * 0.015);
+        this.bubbleMaterial.opacity = this.baseOpacity * 0.72;
+        this.bubbleMaterial.transmission = Math.max(0.2, this.baseTransmission * 0.36);
+        this.bubbleMaterial.thickness = Math.max(0.46, this.baseThickness * 0.36);
+        return;
+      }
+
+      this.lockCore.visible = false;
+      this.lockCounter.sprite.visible = false;
+      this.lockCore.rotation.z = 0;
+      this.lockCore.scale.set(this.radius * 0.62, this.radius * 0.62, this.radius * 0.38);
+      this.lockCounter.sprite.material.opacity = 0;
+      this.lockCounter.sprite.position.y = -this.radius * 0.22;
+      this.bubbleMaterial.transmission = this.baseTransmission;
+      this.bubbleMaterial.thickness = this.baseThickness;
+
+      if (this.unlockFlash > 0 && this.active && !this.sliced) {
+        const t = this.unlockFlash / 0.34;
+        this.selectRing.visible = true;
+        this.selectRing.material.color.setHex(0x93ff9a);
+        this.selectRing.material.opacity = 0.28 + t * 0.48;
+        this.selectRing.scale.setScalar(this.radius * (1.02 + (1 - t) * 0.14));
+      }
+
+      if (!this.sliced) {
+        this.bubbleMaterial.opacity = this.baseOpacity;
+      }
     }
 
     applyContact(nx, ny, overlap) {

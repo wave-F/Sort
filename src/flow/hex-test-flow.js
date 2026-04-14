@@ -45,6 +45,7 @@ function computeTopColorIdsByZ(centers, simFruits) {
     for (let j = 0; j < simFruits.length; j += 1) {
       const fruit = simFruits[j];
       if (!fruit?.active) continue;
+      if (fruit.locked) continue;
 
       const dx = center.x - fruit.x;
       const dy = center.y - fruit.y;
@@ -65,6 +66,16 @@ function computeTopColorIdsByZ(centers, simFruits) {
   }
 
   return topColorIds;
+}
+
+function applyTotalClearsToSimLocks(simFruits, totalClears) {
+  for (let i = 0; i < simFruits.length; i += 1) {
+    const fruit = simFruits[i];
+    if (!fruit?.active || !fruit.locked) continue;
+    if (fruit.unlockRuleType !== "totalClears") continue;
+    if (totalClears < fruit.unlockTarget) continue;
+    fruit.locked = false;
+  }
 }
 
 function findLargestConnectedRegion(centers, topColorIds) {
@@ -150,6 +161,7 @@ function eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, targe
   for (let i = 0; i < simFruits.length; i += 1) {
     const fruit = simFruits[i];
     if (!fruit?.active) continue;
+    if (fruit.locked) continue;
     if (fruit.colorId !== targetColorId) continue;
 
     const hitRadiusSq = fruit.radius * fruit.radius;
@@ -181,7 +193,7 @@ function countActiveFruits(simFruits) {
   return active;
 }
 
-export function calculateTheoryStepsRecursive({ centers, fruits, maxDepth = 2048 } = {}) {
+export function calculateTheoryStepsRecursive({ centers, fruits, totalClears = 0, maxDepth = 2048 } = {}) {
   const simFruits = Array.isArray(fruits)
     ? fruits.map((f) => ({
         x: Number(f.x) || 0,
@@ -190,10 +202,17 @@ export function calculateTheoryStepsRecursive({ centers, fruits, maxDepth = 2048
         radius: Math.max(0, Number(f.radius) || 0),
         colorId: Number.isInteger(f.colorId) ? f.colorId : -1,
         active: f.active !== false,
+        locked: Boolean(f.locked),
+        unlockRuleType: String(f.unlockRuleType ?? ""),
+        unlockTarget: Math.max(0, Math.floor(Number(f.unlockTarget) || 0)),
       }))
     : [];
 
-  function recurse(stepCount, depth) {
+  const initialTotalClears = Math.max(0, Math.floor(Number(totalClears) || 0));
+
+  applyTotalClearsToSimLocks(simFruits, initialTotalClears);
+
+  function recurse(stepCount, depth, totalClears) {
     const activeCount = countActiveFruits(simFruits);
     if (activeCount === 0) return stepCount;
     if (depth >= maxDepth) return stepCount;
@@ -208,14 +227,17 @@ export function calculateTheoryStepsRecursive({ centers, fruits, maxDepth = 2048
 
     const removed = eliminateFruitsBySelectedHexes(simFruits, centers, selectedHexes, flow1.colorId);
     if (removed <= 0) return stepCount;
-    return recurse(stepCount + 1, depth + 1);
+    const nextTotalClears = totalClears + removed;
+    applyTotalClearsToSimLocks(simFruits, nextTotalClears);
+    return recurse(stepCount + 1, depth + 1, nextTotalClears);
   }
 
-  return recurse(0, 0);
+  return recurse(0, 0, initialTotalClears);
 }
 
 export function createHexTestFlowController({
   gameUI,
+  state,
   fruits,
   colors,
   hexOverlayCenters,
@@ -366,6 +388,7 @@ export function createHexTestFlowController({
     for (let i = 0; i < fruits.length; i += 1) {
       const fruit = fruits[i];
       if (!fruit?.active || fruit.sliced) continue;
+      if (fruit.locked) continue;
       if (fruit.colorId !== flow1ColorId) continue;
 
       let shouldRemove = false;
@@ -388,6 +411,15 @@ export function createHexTestFlowController({
       fruit.active = false;
       fruit.group.visible = false;
       removed += 1;
+    }
+
+    if (removed > 0 && state) {
+      state.totalClearsThisLevel = Math.max(0, (state.totalClearsThisLevel ?? 0) + removed);
+      for (let i = 0; i < fruits.length; i += 1) {
+        const fruit = fruits[i];
+        if (!fruit?.active || fruit.sliced || !fruit.locked) continue;
+        fruit.applyTotalClears?.(state.totalClearsThisLevel);
+      }
     }
 
     reset();

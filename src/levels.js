@@ -51,6 +51,31 @@ function normalizeFruits(rawFruits) {
   return fruits;
 }
 
+function normalizeLockedBubbles(rawLockedBubbles) {
+  if (!Array.isArray(rawLockedBubbles)) return [];
+
+  const normalized = [];
+  for (const item of rawLockedBubbles) {
+    if (!item) continue;
+    const index = Math.floor(asNumber(item.index, -1));
+    if (index < 0) continue;
+
+    const unlockType = String(item.unlock?.type ?? "").trim();
+    if (unlockType !== "totalClears") continue;
+    const unlockValue = Math.max(1, Math.floor(asNumber(item.unlock?.value, 1)));
+
+    normalized.push({
+      index,
+      unlock: {
+        type: unlockType,
+        value: unlockValue,
+      },
+    });
+  }
+
+  return normalized;
+}
+
 function normalizeLevel(rawLevel, index) {
   const id = Math.floor(asNumber(rawLevel?.id, index + 1));
   const stepLimit = Math.max(1, Math.floor(asNumber(rawLevel?.stepLimit, 8)));
@@ -62,6 +87,7 @@ function normalizeLevel(rawLevel, index) {
   const homeBubbleColorId = rawHomeBubbleColorId >= 0 && rawHomeBubbleColorId <= 7 ? rawHomeBubbleColorId : null;
   const colorCounts = normalizeColorCounts(rawLevel?.colorCounts);
   const fruits = normalizeFruits(rawLevel?.fruits);
+  const lockedBubbles = normalizeLockedBubbles(rawLevel?.lockedBubbles);
 
   if (!colorCounts.length) {
     throw new Error(`Invalid levels config: level id=${id} has empty colorCounts`);
@@ -75,6 +101,7 @@ function normalizeLevel(rawLevel, index) {
     stepLimit,
     seed,
     colorCounts,
+    lockedBubbles,
     radiusRange: normalizeRange(rawLevel?.radiusRange, 0.34, 0.44),
     speedRange: normalizeRange(rawLevel?.speedRange, 0, 0.16),
     fruits,

@@ -8,6 +8,15 @@ export function createRoundStateController({
   slicePopStaggerStep,
   onPlayPopAudio,
 } = {}) {
+  function onFruitPopped() {
+    state.totalClearsThisLevel = Math.max(0, (state.totalClearsThisLevel ?? 0) + 1);
+    for (let i = 0; i < fruits.length; i += 1) {
+      const fruit = fruits[i];
+      if (!fruit || !fruit.active || fruit.sliced || !fruit.locked) continue;
+      fruit.applyTotalClears(state.totalClearsThisLevel);
+    }
+  }
+
   function clearQueuedSelections() {
     for (let i = 0; i < state.sliceQueue.length; i += 1) {
       const fruit = state.sliceQueue[i].fruit;
@@ -52,6 +61,7 @@ export function createRoundStateController({
       const fruit = item.fruit;
       if (fruit && fruit.active && !fruit.sliced) {
         fruit.pop(item.sliceDir, item.speed);
+        if (fruit.sliced) onFruitPopped();
         onPlayPopAudio?.();
       }
       state.pendingPops.splice(i, 1);

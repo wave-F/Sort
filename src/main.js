@@ -33,6 +33,9 @@ const commentaryEl = document.getElementById("commentary");
 const levelGuideEl = document.getElementById("level-guide");
 const levelGuideHandEl = document.getElementById("level-guide-hand");
 const levelGuideTipEl = document.getElementById("level-guide-tip");
+const lockGuideEl = document.getElementById("lock-guide");
+const lockGuideSpotlightEl = document.getElementById("lock-guide-spotlight");
+const lockGuideTipEl = document.getElementById("lock-guide-tip");
 const homeScreenEl = document.getElementById("home-screen");
 const homeLevelPrevBtn = document.getElementById("home-level-prev");
 const homeLevelCurrentBtn = document.getElementById("home-level-current");
@@ -85,6 +88,7 @@ const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
 const levelTestNextStepBtn = document.getElementById("level-test-next-step");
 const levelTestExportStepBtn = document.getElementById("level-test-export-step");
+const levelTestBubbleIndexBtn = document.getElementById("level-test-bubble-index");
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 const levelTestAddCoinsBtn = document.getElementById("level-test-add-coins");
 const outOfMovesBannerEl = document.getElementById("out-of-moves-banner");
@@ -136,6 +140,7 @@ const gameSettingsStorageKey = "fruit_game_settings_v1";
 const uiLayoutDebugStorageKey = "fruit_ui_layout_debug_v1";
 const hudDebugStorageKey = "fruit_hud_debug_v1";
 const level1TutorialSeenStorageKey = "fruit_level1_tutorial_seen_v1";
+const lockTutorialSeenStorageKey = "fruit_lock_tutorial_seen_v1";
 const staminaMax = 5;
 const staminaRecoverIntervalMs = 25 * 60 * 1000;
 const outOfMovesBannerDurationMs = 1800;
@@ -241,6 +246,7 @@ const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 let level1TutorialSeen = readLevel1TutorialSeen();
+let lockTutorialSeen = readLockTutorialSeen();
 const gameSettings = readGameSettings({ storageKey: gameSettingsStorageKey, defaultSettings: defaultGameSettings });
 const uiLayoutDebugTuning = readUiLayoutDebugTuning();
 const hudDebugTuning = readHudDebugTuning();
@@ -260,9 +266,12 @@ const state = {
   sliceBroken: false,
   sliceCommitted: false,
   keepFullTrailDuringDrag: true,
+  lockTutorialActive: false,
+  showBubbleIndexOverlay: false,
   sliceHitIds: new Set(),
   sliceQueue: [],
   pendingPops: [],
+  totalClearsThisLevel: 0,
   lastPoint: null,
   nowPoint: null,
   lastMoveAt: 0,
@@ -317,6 +326,8 @@ const debugHexOverlayLines = [];
 const debugHexOverlayLabelEls = [];
 let debugHexOverlayVertexOffsets = [];
 let debugHexLabelLayerEl = null;
+let debugBubbleLabelLayerEl = null;
+const debugBubbleIndexEntries = [];
 const debugHexFillWorkColor = new THREE.Color();
 const debugHexFillInvertColor = new THREE.Color();
 let levelsXlsxHandle = null;
@@ -332,6 +343,8 @@ const playPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const workHit = new THREE.Vector3();
 const guideProjectA = new THREE.Vector3();
 const guideProjectB = new THREE.Vector3();
+const lockGuideProject = new THREE.Vector3();
+const lockGuideProjectEdge = new THREE.Vector3();
 
 const levelGuideState = {
   active: false,
@@ -343,6 +356,11 @@ const levelGuideState = {
   cycleStartedAt: 0,
   segmentMs: 760,
   holdMs: 180,
+};
+
+const lockGuideState = {
+  active: false,
+  targetFruit: null,
 };
 
 scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
@@ -377,6 +395,7 @@ const {
 
 const hexTestFlow = createHexTestFlowController({
   gameUI,
+  state,
   fruits,
   colors,
   hexOverlayCenters: debugHexOverlayCenters,
@@ -559,6 +578,7 @@ const sessionFlow = createSessionFlowController({
   onBackHomeFromResult: backHomeFromResult,
   onAfterLevelLoaded: (index) => {
     maybeShowLevel1Guide(index);
+    maybeShowLockGuide();
     if (state.showHexOverlay) {
       if (!debugHexOverlayCenters.length) rebuildDebugHexOverlay();
       updateDebugHexOverlayColors();
@@ -853,6 +873,24 @@ function persistLevel1TutorialSeen() {
   } catch (_err) {}
 }
 
+function readLockTutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+
+  try {
+    return window.localStorage.getItem(lockTutorialSeenStorageKey) === "1";
+  } catch (_err) {
+    return false;
+  }
+}
+
+function persistLockTutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+
+  try {
+    window.localStorage.setItem(lockTutorialSeenStorageKey, "1");
+  } catch (_err) {}
+}
+
 function isGuideFruitValid(fruit) {
   return Boolean(fruit && fruit.active && !fruit.sliced && fruit.group?.visible !== false);
 }
@@ -910,6 +948,89 @@ function worldToGuidePoint(world, outVec3) {
   const x = ((outVec3.x + 1) * 0.5) * rect.width + rect.left - frameRect.left;
   const y = ((-outVec3.y + 1) * 0.5) * rect.height + rect.top - frameRect.top;
   return { x, y };
+}
+
+function isLockGuideFruitValid(fruit) {
+  return Boolean(fruit && fruit.active && !fruit.sliced && fruit.locked && fruit.group?.visible !== false);
+}
+
+function stopLockGuide() {
+  lockGuideState.active = false;
+  lockGuideState.targetFruit = null;
+  state.lockTutorialActive = false;
+  lockGuideEl?.classList.add("hidden");
+}
+
+function findFirstLockedFruit() {
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (isLockGuideFruitValid(fruit)) return fruit;
+  }
+  return null;
+}
+
+function updateLockGuideOverlay() {
+  if (!lockGuideState.active || !lockGuideState.targetFruit) return;
+  const fruit = lockGuideState.targetFruit;
+  if (!isLockGuideFruitValid(fruit) || !state.started || state.inHome || state.gameOver) {
+    stopLockGuide();
+    return;
+  }
+
+  const point = worldToGuidePoint(fruit.group.position, lockGuideProject);
+  if (!point) return;
+
+  lockGuideProjectEdge.copy(fruit.group.position);
+  lockGuideProjectEdge.x += fruit.radius;
+  const edgePoint = worldToGuidePoint(lockGuideProjectEdge, guideProjectB);
+  const projectedRadius = edgePoint ? Math.hypot(edgePoint.x - point.x, edgePoint.y - point.y) : fruit.radius * 32;
+
+  const diameter = Math.max(84, projectedRadius * 2.22);
+  if (lockGuideEl) {
+    lockGuideEl.style.setProperty("--lock-guide-x", `${point.x.toFixed(2)}px`);
+    lockGuideEl.style.setProperty("--lock-guide-y", `${point.y.toFixed(2)}px`);
+    lockGuideEl.style.setProperty("--lock-guide-r", `${(diameter * 0.5).toFixed(2)}px`);
+  }
+  if (lockGuideSpotlightEl) {
+    lockGuideSpotlightEl.style.left = `${point.x.toFixed(2)}px`;
+    lockGuideSpotlightEl.style.top = `${point.y.toFixed(2)}px`;
+    lockGuideSpotlightEl.style.width = `${diameter.toFixed(1)}px`;
+    lockGuideSpotlightEl.style.height = `${diameter.toFixed(1)}px`;
+  }
+  if (lockGuideTipEl) {
+    lockGuideTipEl.style.left = `${point.x.toFixed(2)}px`;
+    lockGuideTipEl.style.top = `${(point.y - diameter * 0.56).toFixed(2)}px`;
+  }
+}
+
+function showLockGuide(targetFruit) {
+  if (!targetFruit || !lockGuideEl) return;
+  lockGuideState.active = true;
+  lockGuideState.targetFruit = targetFruit;
+  state.lockTutorialActive = true;
+  lockGuideEl.classList.remove("hidden");
+  updateLockGuideOverlay();
+}
+
+function maybeShowLockGuide() {
+  if (lockTutorialSeen) {
+    stopLockGuide();
+    return;
+  }
+
+  const hasLockConfig = Array.isArray(state.activeLevel?.lockedBubbles) && state.activeLevel.lockedBubbles.length > 0;
+  if (!hasLockConfig) {
+    stopLockGuide();
+    return;
+  }
+
+  const target = findFirstLockedFruit();
+  if (!target) {
+    stopLockGuide();
+    return;
+  }
+
+  showLockGuide(target);
 }
 
 function stopLevel1Guide() {
@@ -1172,10 +1293,13 @@ function clearGameplayDataOnly() {
     window.localStorage.removeItem(staminaStorageKey);
     window.localStorage.removeItem(gameSettingsStorageKey);
     window.localStorage.removeItem(level1TutorialSeenStorageKey);
+    window.localStorage.removeItem(lockTutorialSeenStorageKey);
   }
 
   level1TutorialSeen = false;
+  lockTutorialSeen = false;
   stopLevel1Guide();
+  stopLockGuide();
 
   hydrateLevelProgress();
   hydrateCoinBalance();
@@ -1383,6 +1507,7 @@ function renderHomeScreen() {
 }
 
 function showHomeScreen() {
+  stopLockGuide();
   homeScreenController.showHomeScreen();
 }
 
@@ -1460,6 +1585,13 @@ function init() {
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerUp);
 
+  lockGuideEl?.addEventListener("pointerdown", () => {
+    if (!lockGuideState.active) return;
+    persistLockTutorialSeen();
+    lockTutorialSeen = true;
+    stopLockGuide();
+  });
+
   setupRenderer();
 }
 
@@ -1472,6 +1604,7 @@ function setupLevelTestControls() {
     levelTestHexToggleEl.checked = state.showHexOverlay;
   }
   updateLevelTestFlowButtonLabel();
+  updateDebugBubbleIndexButtonLabel();
 
   let addCoinsBtn = levelTestAddCoinsBtn;
   if (!addCoinsBtn) {
@@ -1546,6 +1679,18 @@ function setupLevelTestControls() {
 
   levelTestExportStepBtn?.addEventListener("click", () => {
     void calculateAndExportTheoryStep();
+  });
+
+  levelTestBubbleIndexBtn?.addEventListener("click", () => {
+    gameAudio.playUiClickAudio();
+    state.showBubbleIndexOverlay = !state.showBubbleIndexOverlay;
+    updateDebugBubbleIndexButtonLabel();
+    if (state.showBubbleIndexOverlay) {
+      rebuildDebugBubbleIndexLabels();
+      gameUI.showCommentary("已显示泡泡Index", 800);
+    } else {
+      gameUI.showCommentary("已隐藏泡泡Index", 800);
+    }
   });
 
   addCoinsBtn?.addEventListener("click", () => {
@@ -1672,7 +1817,11 @@ async function calculateAndExportTheoryStep() {
 
   const simFruits = buildActiveFruitSnapshot();
 
-  const stepCount = calculateTheoryStepsRecursive({ centers: debugHexOverlayCenters, fruits: simFruits });
+  const stepCount = calculateTheoryStepsRecursive({
+    centers: debugHexOverlayCenters,
+    fruits: simFruits,
+    totalClears: state.totalClearsThisLevel ?? 0,
+  });
   const levelId = state.activeLevel?.id ?? state.currentLevelIndex + 1;
 
   try {
@@ -1696,6 +1845,9 @@ function buildActiveFruitSnapshot() {
       radius: fruit.radius,
       colorId: fruit.colorId,
       active: true,
+      locked: Boolean(fruit.locked),
+      unlockRuleType: fruit.unlockRuleType,
+      unlockTarget: fruit.unlockTarget,
     });
   }
   return snapshot;
@@ -1776,6 +1928,99 @@ function clearDebugHexLabelLayer() {
   if (!layer) return;
   layer.innerHTML = "";
   debugHexOverlayLabelEls.length = 0;
+}
+
+function ensureDebugBubbleLabelLayer() {
+  if (debugBubbleLabelLayerEl) return debugBubbleLabelLayerEl;
+  if (!appEl) return null;
+  const layer = document.createElement("div");
+  layer.id = "debug-bubble-label-layer";
+  layer.style.position = "absolute";
+  layer.style.left = "0";
+  layer.style.top = "0";
+  layer.style.width = "100%";
+  layer.style.height = "100%";
+  layer.style.pointerEvents = "none";
+  layer.style.zIndex = "9";
+  appEl.appendChild(layer);
+  debugBubbleLabelLayerEl = layer;
+  return debugBubbleLabelLayerEl;
+}
+
+function clearDebugBubbleIndexLabels() {
+  const layer = ensureDebugBubbleLabelLayer();
+  if (!layer) return;
+  layer.innerHTML = "";
+  debugBubbleIndexEntries.length = 0;
+}
+
+function rebuildDebugBubbleIndexLabels() {
+  clearDebugBubbleIndexLabels();
+  if (!state.showBubbleIndexOverlay) return;
+  const layer = ensureDebugBubbleLabelLayer();
+  if (!layer) return;
+
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!fruit) continue;
+    const labelEl = document.createElement("div");
+    labelEl.style.position = "absolute";
+    labelEl.style.transform = "translate(-50%, -50%)";
+    labelEl.style.font = "700 12px/1.1 'Avenir Next', 'PingFang SC', sans-serif";
+    labelEl.style.color = "#fff";
+    labelEl.style.background = "rgba(16, 30, 54, 0.72)";
+    labelEl.style.border = "1px solid rgba(154, 224, 255, 0.7)";
+    labelEl.style.borderRadius = "10px";
+    labelEl.style.padding = "1px 6px";
+    labelEl.style.textAlign = "center";
+    labelEl.style.textShadow = "0 1px 1px rgba(0,0,0,0.35)";
+    labelEl.textContent = `#${fruit.id}`;
+    layer.appendChild(labelEl);
+    debugBubbleIndexEntries.push({ fruit, labelEl });
+  }
+}
+
+function updateDebugBubbleIndexButtonLabel() {
+  if (!levelTestBubbleIndexBtn) return;
+  levelTestBubbleIndexBtn.textContent = state.showBubbleIndexOverlay ? "隐藏泡泡Index" : "显示泡泡Index";
+}
+
+function updateDebugBubbleIndexLabels() {
+  const layer = ensureDebugBubbleLabelLayer();
+  if (!layer) return;
+  const visible = state.showBubbleIndexOverlay && state.started && !state.inHome;
+  layer.style.display = visible ? "block" : "none";
+  if (!visible) return;
+
+  if (debugBubbleIndexEntries.length !== fruits.length) {
+    rebuildDebugBubbleIndexLabels();
+  }
+
+  for (let i = 0; i < debugBubbleIndexEntries.length; i += 1) {
+    const entry = debugBubbleIndexEntries[i];
+    const fruit = entry.fruit;
+    const labelEl = entry.labelEl;
+    if (!fruit?.active || fruit.sliced || !fruit.group.visible) {
+      labelEl.style.display = "none";
+      continue;
+    }
+
+    const yOffset = fruit.radius * 0.35;
+    const pos = worldToOverlayPosition(
+      fruit.group.position.x,
+      fruit.group.position.y + yOffset,
+      fruit.group.position.z + 0.95
+    );
+    if (!pos) {
+      labelEl.style.display = "none";
+      continue;
+    }
+
+    labelEl.style.display = "block";
+    labelEl.style.left = `${pos.x}px`;
+    labelEl.style.top = `${pos.y}px`;
+    labelEl.style.opacity = fruit.locked ? "0.92" : "0.78";
+  }
 }
 
 function worldToOverlayPosition(x, y, z = 0.95) {
@@ -2047,7 +2292,7 @@ function updateDebugHexOverlayColors() {
 
     for (let j = 0; j < fruits.length; j += 1) {
       const fruit = fruits[j];
-      if (!fruit?.active || fruit.sliced || !fruit.bubble.visible) continue;
+      if (!fruit?.active || fruit.sliced || fruit.locked || !fruit.bubble.visible) continue;
 
       const fx = fruit.group.position.x;
       const fy = fruit.group.position.y;
@@ -2144,6 +2389,7 @@ function startGame() {
 function loadLevel(index) {
   const result = sessionFlow.loadLevel(index);
   updateDebugHexOverlayVisibility();
+  rebuildDebugBubbleIndexLabels();
   return result;
 }
 
@@ -2152,7 +2398,7 @@ function resetFruits(level) {
 }
 
 function onPointerDown(ev) {
-  if (!state.started || state.gameOver || state.levelTransitioning || !renderer) return;
+  if (!state.started || state.gameOver || state.levelTransitioning || state.lockTutorialActive || !renderer) return;
   if (ev.button !== undefined && ev.button !== 0) return;
   if (state.stepLimit > 0 && state.stepsUsed >= state.stepLimit) {
     gameUI.showCommentary("Out of moves for this level.", 1000);
@@ -2241,6 +2487,9 @@ function tick() {
     fruit.update(dt, bounds);
     if (fruit.active && !fruit.sliced) remaining += 1;
   }
+
+  updateLockGuideOverlay();
+  updateDebugBubbleIndexLabels();
 
   updateLevel1Guide(now);
 

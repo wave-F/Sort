@@ -267,6 +267,10 @@
         <label for="p-pop-progress">爆炸动画进度<input id="p-pop-progress" type="range" min="0" max="1" step="0.001" value="0" /></label>
         <span class="ctrl-value" data-value-for="p-pop-progress">0.000</span>
       </div>
+      <div class="ctrl-row">
+        <label for="p-lock-remaining">锁剩余数量<input id="p-lock-remaining" type="range" min="0" max="20" step="1" value="3" /></label>
+        <span class="ctrl-value" data-value-for="p-lock-remaining">3</span>
+      </div>
 
       <div class="toggle-row">
         <label for="t-dye">内部染料流动</label>
@@ -288,6 +292,10 @@
         <label for="t-bomb">炸弹泡泡模式</label>
         <input id="t-bomb" type="checkbox" />
       </div>
+      <div class="toggle-row">
+        <label for="t-lock">锁泡泡模式</label>
+        <input id="t-lock" type="checkbox" />
+      </div>
 
       <button id="pop-btn" type="button">播放爆炸动画</button>
       <button id="reset-btn" type="button">恢复默认参数</button>
@@ -295,6 +303,6 @@
       <button id="back-btn" type="button">返回主游戏</button>
     </div>
 
-    <script type="module" src="./src/bubble-debug.js?v=20260410-bomb-preview"></script>
+    <script type="module" src="./src/bubble-debug.js?v=20260414-lock-preview"></script>
   </body>
 </html>

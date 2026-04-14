@@ -31,7 +31,13 @@ export function createSliceSystem({
     const intersections = raycaster.intersectObjects(bubbleMeshes, false);
     if (!intersections.length) return null;
 
-    return intersections[0].object.userData.fruit ?? null;
+    for (let i = 0; i < intersections.length; i += 1) {
+      const fruit = intersections[i].object.userData.fruit ?? null;
+      if (!fruit || !fruit.active || fruit.sliced || fruit.locked) continue;
+      return fruit;
+    }
+
+    return null;
   }
 
   function buildSliceSpatialIndex(fruits) {

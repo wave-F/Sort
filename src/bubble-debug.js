@@ -19,6 +19,8 @@ const syncBtn = document.getElementById("sync-btn");
 const popBtn = document.getElementById("pop-btn");
 const popProgressInput = document.getElementById("p-pop-progress");
 const popProgressValue = document.querySelector('[data-value-for="p-pop-progress"]');
+const lockRemainingInput = document.getElementById("p-lock-remaining");
+const lockRemainingValue = document.querySelector('[data-value-for="p-lock-remaining"]');
 const tuningStorageKey = "bubble_tuning_v1";
 const debugBuildTag = "jelly-burst-2026-04-09";
 if (compatEl) compatEl.textContent = `调试页版本: ${debugBuildTag}`;
@@ -41,6 +43,8 @@ const defaults = {
   toggleIri: true,
   toggleRandom: true,
   toggleBomb: false,
+  toggleLock: false,
+  lockRemaining: 3,
 };
 
 const scene = new THREE.Scene();
@@ -82,8 +86,11 @@ let springVal = 0;
 let springVel = 0;
 let tension = defaults.springTension;
 let damping = defaults.springDamping;
+let transmissionControlValue = defaults.transmission;
 let randomClickColorEnabled = defaults.toggleRandom;
 let bombModeEnabled = defaults.toggleBomb;
+let lockModeEnabled = defaults.toggleLock;
+let lockRemaining = defaults.lockRemaining;
 let activeColorIndex = 0;
 const clock = new THREE.Clock();
 
@@ -208,6 +215,105 @@ bombGroup.add(bombRing);
 bombGroup.visible = false;
 bubble.add(bombGroup);
 
+const lockGroup = new THREE.Group();
+const lockBody = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.38, 0.38, 0.34, 32),
+  new THREE.MeshStandardMaterial({
+    color: 0xcbe9ff,
+    roughness: 0.26,
+    metalness: 0.44,
+    emissive: 0x12283a,
+    emissiveIntensity: 0.18,
+  })
+);
+lockBody.position.set(0, -0.04, 0.14);
+
+const shackleCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-0.2, 0, 0),
+  new THREE.Vector3(-0.2, 0.2, 0),
+  new THREE.Vector3(0, 0.33, 0),
+  new THREE.Vector3(0.2, 0.2, 0),
+  new THREE.Vector3(0.2, 0, 0),
+]);
+const lockShackle = new THREE.Mesh(
+  new THREE.TubeGeometry(shackleCurve, 48, 0.055, 14, false),
+  new THREE.MeshStandardMaterial({
+    color: 0xf2fbff,
+    roughness: 0.14,
+    metalness: 0.78,
+    emissive: 0x244d6b,
+    emissiveIntensity: 0.2,
+  })
+);
+lockShackle.position.set(0, 0.12, 0.2);
+
+const lockShackleStemL = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.045, 0.045, 0.15, 14),
+  new THREE.MeshStandardMaterial({
+    color: 0xe6f6ff,
+    roughness: 0.16,
+    metalness: 0.74,
+    emissive: 0x244d6b,
+    emissiveIntensity: 0.18,
+  })
+);
+lockShackleStemL.position.set(-0.2, 0.04, 0.18);
+
+const lockShackleStemR = lockShackleStemL.clone();
+lockShackleStemR.position.x = 0.2;
+
+const lockKeyHole = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.04, 0.04, 0.06, 16),
+  new THREE.MeshStandardMaterial({
+    color: 0x0d1624,
+    roughness: 0.5,
+    metalness: 0.12,
+  })
+);
+lockKeyHole.rotation.x = Math.PI * 0.5;
+lockKeyHole.position.set(0, -0.03, 0.24);
+
+const lockKeySlot = new THREE.Mesh(
+  new THREE.BoxGeometry(0.07, 0.12, 0.03),
+  new THREE.MeshStandardMaterial({
+    color: 0x0d1624,
+    roughness: 0.5,
+    metalness: 0.12,
+  })
+);
+lockKeySlot.position.set(0, -0.12, 0.24);
+
+lockGroup.add(lockBody);
+lockGroup.add(lockShackle);
+lockGroup.add(lockShackleStemL);
+lockGroup.add(lockShackleStemR);
+lockGroup.add(lockKeyHole);
+lockGroup.add(lockKeySlot);
+lockGroup.scale.set(0.62, 0.62, 0.38);
+lockGroup.position.set(0, 0, 0.86);
+lockGroup.visible = false;
+bubble.add(lockGroup);
+
+const lockCountCanvas = document.createElement("canvas");
+lockCountCanvas.width = 96;
+lockCountCanvas.height = 96;
+const lockCountCtx = lockCountCanvas.getContext("2d");
+const lockCountTexture = new THREE.CanvasTexture(lockCountCanvas);
+lockCountTexture.generateMipmaps = false;
+lockCountTexture.needsUpdate = true;
+const lockCountSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: lockCountTexture,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  depthTest: false,
+}));
+lockCountSprite.visible = false;
+lockCountSprite.scale.set(0.44, 0.44, 1);
+lockCountSprite.position.set(0, -0.44, 0.92);
+bubble.add(lockCountSprite);
+let lockCountLastText = "";
+
 const BubbleState = {
   IDLE: "IDLE",
   PRE_BURST: "PRE_BURST",
@@ -310,6 +416,12 @@ if (popProgressInput) {
   });
 }
 
+if (lockRemainingInput) {
+  lockRemainingInput.addEventListener("input", () => {
+    setLockRemaining(lockRemainingInput.value);
+  });
+}
+
 syncBtn.addEventListener("click", () => {
   const payload = {
     transmission: material.transmission,
@@ -376,7 +488,8 @@ function bindToggle(id, onUpdate) {
 }
 
 bindControl("p-transmission", (value) => {
-  material.transmission = value;
+  transmissionControlValue = value;
+  if (!lockModeEnabled) material.transmission = value;
 });
 bindControl("p-roughness", (value) => {
   material.roughness = value;
@@ -428,6 +541,10 @@ bindToggle("t-bomb", (checked) => {
   bombModeEnabled = checked;
   updateBombVisualState(clock.elapsedTime);
 });
+bindToggle("t-lock", (checked) => {
+  lockModeEnabled = checked;
+  updateLockVisualState(clock.elapsedTime);
+});
 
 document.getElementById("reset-btn").addEventListener("click", () => {
   setControlValue("p-transmission", defaults.transmission);
@@ -442,13 +559,16 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   setControlValue("p-spring-damping", defaults.springDamping);
   setControlValue("p-light-key", defaults.lightKey);
   setControlValue("p-light-ambient", defaults.lightAmbient);
+  setControlValue("p-lock-remaining", defaults.lockRemaining);
   setToggleValue("t-dye", defaults.toggleDye);
   setToggleValue("t-edge", defaults.toggleEdge);
   setToggleValue("t-iri", defaults.toggleIri);
   setToggleValue("t-random", defaults.toggleRandom);
   setToggleValue("t-bomb", defaults.toggleBomb);
+  setToggleValue("t-lock", defaults.toggleLock);
 
   material.transmission = defaults.transmission;
+  transmissionControlValue = defaults.transmission;
   material.roughness = defaults.roughness;
   material.clearcoat = defaults.clearcoat;
   material.opacity = 0.95;
@@ -466,6 +586,8 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   iridescenceEnabledUniform.value = defaults.toggleIri ? 1 : 0;
   randomClickColorEnabled = defaults.toggleRandom;
   bombModeEnabled = defaults.toggleBomb;
+  lockModeEnabled = defaults.toggleLock;
+  setLockRemaining(defaults.lockRemaining);
   previewModeEnabled = false;
   bubbleState = BubbleState.IDLE;
   stateElapsed = 0;
@@ -476,6 +598,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   material.opacity = 0.95;
   setPopProgressUI(0);
   updateBombVisualState(clock.elapsedTime);
+  updateLockVisualState(clock.elapsedTime);
 });
 
 window.addEventListener("pointerdown", (event) => {
@@ -527,6 +650,37 @@ function updateBombVisualState(elapsedTime) {
 
   const jitter = dangerBoost * 0.018;
   bombGroup.position.set((Math.random() * 2 - 1) * jitter, (Math.random() * 2 - 1) * jitter, 0);
+}
+
+function updateLockVisualState(elapsedTime) {
+  const bubbleAlive = bubble.visible && bubbleState !== BubbleState.DISSIPATE;
+  const show = lockModeEnabled && bubbleAlive;
+  lockGroup.visible = show;
+  lockCountSprite.visible = show;
+
+  if (!show) {
+    material.transmission = transmissionControlValue;
+    material.thickness = 1.35;
+    lockCountSprite.material.opacity = 0;
+    return;
+  }
+
+  const dangerBoost = bubbleState === BubbleState.PRE_BURST || bubbleState === BubbleState.BURST ? 1.0 : 0.0;
+  const pulse = 0.5 + 0.5 * Math.sin(elapsedTime * (2.6 + dangerBoost * 3.2));
+  const sway = Math.sin(elapsedTime * 0.85) * 0.04;
+
+  lockGroup.rotation.z = sway;
+  const s = 0.62 + pulse * (0.03 + dangerBoost * 0.03);
+  lockGroup.scale.set(s, s, s * 0.62);
+  lockBody.material.emissiveIntensity = 0.12 + pulse * 0.16;
+  lockShackle.material.emissiveIntensity = 0.1 + pulse * 0.12;
+  lockShackleStemL.material.emissiveIntensity = 0.1 + pulse * 0.12;
+  lockShackleStemR.material.emissiveIntensity = 0.1 + pulse * 0.12;
+
+  lockCountSprite.position.y = -0.44 + Math.sin(elapsedTime * 1.2) * 0.008;
+  lockCountSprite.material.opacity = 0.76 + pulse * 0.2;
+  material.transmission = Math.max(0.2, transmissionControlValue * 0.36);
+  material.thickness = 0.46;
 }
 
 function updatePopState(dt) {
@@ -606,6 +760,47 @@ function updatePopState(dt) {
 function setPopProgressUI(t) {
   if (popProgressInput) popProgressInput.value = String(t);
   if (popProgressValue) popProgressValue.textContent = `${Math.round(t * 100)}%`;
+}
+
+function drawLockCounter(value) {
+  if (!lockCountCtx) return;
+  const text = String(Math.max(0, Math.floor(value)));
+  if (text === lockCountLastText) return;
+  lockCountLastText = text;
+
+  const ctx = lockCountCtx;
+  const width = lockCountCanvas.width;
+  const height = lockCountCanvas.height;
+  const cx = width * 0.5;
+  const cy = height * 0.5;
+  const radius = width * 0.34;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "rgba(13, 29, 51, 0.72)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(146, 221, 255, 0.95)";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#f1fbff";
+  ctx.font = "700 44px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, cx, cy + 1);
+
+  lockCountTexture.needsUpdate = true;
+}
+
+function setLockRemaining(value) {
+  lockRemaining = THREE.MathUtils.clamp(Math.floor(Number(value) || 0), 0, 20);
+  if (lockRemainingInput) lockRemainingInput.value = String(lockRemaining);
+  if (lockRemainingValue) lockRemainingValue.textContent = String(lockRemaining);
+  drawLockCounter(lockRemaining);
 }
 
 function resetBurstArtifacts() {
@@ -787,6 +982,8 @@ async function bootstrap() {
   applyPaletteIndex(0);
   resetBurstArtifacts();
   setPopProgressUI(0);
+  setLockRemaining(defaults.lockRemaining);
+  updateLockVisualState(0);
 
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 1 / 30);
@@ -799,6 +996,7 @@ async function bootstrap() {
 
     updatePopState(dt);
     updateBombVisualState(elapsed);
+    updateLockVisualState(elapsed);
 
     controls.update();
     renderer.render(scene, camera);
