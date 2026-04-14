@@ -89,6 +89,7 @@ const levelTestSelectEl = document.getElementById("level-test-select");
 const levelTestJumpBtn = document.getElementById("level-test-jump");
 const levelTestNextStepBtn = document.getElementById("level-test-next-step");
 const levelTestExportStepBtn = document.getElementById("level-test-export-step");
+const levelTestBatchExportBtn = document.getElementById("level-test-batch-export");
 const levelTestBubbleIndexBtn = document.getElementById("level-test-bubble-index");
 const levelTestHexToggleEl = document.getElementById("level-test-hex-toggle");
 const levelTestAddCoinsBtn = document.getElementById("level-test-add-coins");
@@ -333,6 +334,7 @@ const debugHexFillWorkColor = new THREE.Color();
 const debugHexFillInvertColor = new THREE.Color();
 let levelsXlsxHandle = null;
 let xlsxLoaderPromise = null;
+let levelTestBatchExportRunning = false;
 
 const bounds = { left: -3, right: 3, top: 5, bottom: -5 };
 const fruits = [];
@@ -1691,6 +1693,10 @@ function setupLevelTestControls() {
     void calculateAndExportTheoryStep();
   });
 
+  levelTestBatchExportBtn?.addEventListener("click", () => {
+    void runBatchExportBySimulatedLevelEntry();
+  });
+
   levelTestBubbleIndexBtn?.addEventListener("click", () => {
     gameAudio.playUiClickAudio();
     state.showBubbleIndexOverlay = !state.showBubbleIndexOverlay;
@@ -1783,12 +1789,14 @@ async function writeTheoryStepToWorkbook(levelId, stepCount) {
   const sheet = workbook.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
   const normalize = (v) => String(v ?? "").trim().toLowerCase();
-  const headerRowIndex = rows.findIndex((row) => Array.isArray(row) && row.some((c) => normalize(c) === "id"));
+  const canonical = (v) => normalize(v).replace(/[\s_\-]+/g, "").replace(/\uFEFF/g, "");
+  const theoryAliases = new Set(["intheorystep", "theorystep", "理论步数", "理论步", "理论step"]);
+  const headerRowIndex = rows.findIndex((row) => Array.isArray(row) && row.some((c) => canonical(c) === "id"));
   if (headerRowIndex < 0) throw new Error("未找到id列");
 
   const headerRow = rows[headerRowIndex];
-  const idCol = headerRow.findIndex((c) => normalize(c) === "id");
-  let theoryCol = headerRow.findIndex((c) => normalize(c) === "intheorystep");
+  const idCol = headerRow.findIndex((c) => canonical(c) === "id");
+  let theoryCol = headerRow.findIndex((c) => theoryAliases.has(canonical(c)));
   if (theoryCol < 0) {
     theoryCol = headerRow.length;
     headerRow[theoryCol] = "inTheoryStep";
@@ -1840,6 +1848,54 @@ async function calculateAndExportTheoryStep() {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     gameUI.showCommentary(`导出失败：${message}`, 1400);
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function runBatchExportBySimulatedLevelEntry() {
+  if (levelTestBatchExportRunning) {
+    gameUI.showCommentary("批量导出进行中，请稍候", 900);
+    return;
+  }
+
+  levelTestBatchExportRunning = true;
+  if (levelTestBatchExportBtn) {
+    levelTestBatchExportBtn.disabled = true;
+    levelTestBatchExportBtn.textContent = "批量导出中...";
+  }
+
+  try {
+    await getLevelsWorkbookHandle();
+
+    if (!state.started || state.inHome || state.gameOver) {
+      startGame();
+      await delay(120);
+    }
+
+    const warmupMs = 5000;
+    for (let index = 0; index < LEVELS.length; index += 1) {
+      jumpToLevelForTest(index);
+      gameUI.showCommentary(`批量导出：关卡 ${index + 1}/${LEVELS.length} 预热中`, 700);
+      await delay(warmupMs);
+      await calculateAndExportTheoryStep();
+      await delay(60);
+    }
+
+    gameUI.showCommentary("批量导出完成", 1500);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    gameUI.showCommentary(`批量导出失败：${message}`, 1500);
+  } finally {
+    levelTestBatchExportRunning = false;
+    if (levelTestBatchExportBtn) {
+      levelTestBatchExportBtn.disabled = false;
+      levelTestBatchExportBtn.textContent = "批量模拟并导出步数";
+    }
   }
 }
 

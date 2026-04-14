@@ -564,6 +564,62 @@ body {
   pointer-events: none;
 }
 
+#lock-guide {
+  position: absolute;
+  inset: 0;
+  z-index: 27;
+  pointer-events: auto;
+  --lock-guide-x: 50%;
+  --lock-guide-y: 50%;
+  --lock-guide-r: 48px;
+}
+
+#lock-guide-mask {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at var(--lock-guide-x) var(--lock-guide-y),
+    transparent calc(var(--lock-guide-r) - 2px),
+    rgba(8, 14, 24, 0.1) calc(var(--lock-guide-r) + 4px),
+    rgba(8, 14, 24, 0.66) calc(var(--lock-guide-r) + 14px)
+  );
+}
+
+#lock-guide-spotlight {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(180, 239, 255, 0.96);
+  box-shadow:
+    0 0 0 6px rgba(120, 207, 255, 0.18),
+    0 0 24px rgba(153, 231, 255, 0.6);
+  background: radial-gradient(circle at 35% 30%, rgba(162, 235, 255, 0.26), rgba(162, 235, 255, 0.03) 66%, transparent 80%);
+  pointer-events: none;
+}
+
+#lock-guide-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -100%);
+  width: min(88%, 328px);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(169, 237, 255, 0.86);
+  background: rgba(13, 31, 52, 0.94);
+  color: #f3fcff;
+  font-size: clamp(14px, calc(16px * var(--label-scale)), 18px);
+  font-weight: 900;
+  line-height: 1.28;
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(3, 15, 28, 0.42);
+  pointer-events: none;
+}
+
 .gameplay-center-tip {
   position: absolute;
   left: 50%;
