@@ -29,6 +29,7 @@ export function createSessionFlowController({
   onClearBoardEntities,
   onPersistLevelProgress,
   onBackHomeFromResult,
+  onAfterLevelLoaded,
   createBubbleEntity,
 } = {}) {
   function grantLevelWinProgress(nextLevelIndex) {
@@ -81,6 +82,7 @@ export function createSessionFlowController({
     state.sliceBroken = false;
     state.sliceCommitted = false;
     gameAudio.resetSelectToneProgression();
+    gameUI.hideLevelGuide?.();
     onClearQueuedSelections?.();
     state.pendingPops.length = 0;
     state.lastPoint = null;
@@ -97,6 +99,7 @@ export function createSessionFlowController({
 
     getTrail?.()?.reset();
     resetFruits(level);
+    onAfterLevelLoaded?.(index, level);
     return true;
   }
 
@@ -187,6 +190,7 @@ export function createSessionFlowController({
     onHideOutOfMovesBanner?.();
     onSettlePendingWinReward?.(false);
     gameUI.closeResult();
+    gameUI.hideLevelGuide?.();
     state.started = false;
     state.gameOver = false;
     state.levelTransitioning = false;
@@ -202,6 +206,7 @@ export function createSessionFlowController({
     if (!onTryConsumeStaminaForLevelEntry?.()) return;
     onSettlePendingWinReward?.(false);
     gameUI.closeResult();
+    gameUI.hideLevelGuide?.();
     const next = clampLevelIndex(nextLevelIndex);
     state.started = true;
     state.gameOver = false;
@@ -228,6 +233,7 @@ export function createSessionFlowController({
     state.pendingPops.length = 0;
     victoryRainSystem.reset();
     getTrail?.()?.reset();
+    gameUI.hideLevelGuide?.();
 
     const openLoseResult = () => {
       gameUI.openResult("lose", {

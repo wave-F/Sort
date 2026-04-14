@@ -98,8 +98,8 @@ export function createLayoutViewportController({
       onHideGameplaySettingsMenu?.();
       onHideGameplayExitModal?.();
     }
-    elements.commentaryEl?.classList.add("hidden");
-    elements.sliceStateEl?.classList.add("hidden");
+    elements.commentaryEl?.classList.toggle("hidden", hidden);
+    elements.sliceStateEl?.classList.toggle("hidden", hidden);
     if (hidden) {
       elements.levelTestPanelEl?.classList.add("hidden");
     }

@@ -25,6 +25,9 @@ const stepsEl = document.getElementById("score");
 const hudLevelEl = document.getElementById("hud-level");
 const sliceStateEl = document.getElementById("slice-state");
 const commentaryEl = document.getElementById("commentary");
+const levelGuideEl = document.getElementById("level-guide");
+const levelGuideHandEl = document.getElementById("level-guide-hand");
+const levelGuideTipEl = document.getElementById("level-guide-tip");
 const homeScreenEl = document.getElementById("home-screen");
 const homeLevelPrevBtn = document.getElementById("home-level-prev");
 const homeLevelCurrentBtn = document.getElementById("home-level-current");
@@ -115,6 +118,7 @@ const homeUiTuningStorageKey = "fruit_home_ui_tuning_v1";
 const gameSettingsStorageKey = "fruit_game_settings_v1";
 const uiLayoutDebugStorageKey = "fruit_ui_layout_debug_v1";
 const hudDebugStorageKey = "fruit_hud_debug_v1";
+const level1TutorialSeenStorageKey = "fruit_level1_tutorial_seen_v1";
 const staminaMax = 5;
 const staminaRecoverIntervalMs = 25 * 60 * 1000;
 const outOfMovesBannerDurationMs = 1800;
@@ -214,6 +218,7 @@ const defaultHudDebugTuning = {
 const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
+let level1TutorialSeen = readLevel1TutorialSeen();
 const gameSettings = readGameSettings({ storageKey: gameSettingsStorageKey, defaultSettings: defaultGameSettings });
 const uiLayoutDebugTuning = readUiLayoutDebugTuning();
 const hudDebugTuning = readHudDebugTuning();
@@ -284,6 +289,20 @@ const raycaster = new THREE.Raycaster();
 const playPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 const workHit = new THREE.Vector3();
+const guideProjectA = new THREE.Vector3();
+const guideProjectB = new THREE.Vector3();
+
+const levelGuideState = {
+  active: false,
+  phase: "swipe",
+  startFruit: null,
+  endFruit: null,
+  anchorX: 0,
+  anchorY: 0,
+  cycleStartedAt: 0,
+  segmentMs: 760,
+  holdMs: 180,
+};
 
 scene.add(new THREE.AmbientLight(0xffffff, bubbleTuning.lightAmbient));
 const key = new THREE.DirectionalLight(0xffffff, bubbleTuning.lightKey);
@@ -481,6 +500,9 @@ const sessionFlow = createSessionFlowController({
   onClearBoardEntities: clearBoardEntities,
   onPersistLevelProgress: persistLevelProgress,
   onBackHomeFromResult: backHomeFromResult,
+  onAfterLevelLoaded: (index) => {
+    maybeShowLevel1Guide(index);
+  },
   createBubbleEntity: ({ id, colorId, radius, vx, vy, baseColor }) => new BubbleEntity({
     id,
     colorId,
@@ -497,6 +519,9 @@ function createGameRuntime() {
   const gameUI = createGameUI({
     sliceStateEl,
     commentaryEl,
+    levelGuideEl,
+    levelGuideHandEl,
+    levelGuideTipEl,
     gameOverEl,
     gameOverTitleEl,
     resultPage: {
@@ -704,6 +729,185 @@ function loadBubbleTuning() {
   }
 }
 
+function readLevel1TutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+
+  try {
+    return window.localStorage.getItem(level1TutorialSeenStorageKey) === "1";
+  } catch (_err) {
+    return false;
+  }
+}
+
+function persistLevel1TutorialSeen() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+
+  try {
+    window.localStorage.setItem(level1TutorialSeenStorageKey, "1");
+  } catch (_err) {}
+}
+
+function isGuideFruitValid(fruit) {
+  return Boolean(fruit && fruit.active && !fruit.sliced && fruit.group?.visible !== false);
+}
+
+function pickLevelGuidePair() {
+  const byColor = new Map();
+  for (let i = 0; i < fruits.length; i += 1) {
+    const fruit = fruits[i];
+    if (!isGuideFruitValid(fruit)) continue;
+    const bucket = byColor.get(fruit.colorId);
+    if (bucket) bucket.push(fruit);
+    else byColor.set(fruit.colorId, [fruit]);
+  }
+
+  let best = null;
+  let bestScore = -Infinity;
+  const targetDist = 2.6;
+  for (const bucket of byColor.values()) {
+    if (bucket.length < 2) continue;
+    for (let i = 0; i < bucket.length - 1; i += 1) {
+      for (let j = i + 1; j < bucket.length; j += 1) {
+        const a = bucket[i];
+        const b = bucket[j];
+        const dx = a.group.position.x - b.group.position.x;
+        const dy = a.group.position.y - b.group.position.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1.2 || dist > 5.4) continue;
+        const sizeBonus = Math.max(a.radius, b.radius) * 0.35;
+        const score = 5 - Math.abs(dist - targetDist) + sizeBonus;
+        if (score > bestScore) {
+          bestScore = score;
+          best = { startFruit: a, endFruit: b };
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+function worldToGuidePoint(world, outVec3) {
+  if (!renderer || !phoneFrameEl) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const frameRect = phoneFrameEl.getBoundingClientRect();
+  outVec3.copy(world).project(camera);
+  const x = ((outVec3.x + 1) * 0.5) * rect.width + rect.left - frameRect.left;
+  const y = ((-outVec3.y + 1) * 0.5) * rect.height + rect.top - frameRect.top;
+  return { x, y };
+}
+
+function stopLevel1Guide() {
+  levelGuideState.active = false;
+  levelGuideState.phase = "swipe";
+  levelGuideState.startFruit = null;
+  levelGuideState.endFruit = null;
+  levelGuideState.anchorX = 0;
+  levelGuideState.anchorY = 0;
+  gameUI.hideLevelGuide();
+}
+
+function tryActivateLevel1Guide() {
+  const pair = pickLevelGuidePair();
+  if (!pair) {
+    stopLevel1Guide();
+    return false;
+  }
+
+  levelGuideState.active = true;
+  levelGuideState.phase = "swipe";
+  levelGuideState.startFruit = pair.startFruit;
+  levelGuideState.endFruit = pair.endFruit;
+  levelGuideState.cycleStartedAt = performance.now();
+  gameUI.showLevelGuide();
+  gameUI.setLevelGuideHandVisible(true);
+  return true;
+}
+
+function updateLevel1Guide(now) {
+  if (!levelGuideState.active) return;
+  if (!state.started || state.gameOver || state.levelTransitioning || state.currentLevelIndex !== 0) {
+    stopLevel1Guide();
+    return;
+  }
+
+  if (levelGuideState.phase === "swipe") {
+    if (state.sliceCommitted) {
+      levelGuideState.phase = "await-warning";
+      gameUI.setLevelGuideHandVisible(false);
+      gameUI.hideLevelGuideTip();
+    }
+  }
+
+  if (levelGuideState.phase === "swipe") {
+    if (!isGuideFruitValid(levelGuideState.startFruit) || !isGuideFruitValid(levelGuideState.endFruit)) {
+      if (!tryActivateLevel1Guide()) return;
+    }
+
+    const start = worldToGuidePoint(levelGuideState.startFruit.group.position, guideProjectA);
+    const end = worldToGuidePoint(levelGuideState.endFruit.group.position, guideProjectB);
+    if (!start || !end) return;
+
+    levelGuideState.anchorX = start.x;
+    levelGuideState.anchorY = start.y;
+
+    const seg = levelGuideState.segmentMs;
+    const hold = levelGuideState.holdMs;
+    const cycle = seg * 2 + hold * 2;
+    const elapsed = (now - levelGuideState.cycleStartedAt) % cycle;
+
+    let p = 0;
+    let scale = 0.98;
+    if (elapsed < seg) {
+      p = elapsed / seg;
+    } else if (elapsed < seg + hold) {
+      p = 1;
+      scale = 1.06;
+    } else if (elapsed < seg + hold + seg) {
+      p = 1 - (elapsed - seg - hold) / seg;
+    } else {
+      p = 0;
+      scale = 1.06;
+    }
+
+    const x = THREE.MathUtils.lerp(start.x, end.x, p);
+    const y = THREE.MathUtils.lerp(start.y, end.y, p);
+    gameUI.setLevelGuidePosition(x, y, scale);
+    gameUI.setLevelGuideTipPosition(start.x, start.y - 38);
+    return;
+  }
+
+  if (levelGuideState.phase === "await-warning") {
+    let burstAnimating = false;
+    for (let i = 0; i < fruits.length; i += 1) {
+      const fruit = fruits[i];
+      if (!fruit?.active || !fruit.sliced) continue;
+      if (fruit.burstState === "PRE_BURST" || fruit.burstState === "BURST") {
+        burstAnimating = true;
+        break;
+      }
+    }
+
+    if (!state.pointerDown && state.pendingPops.length === 0 && !burstAnimating) {
+      levelGuideState.phase = "warn";
+      gameUI.showLevelGuideTip("如果碰到异色泡泡，则会立即触发消除！小心！", "warning");
+    }
+  }
+
+}
+
+function maybeShowLevel1Guide(levelIndex) {
+  if (levelIndex !== 0 || level1TutorialSeen) {
+    stopLevel1Guide();
+    return;
+  }
+
+  tryActivateLevel1Guide();
+  gameUI.showLevelGuideTip("连续划到相同泡泡，一起消除！");
+  level1TutorialSeen = true;
+  persistLevel1TutorialSeen();
+}
+
 function readHomeUiTuning() {
   if (typeof window === "undefined" || !window.localStorage) {
     return { ...defaultHomeUiTuning };
@@ -850,7 +1054,11 @@ function clearGameplayDataOnly() {
     window.localStorage.removeItem(coinStorageKey);
     window.localStorage.removeItem(staminaStorageKey);
     window.localStorage.removeItem(gameSettingsStorageKey);
+    window.localStorage.removeItem(level1TutorialSeenStorageKey);
   }
+
+  level1TutorialSeen = false;
+  stopLevel1Guide();
 
   hydrateLevelProgress();
   hydrateCoinBalance();
@@ -1277,6 +1485,9 @@ function onPointerDown(ev) {
   }
 
   gameAudio.ensureAudioUnlocked();
+  if (levelGuideState.active && levelGuideState.phase === "warn") {
+    stopLevel1Guide();
+  }
   void gameAudio.preloadPopAudio();
   gameAudio.resetSelectToneProgression();
 
@@ -1357,6 +1568,8 @@ function tick() {
     fruit.update(dt, bounds);
     if (fruit.active && !fruit.sliced) remaining += 1;
   }
+
+  updateLevel1Guide(now);
 
   renderer.render(scene, camera);
 
