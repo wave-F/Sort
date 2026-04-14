@@ -4,13 +4,24 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+function gridCoord(value, cellSize) {
+  return Math.floor(value / cellSize);
+}
+
+function gridKey(cellX, cellY) {
+  return `${cellX},${cellY}`;
+}
+
 export function createSliceSystem({
   camera,
   raycaster,
   minSliceSegment = 0.02,
+  sliceGridCellSize = 1.2,
 } = {}) {
   const workA = new THREE.Vector3();
   const workProject = new THREE.Vector3();
+  const workSliceGrid = new Map();
+  const workSliceCandidates = [];
   const workSliceMeshes = [];
 
   function getFruitSliceHitRadius(fruit) {
@@ -40,14 +51,56 @@ export function createSliceSystem({
     return null;
   }
 
-  function collectSliceMeshes(fruits, out) {
-    out.length = 0;
+  function buildSliceSpatialIndex(fruits) {
+    workSliceGrid.clear();
+    let maxRadius = 0;
+
     for (let i = 0; i < fruits.length; i += 1) {
       const fruit = fruits[i];
-      if (!fruit?.active || fruit.sliced || fruit.locked || !fruit.bubble?.visible) continue;
-      if (fruit.outerShell?.visible) out.push(fruit.outerShell);
-      out.push(fruit.bubble);
+      if (!fruit.active || fruit.sliced || !fruit.bubble.visible) continue;
+
+      const px = fruit.group.position.x;
+      const py = fruit.group.position.y;
+      const cellX = gridCoord(px, sliceGridCellSize);
+      const cellY = gridCoord(py, sliceGridCellSize);
+      const key = gridKey(cellX, cellY);
+      const bucket = workSliceGrid.get(key);
+      if (bucket) bucket.push(fruit);
+      else workSliceGrid.set(key, [fruit]);
+
+      const hitRadius = getFruitSliceHitRadius(fruit);
+      if (hitRadius > maxRadius) maxRadius = hitRadius;
     }
+
+    return { grid: workSliceGrid, maxRadius };
+  }
+
+  function collectSliceCandidatesAtPoint(x, y, spatial, out) {
+    out.length = 0;
+    if (!spatial.grid.size || spatial.maxRadius <= 0) return 0;
+
+    const queryPadding = 0.28;
+    const queryRadius = spatial.maxRadius + queryPadding;
+    const rangeCells = Math.max(1, Math.ceil(queryRadius / sliceGridCellSize));
+    const centerCellX = gridCoord(x, sliceGridCellSize);
+    const centerCellY = gridCoord(y, sliceGridCellSize);
+
+    for (let oy = -rangeCells; oy <= rangeCells; oy += 1) {
+      for (let ox = -rangeCells; ox <= rangeCells; ox += 1) {
+        const bucket = spatial.grid.get(gridKey(centerCellX + ox, centerCellY + oy));
+        if (!bucket) continue;
+        for (let i = 0; i < bucket.length; i += 1) {
+          const fruit = bucket[i];
+          const hitRadius = getFruitSliceHitRadius(fruit) + queryPadding;
+          const dx = x - fruit.group.position.x;
+          const dy = y - fruit.group.position.y;
+          if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+            out.push(fruit);
+          }
+        }
+      }
+    }
+
     return out.length;
   }
 
@@ -56,12 +109,22 @@ export function createSliceSystem({
     const seen = new Set();
     const len = Math.hypot(bx - ax, by - ay);
     const sampleCount = Math.max(1, Math.ceil(len / 0.08));
-    if (collectSliceMeshes(fruits, workSliceMeshes) <= 0) return result;
+    const spatial = buildSliceSpatialIndex(fruits);
+    if (spatial.maxRadius <= 0) return result;
 
     for (let i = 1; i <= sampleCount; i += 1) {
       const t = i / sampleCount;
       const x = lerp(ax, bx, t);
       const y = lerp(ay, by, t);
+      const candidateCount = collectSliceCandidatesAtPoint(x, y, spatial, workSliceCandidates);
+      if (candidateCount === 0) continue;
+      workSliceMeshes.length = 0;
+      for (let k = 0; k < candidateCount; k += 1) {
+        const candidate = workSliceCandidates[k];
+        if (candidate.outerShell?.visible) workSliceMeshes.push(candidate.outerShell);
+        workSliceMeshes.push(candidate.bubble);
+      }
+
       const fruit = pickTopFruitAtWorldPoint(x, y, workSliceMeshes);
       if (!fruit || seen.has(fruit.id)) continue;
 
