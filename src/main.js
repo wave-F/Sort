@@ -148,7 +148,7 @@ const level1TutorialSeenStorageKey = "fruit_level1_tutorial_seen_v1";
 const lockTutorialSeenStorageKey = "fruit_lock_tutorial_seen_v1";
 const doubleLayerTutorialSeenStorageKey = "fruit_double_layer_tutorial_seen_v1";
 const staminaMax = 5;
-const staminaRecoverIntervalMs = 25 * 60 * 1000;
+const staminaRecoverIntervalMs = 1 * 60 * 1000;
 const outOfMovesBannerDurationMs = 1800;
 const outOfMovesContinueCost = 50;
 const outOfMovesContinueMoves = 3;
@@ -502,7 +502,6 @@ const settingsUi = createSettingsUiController({
     gameplayExitConfirmEl,
   },
   gameSettings,
-  defaultGameSettings,
   storageKey: gameSettingsStorageKey,
   gameAudio,
   gameUI,
@@ -1473,7 +1472,6 @@ function clearGameplayDataOnly() {
         storage.removeItem(levelProgressStorageKey);
         storage.removeItem(coinStorageKey);
         storage.removeItem(staminaStorageKey);
-        storage.removeItem(gameSettingsStorageKey);
         storage.removeItem(level1TutorialSeenStorageKey);
         storage.removeItem(lockTutorialSeenStorageKey);
         storage.removeItem(doubleLayerTutorialSeenStorageKey);
@@ -1493,11 +1491,6 @@ function clearGameplayDataOnly() {
   hydrateLevelProgress();
   hydrateCoinBalance();
   hydrateStamina();
-  gameSettings.musicEnabled = defaultGameSettings.musicEnabled;
-  gameSettings.sfxEnabled = defaultGameSettings.sfxEnabled;
-  applyGameSettings();
-  syncSettingsUi();
-  syncGameplaySettingsButtons();
   syncCoinUi();
   syncStaminaUi();
 
@@ -1507,7 +1500,7 @@ function clearGameplayDataOnly() {
   }
 
   if (storageCleared) {
-    gameUI.showCommentary("Gameplay data cleared (TopBar and bubble tuning kept).", 1400);
+    gameUI.showCommentary("Local save cleared.", 1200);
   } else {
     gameUI.showCommentary("Storage is unavailable in this mode. Session data was reset only.", 1600);
   }

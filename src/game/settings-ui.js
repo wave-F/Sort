@@ -19,7 +19,6 @@ export function readGameSettings({ storageKey, defaultSettings } = {}) {
 export function createSettingsUiController({
   elements,
   gameSettings,
-  defaultGameSettings,
   storageKey,
   gameAudio,
   gameUI,
@@ -197,11 +196,10 @@ export function createSettingsUiController({
 
     elements.homeClearDataBtn?.addEventListener("click", () => {
       gameAudio.playUiClickAudio();
-      const ok = typeof window !== "undefined" ? window.confirm("Clear level progress, coins, settings, and tutorial flags?") : true;
+      const ok = typeof window !== "undefined"
+        ? window.confirm("Clear local save data (level progress, coins, stamina, tutorial flags)?")
+        : true;
       if (!ok) return;
-
-      gameSettings.musicEnabled = defaultGameSettings.musicEnabled;
-      gameSettings.sfxEnabled = defaultGameSettings.sfxEnabled;
       onClearGameplayDataOnly?.();
       hideHomeSettingsModal();
     });
