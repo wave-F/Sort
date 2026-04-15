@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,12 +8,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const bundlePath = path.join(distDir, "main.bundle.js");
-const popAudioSrcDir = path.join(rootDir, "assets", "audio", "pop");
-const popAudioDistDir = path.join(distDir, "assets", "audio", "pop");
-const bgmAudioSrcDir = path.join(rootDir, "assets", "audio", "bgm_preview");
-const bgmAudioDistDir = path.join(distDir, "assets", "audio", "bgm_preview");
-const imageSrcDir = path.join(rootDir, "assets", "images");
-const imageDistDir = path.join(distDir, "assets", "images");
+const assetsDir = path.join(rootDir, "assets");
 const standalonePath = path.join(rootDir, "standalone.html");
 
 await mkdir(distDir, { recursive: true });
@@ -53,15 +48,86 @@ function normalizeCssAssetUrls(css) {
   return css.replace(/url\((['"]?)(?:\.\.\/)+assets\//g, "url($1./assets/");
 }
 
+function toPosixPath(filePath) {
+  return filePath.split(path.sep).join("/");
+}
+
+function getMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    case ".svg":
+      return "image/svg+xml";
+    case ".ico":
+      return "image/x-icon";
+    case ".mp3":
+      return "audio/mpeg";
+    case ".wav":
+      return "audio/wav";
+    case ".ogg":
+      return "audio/ogg";
+    case ".json":
+      return "application/json";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function collectFilesRecursive(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      const childFiles = await collectFilesRecursive(fullPath);
+      files.push(...childFiles);
+    } else if (entry.isFile()) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
+
+async function buildAssetDataUrlMap() {
+  const files = await collectFilesRecursive(assetsDir);
+  const pairs = [];
+
+  for (const filePath of files) {
+    const bytes = await readFile(filePath);
+    const mimeType = getMimeType(filePath);
+    const dataUrl = `data:${mimeType};base64,${bytes.toString("base64")}`;
+    const relPath = `./${toPosixPath(path.relative(rootDir, filePath))}`;
+    pairs.push([relPath, dataUrl]);
+  }
+
+  pairs.sort((a, b) => b[0].length - a[0].length);
+  return pairs;
+}
+
+function inlineAssetPaths(content, replacements) {
+  let out = content;
+  for (const [assetPath, dataUrl] of replacements) {
+    out = out.split(assetPath).join(dataUrl);
+  }
+  return out;
+}
+
 const css = normalizeCssAssetUrls(await bundleCssWithImports(path.join(rootDir, "src", "styles.css")));
 
 const js = await readFile(bundlePath, "utf8");
+const assetReplacements = await buildAssetDataUrlMap();
 
-await cp(popAudioSrcDir, popAudioDistDir, { recursive: true, force: true });
-await cp(bgmAudioSrcDir, bgmAudioDistDir, { recursive: true, force: true });
-await cp(imageSrcDir, imageDistDir, { recursive: true, force: true });
-
-const html = `<!doctype html>
+let html = `<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -118,6 +184,23 @@ const html = `<!doctype html>
           <button id="gameplay-exit-cancel" class="gameplay-exit-cancel" type="button">Cancel</button>
           <button id="gameplay-exit-confirm" class="gameplay-exit-confirm" type="button">Quit</button>
         </div>
+      </div>
+
+      <div id="level-guide" class="hidden" aria-hidden="true">
+        <span id="level-guide-tip" class="level-guide-tip">连续划到相同泡泡，一起消除！</span>
+        <img id="level-guide-hand" class="level-guide-hand" src="./assets/images/HandPointer.png" alt="" aria-hidden="true" />
+      </div>
+
+      <div id="lock-guide" class="hidden" aria-hidden="true">
+        <div id="lock-guide-mask"></div>
+        <div id="lock-guide-spotlight" aria-hidden="true"></div>
+        <div id="lock-guide-tip">锁泡泡需要先消除对应数量泡泡，才会解锁</div>
+      </div>
+
+      <div id="double-layer-guide" class="hidden" aria-hidden="true">
+        <div id="double-layer-guide-mask"></div>
+        <div id="double-layer-guide-spotlight" aria-hidden="true"></div>
+        <div id="double-layer-guide-tip">双层泡泡，需要消除2次才能消除掉</div>
       </div>
 
       <div id="home-screen" class="layer">
@@ -238,5 +321,7 @@ const html = `<!doctype html>
   </body>
 </html>
 `;
+
+html = inlineAssetPaths(html, assetReplacements);
 
 await writeFile(standalonePath, html, "utf8");

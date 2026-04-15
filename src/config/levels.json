@@ -109,7 +109,7 @@
         0.2
       ],
       "minSteps": 3,
-      "stepLimit": 6,
+      "stepLimit": 5,
       "lockedBubbles": [],
       "doubleLayerBubbles": []
     },
@@ -148,7 +148,7 @@
         0.2
       ],
       "minSteps": 3,
-      "stepLimit": 6,
+      "stepLimit": 5,
       "lockedBubbles": [],
       "doubleLayerBubbles": []
     },
@@ -192,7 +192,7 @@
         0.28
       ],
       "minSteps": 4,
-      "stepLimit": 6,
+      "stepLimit": 5,
       "lockedBubbles": [],
       "doubleLayerBubbles": []
     },
@@ -236,7 +236,7 @@
         0.2
       ],
       "minSteps": 4,
-      "stepLimit": 7,
+      "stepLimit": 6,
       "lockedBubbles": [
         {
           "index": 1,
@@ -293,7 +293,7 @@
         0.2
       ],
       "minSteps": 5,
-      "stepLimit": 10,
+      "stepLimit": 9,
       "lockedBubbles": [
         {
           "index": 3,
@@ -350,7 +350,7 @@
         0.2
       ],
       "minSteps": 5,
-      "stepLimit": 8,
+      "stepLimit": 7,
       "lockedBubbles": [
         {
           "index": 2,
@@ -414,7 +414,7 @@
         0.2
       ],
       "minSteps": 5,
-      "stepLimit": 10,
+      "stepLimit": 9,
       "lockedBubbles": [
         {
           "index": 3,
@@ -554,7 +554,7 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 9,
+      "stepLimit": 8,
       "lockedBubbles": [],
       "doubleLayerBubbles": [
         {
@@ -607,7 +607,7 @@
         0.24
       ],
       "minSteps": 5,
-      "stepLimit": 10,
+      "stepLimit": 9,
       "lockedBubbles": [],
       "doubleLayerBubbles": [
         {
@@ -660,7 +660,7 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 11,
+      "stepLimit": 10,
       "lockedBubbles": [],
       "doubleLayerBubbles": [
         {
@@ -718,7 +718,7 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 14,
+      "stepLimit": 12,
       "lockedBubbles": [],
       "doubleLayerBubbles": [
         {
@@ -784,7 +784,7 @@
         0.28
       ],
       "minSteps": 7,
-      "stepLimit": 12,
+      "stepLimit": 11,
       "lockedBubbles": [],
       "doubleLayerBubbles": [
         {
@@ -848,7 +848,7 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 15,
+      "stepLimit": 14,
       "lockedBubbles": [
         {
           "index": 6,
@@ -914,7 +914,7 @@
         0.24
       ],
       "minSteps": 6,
-      "stepLimit": 13,
+      "stepLimit": 12,
       "lockedBubbles": [
         {
           "index": 6,
@@ -992,7 +992,7 @@
         0.24
       ],
       "minSteps": 7,
-      "stepLimit": 13,
+      "stepLimit": 11,
       "lockedBubbles": [
         {
           "index": 6,
@@ -1073,7 +1073,7 @@
         0.24
       ],
       "minSteps": 9,
-      "stepLimit": 16,
+      "stepLimit": 14,
       "lockedBubbles": [
         {
           "index": 5,
@@ -1166,7 +1166,7 @@
         0.32
       ],
       "minSteps": 11,
-      "stepLimit": 16,
+      "stepLimit": 15,
       "lockedBubbles": [
         {
           "index": 7,

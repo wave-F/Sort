@@ -156,18 +156,17 @@ const levelWinRewardBase = 20;
 const homeEasyColorIds = [1, 2, 3, 5, 6];
 const homeMediumColorId = 4;
 const homeHardColorId = 0;
-const popSoundFiles = [
-  "oga-pop1.ogg",
-  "oga-pop3.ogg",
-  "oga-pop4.ogg",
-  "oga-pop5.ogg",
-  "oga-pop6.ogg",
-  "oga-pop7.ogg",
-  "oga-pop8.ogg",
-  "oga-pop9.ogg",
-  "oga-pop10.ogg",
+const popSoundUrls = [
+  "./assets/audio/pop/oga-pop1.ogg",
+  "./assets/audio/pop/oga-pop3.ogg",
+  "./assets/audio/pop/oga-pop4.ogg",
+  "./assets/audio/pop/oga-pop5.ogg",
+  "./assets/audio/pop/oga-pop6.ogg",
+  "./assets/audio/pop/oga-pop7.ogg",
+  "./assets/audio/pop/oga-pop8.ogg",
+  "./assets/audio/pop/oga-pop9.ogg",
+  "./assets/audio/pop/oga-pop10.ogg",
 ];
-const popSoundUrls = popSoundFiles.map((file) => `./assets/audio/pop/${file}`);
 const clickSoundUrl = "./assets/audio/pop/click.wav";
 const gainCoinSoundUrl = "./assets/audio/pop/gain_coin.wav";
 const gameWinSoundUrl = "./assets/audio/pop/gamewin.wav";
@@ -1466,14 +1465,22 @@ function bindGameplaySettingsMenu() {
 }
 
 function clearGameplayDataOnly() {
-  if (typeof window !== "undefined" && window.localStorage) {
-    window.localStorage.removeItem(levelProgressStorageKey);
-    window.localStorage.removeItem(coinStorageKey);
-    window.localStorage.removeItem(staminaStorageKey);
-    window.localStorage.removeItem(gameSettingsStorageKey);
-    window.localStorage.removeItem(level1TutorialSeenStorageKey);
-    window.localStorage.removeItem(lockTutorialSeenStorageKey);
-    window.localStorage.removeItem(doubleLayerTutorialSeenStorageKey);
+  let storageCleared = true;
+  if (typeof window !== "undefined") {
+    try {
+      const storage = window.localStorage;
+      if (storage) {
+        storage.removeItem(levelProgressStorageKey);
+        storage.removeItem(coinStorageKey);
+        storage.removeItem(staminaStorageKey);
+        storage.removeItem(gameSettingsStorageKey);
+        storage.removeItem(level1TutorialSeenStorageKey);
+        storage.removeItem(lockTutorialSeenStorageKey);
+        storage.removeItem(doubleLayerTutorialSeenStorageKey);
+      }
+    } catch (_err) {
+      storageCleared = false;
+    }
   }
 
   level1TutorialSeen = false;
@@ -1499,7 +1506,11 @@ function clearGameplayDataOnly() {
     renderHomeScreen();
   }
 
-  gameUI.showCommentary("Gameplay data cleared (TopBar and bubble tuning kept).", 1400);
+  if (storageCleared) {
+    gameUI.showCommentary("Gameplay data cleared (TopBar and bubble tuning kept).", 1400);
+  } else {
+    gameUI.showCommentary("Storage is unavailable in this mode. Session data was reset only.", 1600);
+  }
 }
 
 function bindHomeSettingsModal() {

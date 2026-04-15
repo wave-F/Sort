@@ -197,7 +197,7 @@ export function createSettingsUiController({
 
     elements.homeClearDataBtn?.addEventListener("click", () => {
       gameAudio.playUiClickAudio();
-      const ok = typeof window !== "undefined" ? window.confirm("Clear level progress, coins, and settings?") : true;
+      const ok = typeof window !== "undefined" ? window.confirm("Clear level progress, coins, settings, and tutorial flags?") : true;
       if (!ok) return;
 
       gameSettings.musicEnabled = defaultGameSettings.musicEnabled;
