@@ -17,6 +17,51 @@ const BubbleBurstState = {
   RESET: "RESET",
 };
 
+function resolveBurstFxProfile(bubbleTuning) {
+  const preset = bubbleTuning?.burstFxPreset === "juicy" ? "juicy" : "normal";
+  const isIOS = bubbleTuning?.burstRuntimeIsIOS === true;
+
+  if (preset !== "juicy") {
+    return {
+      minBurstBubbleCount: 3,
+      maxBurstBubbleCount: 6,
+      minMistParticleCount: 8,
+      maxMistParticleCount: 14,
+      burstSpeedMultiplier: 1,
+      mistSpeedMultiplier: 1,
+      burstLifeMultiplier: 1,
+      mistLifeMultiplier: 1,
+      mistOpacityScale: 0.66,
+    };
+  }
+
+  if (isIOS) {
+    return {
+      minBurstBubbleCount: 5,
+      maxBurstBubbleCount: 8,
+      minMistParticleCount: 10,
+      maxMistParticleCount: 16,
+      burstSpeedMultiplier: 1.12,
+      mistSpeedMultiplier: 1.1,
+      burstLifeMultiplier: 1.08,
+      mistLifeMultiplier: 1.1,
+      mistOpacityScale: 0.72,
+    };
+  }
+
+  return {
+    minBurstBubbleCount: 8,
+    maxBurstBubbleCount: 14,
+    minMistParticleCount: 20,
+    maxMistParticleCount: 34,
+    burstSpeedMultiplier: 1.28,
+    mistSpeedMultiplier: 1.26,
+    burstLifeMultiplier: 1.18,
+    mistLifeMultiplier: 1.22,
+    mistOpacityScale: 0.82,
+  };
+}
+
 export function createBubbleMaterial(baseColor, bubbleTuning) {
   const accentColor = baseColor.clone().offsetHSL(0, 0.1, 0.2);
   const springUniform = uniform(0);
@@ -173,9 +218,18 @@ export function createBubbleEntityClass({
       this.preBurstScaleMax = 1.08;
       this.burstPointsVisible = false;
 
-      this.minBurstBubbleCount = 2;
-      this.maxBurstBubbleCount = 5;
+      const burstProfile = resolveBurstFxProfile(bubbleTuning);
+      this.minBurstBubbleCount = burstProfile.minBurstBubbleCount;
+      this.maxBurstBubbleCount = burstProfile.maxBurstBubbleCount;
+      this.minMistParticleCount = burstProfile.minMistParticleCount;
+      this.maxMistParticleCount = burstProfile.maxMistParticleCount;
+      this.burstSpeedMultiplier = burstProfile.burstSpeedMultiplier;
+      this.mistSpeedMultiplier = burstProfile.mistSpeedMultiplier;
+      this.burstLifeMultiplier = burstProfile.burstLifeMultiplier;
+      this.mistLifeMultiplier = burstProfile.mistLifeMultiplier;
+      this.mistOpacityScale = burstProfile.mistOpacityScale;
       this.activeBurstBubbleCount = 0;
+      this.activeMistParticleCount = 0;
 
       this.group.add(this.bubble, this.outerShell, this.selectRing, this.lockCore, this.lockCounter.sprite);
       this.resetBurstArtifacts();
@@ -739,6 +793,7 @@ export function createBubbleEntityClass({
 
     resetBurstArtifacts() {
       this.activeBurstBubbleCount = 0;
+      this.activeMistParticleCount = 0;
       this.burstPointsVisible = false;
     }
 

@@ -201,7 +201,7 @@
   <body>
     <div id="info">
       <div id="title">单泡泡调试面板 (WebGPU + TSL)</div>
-      <div id="sub-info">点泡泡会触发爆弹并切换颜色，右侧可动态调参</div>
+      <div id="sub-info">V4: 薄膜溶解 + 细小液滴 + 雾化飞沫（无硬质碎片）</div>
       <div id="compat">WebGPU 初始化失败时会在这里提示</div>
       <div id="palette" aria-label="颜色按钮组">
         <button class="swatch is-active" data-color="#ff1f4b" style="background:#ff1f4b"></button>
@@ -242,6 +242,18 @@
       <div class="ctrl-row">
         <label for="p-edge">边缘发光<input id="p-edge" type="range" min="0" max="0.8" step="0.01" value="0.3" /></label>
         <span class="ctrl-value" data-value-for="p-edge">0.30</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-dissolve-edge">溶解边缘宽度<input id="p-dissolve-edge" type="range" min="0.01" max="0.16" step="0.001" value="0.045" /></label>
+        <span class="ctrl-value" data-value-for="p-dissolve-edge">0.045</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-dissolve-freq">溶解噪声频率<input id="p-dissolve-freq" type="range" min="1.5" max="10" step="0.1" value="4.8" /></label>
+        <span class="ctrl-value" data-value-for="p-dissolve-freq">4.8</span>
+      </div>
+      <div class="ctrl-row">
+        <label for="p-dissolve-emissive">溶解边缘发光<input id="p-dissolve-emissive" type="range" min="0" max="20" step="0.1" value="9" /></label>
+        <span class="ctrl-value" data-value-for="p-dissolve-emissive">9.0</span>
       </div>
       <div class="ctrl-row">
         <label for="p-iri">虹彩强度<input id="p-iri" type="range" min="0" max="1" step="0.01" value="0.75" /></label>
@@ -303,6 +315,6 @@
       <button id="back-btn" type="button">返回主游戏</button>
     </div>
 
-    <script type="module" src="./src/bubble-debug.js?v=20260414-lock-preview"></script>
+    <script type="module" src="./src/bubble-debug.js?v=20260415-burst-v4-4"></script>
   </body>
 </html>

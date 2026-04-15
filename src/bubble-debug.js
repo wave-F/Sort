@@ -22,7 +22,7 @@ const popProgressValue = document.querySelector('[data-value-for="p-pop-progress
 const lockRemainingInput = document.getElementById("p-lock-remaining");
 const lockRemainingValue = document.querySelector('[data-value-for="p-lock-remaining"]');
 const tuningStorageKey = "bubble_tuning_v1";
-const debugBuildTag = "jelly-burst-2026-04-09";
+const debugBuildTag = "jelly-burst-v4-film-spray-2026-04-15";
 if (compatEl) compatEl.textContent = `调试页版本: ${debugBuildTag}`;
 
 const defaults = {
@@ -33,6 +33,9 @@ const defaults = {
   flow: 1.15,
   dye: 1.12,
   edge: 0.3,
+  dissolveEdge: 0.045,
+  dissolveFreq: 4.8,
+  dissolveEmissive: 9.0,
   iri: 0.75,
   springTension: 0.12,
   springDamping: 0.84,
@@ -102,6 +105,11 @@ const wobbleAmplitudeUniform = uniform(defaults.wobble);
 const dyeContrastUniform = uniform(defaults.dye);
 const edgeGlowUniform = uniform(defaults.edge);
 const crackGlowUniform = uniform(0.0);
+const dissolveProgressUniform = uniform(-1.1);
+const dissolveEdgeUniform = uniform(defaults.dissolveEdge);
+const dissolveFreqUniform = uniform(defaults.dissolveFreq);
+const dissolveEmissiveUniform = uniform(defaults.dissolveEmissive);
+const dissolveEnabledUniform = uniform(0.0);
 const iridescenceUniform = uniform(defaults.iri);
 const dyeEnabledUniform = uniform(1.0);
 const edgeEnabledUniform = uniform(1.0);
@@ -145,9 +153,25 @@ const dyeBlend = dyeMix.pow(dyeContrastUniform);
 const dyeColor = tintUniform.mix(accentUniform, dyeBlend);
 material.colorNode = tintUniform.mix(dyeColor, dyeEnabledUniform);
 
+const dissolveFlow = time.mul(0.65);
+const dissolvePos = positionLocal.mul(dissolveFreqUniform);
+const dissolveN1 = dissolvePos.x.mul(1.17).add(dissolveFlow.mul(0.22)).sin();
+const dissolveN2 = dissolvePos.y.mul(1.43).sub(dissolveFlow.mul(0.17)).cos();
+const dissolveN3 = dissolvePos.z.mul(1.69).add(dissolveFlow.mul(0.13)).sin();
+const dissolveN4 = dissolvePos.x.add(dissolvePos.y.mul(0.58)).add(dissolvePos.z.mul(0.31)).mul(1.9).sin();
+const dissolveNoise = dissolveN1.mul(0.36).add(dissolveN2.mul(0.28)).add(dissolveN3.mul(0.24)).add(dissolveN4.mul(0.22)).clamp(-1.0, 1.0);
+const dissolveEdgeSafe = dissolveEdgeUniform.max(0.0001);
+const dissolveSurvive = dissolveNoise.sub(dissolveProgressUniform).div(dissolveEdgeSafe).clamp(0.0, 1.0);
+const dissolveEdgeMask = dissolveSurvive.mul(dissolveSurvive.mul(-1).add(1.0)).mul(4.0);
+const dissolveAlpha = dissolveEnabledUniform.mul(dissolveSurvive).add(dissolveEnabledUniform.mul(-1).add(1.0));
+material.opacityNode = dissolveAlpha;
+material.alphaTest = 0.02;
+
 const viewDot = normalView.dot(positionViewDirection.negate()).abs().clamp(0.0, 1.0);
 const edgeGlow = viewDot.mul(-1.0).add(1.0).pow(2.8);
-material.emissiveNode = tintUniform.mul(edgeGlow.mul(edgeGlowUniform.add(crackGlowUniform)).mul(edgeEnabledUniform));
+const baseEmissive = tintUniform.mul(edgeGlow.mul(edgeGlowUniform.add(crackGlowUniform)).mul(edgeEnabledUniform));
+const dissolveEdgeEmissive = tintUniform.mul(dissolveEdgeMask.mul(dissolveEmissiveUniform).mul(dissolveEnabledUniform));
+material.emissiveNode = baseEmissive.add(dissolveEdgeEmissive);
 
 material.iridescenceNode = iridescenceUniform.mul(iridescenceEnabledUniform);
 material.iridescenceIORNode = uniform(1.3);
@@ -326,18 +350,20 @@ let bubbleState = BubbleState.IDLE;
 let stateElapsed = 0;
 let previewModeEnabled = false;
 
-const preBurstDuration = 0.09;
-const burstDuration = 0.18;
+const preBurstDuration = 0.11;
+const burstDuration = 0.26;
 const dissipateDuration = 1.6;
 const resetDelay = 0.2;
 const preBurstScaleMax = 1.08;
 const burstBubbleFadeInDuration = 0.16;
 const previewDuration = preBurstDuration + burstDuration + dissipateDuration;
+const dissolveProgressStart = -1.1;
+const dissolveProgressEnd = 1.15;
 
-const burstBubbleCount = 10;
-const minBurstBubbleCount = 7;
-const maxBurstBubbleCount = 10;
-let activeBurstBubbleCount = 8;
+const burstBubbleCount = 32;
+const minBurstBubbleCount = 22;
+const maxBurstBubbleCount = 32;
+let activeBurstBubbleCount = 26;
 const burstBubbleVelocities = [];
 const burstBubbleStartPositions = [];
 const burstBubbleStartVelocities = [];
@@ -345,9 +371,49 @@ const burstBubbleLife = new Array(burstBubbleCount).fill(0);
 const burstBubbleLifeMax = new Array(burstBubbleCount).fill(1);
 const burstBubbleBaseScale = new Array(burstBubbleCount).fill(0.08);
 const burstBubbleMeshes = [];
+
+const mistCount = 120;
+let activeMistCount = 0;
+const mistVelocities = [];
+const mistStartPositions = [];
+const mistStartVelocities = [];
+const mistLife = new Array(mistCount).fill(0);
+const mistLifeMax = new Array(mistCount).fill(1);
+const mistBaseScale = new Array(mistCount).fill(0.04);
+const mistMeshes = [];
+
 const burstPoints = { visible: false };
 const bubbleRadius = 1.2;
 const burstBubbleGeometry = new THREE.SphereGeometry(1, 22, 22);
+
+function createRoundSpriteTexture(size = 128) {
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const c = size * 0.5;
+  const r = size * 0.5;
+  const gradient = ctx.createRadialGradient(c, c, 0, c, c, r);
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.55, "rgba(255,255,255,0.95)");
+  gradient.addColorStop(0.82, "rgba(255,255,255,0.35)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(c, c, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+const roundSpriteTexture = createRoundSpriteTexture(128);
 
 for (let i = 0; i < burstBubbleCount; i += 1) {
   const burstBubbleMaterial = material.clone();
@@ -363,6 +429,25 @@ for (let i = 0; i < burstBubbleCount; i += 1) {
   burstBubbleVelocities.push(new THREE.Vector3());
   burstBubbleStartPositions.push(new THREE.Vector3());
   burstBubbleStartVelocities.push(new THREE.Vector3());
+}
+
+for (let i = 0; i < mistCount; i += 1) {
+  const mistMaterial = new THREE.SpriteMaterial({
+    color: 0xff8fb5,
+    alphaMap: roundSpriteTexture,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.NormalBlending,
+  });
+  const mistMesh = new THREE.Sprite(mistMaterial);
+  mistMesh.visible = false;
+  scene.add(mistMesh);
+  mistMeshes.push(mistMesh);
+  mistVelocities.push(new THREE.Vector3());
+  mistStartPositions.push(new THREE.Vector3());
+  mistStartVelocities.push(new THREE.Vector3());
 }
 
 const raycaster = new THREE.Raycaster();
@@ -509,6 +594,15 @@ bindControl("p-dye", (value) => {
 bindControl("p-edge", (value) => {
   edgeGlowUniform.value = value;
 });
+bindControl("p-dissolve-edge", (value) => {
+  dissolveEdgeUniform.value = value;
+});
+bindControl("p-dissolve-freq", (value) => {
+  dissolveFreqUniform.value = value;
+});
+bindControl("p-dissolve-emissive", (value) => {
+  dissolveEmissiveUniform.value = value;
+});
 bindControl("p-iri", (value) => {
   iridescenceUniform.value = value;
 });
@@ -554,6 +648,9 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   setControlValue("p-flow", defaults.flow);
   setControlValue("p-dye", defaults.dye);
   setControlValue("p-edge", defaults.edge);
+  setControlValue("p-dissolve-edge", defaults.dissolveEdge);
+  setControlValue("p-dissolve-freq", defaults.dissolveFreq);
+  setControlValue("p-dissolve-emissive", defaults.dissolveEmissive);
   setControlValue("p-iri", defaults.iri);
   setControlValue("p-spring-tension", defaults.springTension);
   setControlValue("p-spring-damping", defaults.springDamping);
@@ -576,6 +673,11 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   flowSpeedUniform.value = defaults.flow;
   dyeContrastUniform.value = defaults.dye;
   edgeGlowUniform.value = defaults.edge;
+  dissolveEdgeUniform.value = defaults.dissolveEdge;
+  dissolveFreqUniform.value = defaults.dissolveFreq;
+  dissolveEmissiveUniform.value = defaults.dissolveEmissive;
+  dissolveProgressUniform.value = dissolveProgressStart;
+  dissolveEnabledUniform.value = 0;
   iridescenceUniform.value = defaults.iri;
   tension = defaults.springTension;
   damping = defaults.springDamping;
@@ -625,10 +727,17 @@ function triggerBubblePop() {
   stateElapsed = 0;
   bubbleState = BubbleState.PRE_BURST;
   crackGlowUniform.value = 0.12;
+  setDissolvePhase(0);
   bubble.visible = true;
   material.opacity = 0.95;
   bubble.scale.setScalar(1);
   springVel -= 1.1;
+}
+
+function setDissolvePhase(phase01) {
+  const t = THREE.MathUtils.clamp(phase01, 0, 1);
+  dissolveEnabledUniform.value = 1;
+  dissolveProgressUniform.value = THREE.MathUtils.lerp(dissolveProgressStart, dissolveProgressEnd, t);
 }
 
 function updateBombVisualState(elapsedTime) {
@@ -691,6 +800,8 @@ function updatePopState(dt) {
 
   if (bubbleState === BubbleState.IDLE) {
     crackGlowUniform.value = 0;
+    dissolveEnabledUniform.value = 0;
+    dissolveProgressUniform.value = dissolveProgressStart;
     bubble.visible = true;
     material.opacity = 0.95;
     bubble.scale.setScalar(1);
@@ -703,6 +814,7 @@ function updatePopState(dt) {
     const t = Math.min(stateElapsed / preBurstDuration, 1);
     const smooth = t * t * (3 - 2 * t);
     bubble.visible = true;
+    setDissolvePhase(0);
     bubble.scale.setScalar(1 + (preBurstScaleMax - 1) * smooth);
     crackGlowUniform.value = 0.12 * smooth;
     material.opacity = 0.95;
@@ -717,27 +829,30 @@ function updatePopState(dt) {
 
   if (bubbleState === BubbleState.BURST) {
     const t = Math.min(stateElapsed / burstDuration, 1);
+    setDissolvePhase(t * 0.9);
     crackGlowUniform.value = (1 - t) * 0.12;
-    material.opacity = Math.max(0, 0.95 * (1 - t * 1.85));
+    material.opacity = 0.95;
     bubble.scale.setScalar(preBurstScaleMax + t * 0.03);
     updateBurstParticles(dt);
-
-    if (t > 0.5) bubble.visible = false;
+    bubble.visible = true;
 
     if (t >= 1) {
       bubbleState = BubbleState.DISSIPATE;
       stateElapsed = 0;
-      material.opacity = 0;
     }
     return;
   }
 
   if (bubbleState === BubbleState.DISSIPATE) {
+    const t = Math.min(stateElapsed / Math.max(dissipateDuration * 0.24, 0.0001), 1);
+    setDissolvePhase(0.9 + t * 0.1);
     crackGlowUniform.value = 0;
-    bubble.visible = false;
+    bubble.visible = true;
+    material.opacity = 0.95;
     updateBurstParticles(dt);
 
     if (stateElapsed >= dissipateDuration && !burstPoints.visible) {
+      bubble.visible = false;
       bubbleState = BubbleState.RESET;
       stateElapsed = 0;
     }
@@ -749,6 +864,8 @@ function updatePopState(dt) {
       bubbleState = BubbleState.IDLE;
       stateElapsed = 0;
       crackGlowUniform.value = 0;
+      dissolveEnabledUniform.value = 0;
+      dissolveProgressUniform.value = dissolveProgressStart;
       bubble.visible = true;
       bubble.scale.setScalar(1);
       material.opacity = 0.95;
@@ -804,6 +921,8 @@ function setLockRemaining(value) {
 }
 
 function resetBurstArtifacts() {
+  activeBurstBubbleCount = 0;
+  activeMistCount = 0;
   for (let i = 0; i < burstBubbleCount; i += 1) {
     burstBubbleLife[i] = 0;
     burstBubbleLifeMax[i] = 1;
@@ -813,11 +932,24 @@ function resetBurstArtifacts() {
     burstBubbleMesh.scale.setScalar(0.0001);
     burstBubbleMesh.material.opacity = 0;
   }
+
+  for (let i = 0; i < mistCount; i += 1) {
+    mistLife[i] = 0;
+    mistLifeMax[i] = 1;
+    const mistMesh = mistMeshes[i];
+    mistMesh.visible = false;
+    mistMesh.position.set(9999, 9999, 9999);
+    mistMesh.scale.setScalar(0.0001);
+    mistMesh.material.opacity = 0;
+  }
+
   burstPoints.visible = false;
 }
 
 function initBurstParticles() {
   activeBurstBubbleCount = minBurstBubbleCount + Math.floor(Math.random() * (maxBurstBubbleCount - minBurstBubbleCount + 1));
+  activeMistCount = 70 + Math.floor(Math.random() * 42);
+  const baseTint = tintUniform.value.clone();
 
   for (let i = 0; i < burstBubbleCount; i += 1) {
     const burstBubbleMesh = burstBubbleMeshes[i];
@@ -856,7 +988,7 @@ function initBurstParticles() {
     ).normalize();
     const velocityDir = spawnDir.clone().lerp(randomDir, 0.22).normalize();
 
-    const speed = 0.34 + Math.random() * 0.5;
+    const speed = 1.1 + Math.random() * 1.2;
     burstBubbleVelocities[i].copy(velocityDir).multiplyScalar(speed);
     burstBubbleStartVelocities[i].copy(burstBubbleVelocities[i]);
 
@@ -865,14 +997,49 @@ function initBurstParticles() {
     burstBubbleMesh.position.copy(bubble.position).addScaledVector(spawnDir, spawnRadius);
     burstBubbleStartPositions[i].copy(burstBubbleMesh.position);
 
-    const startScale = 0.055 + Math.random() * 0.11;
+    const startScale = 0.028 + Math.random() * 0.055;
     burstBubbleBaseScale[i] = startScale;
     burstBubbleMesh.scale.setScalar(startScale);
     burstBubbleMaterial.opacity = 0;
     burstBubbleMesh.visible = true;
 
-    burstBubbleLife[i] = 1.05 + Math.random() * 0.75;
+    burstBubbleLife[i] = 0.58 + Math.random() * 0.56;
     burstBubbleLifeMax[i] = burstBubbleLife[i];
+  }
+
+  for (let i = 0; i < mistCount; i += 1) {
+    const mistMesh = mistMeshes[i];
+    const mistMaterial = mistMesh.material;
+    if (i >= activeMistCount) {
+      mistLife[i] = 0;
+      mistLifeMax[i] = 1;
+      mistMesh.visible = false;
+      mistMaterial.opacity = 0;
+      continue;
+    }
+
+    const dir = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+    const speed = 1.45 + Math.random() * 1.55;
+    mistVelocities[i].copy(dir).multiplyScalar(speed);
+    mistStartVelocities[i].copy(mistVelocities[i]);
+
+    const spawnRadius = bubbleRadius * preBurstScaleMax * (0.22 + Math.random() * 0.26);
+    mistMesh.position.copy(bubble.position).addScaledVector(dir, spawnRadius);
+    mistStartPositions[i].copy(mistMesh.position);
+
+    const startScale = 0.014 + Math.random() * 0.042;
+    mistBaseScale[i] = startScale;
+    mistMesh.scale.setScalar(startScale);
+    mistMaterial.color.copy(baseTint);
+    mistMaterial.opacity = 0;
+    mistMesh.visible = true;
+
+    mistLife[i] = 0.9 + Math.random() * 1.15;
+    mistLifeMax[i] = mistLife[i];
   }
 
   burstPoints.visible = true;
@@ -888,7 +1055,8 @@ function updateBurstParticles(delta) {
     const burstBubbleMesh = burstBubbleMeshes[i];
     burstBubbleLife[i] -= delta;
 
-    burstBubbleVelocities[i].multiplyScalar(Math.pow(0.94, delta * 60));
+    burstBubbleVelocities[i].multiplyScalar(Math.pow(0.91, delta * 60));
+    burstBubbleVelocities[i].y -= delta * 0.24;
     burstBubbleMesh.position.addScaledVector(burstBubbleVelocities[i], delta);
 
     const lifeRatio = Math.max(burstBubbleLife[i], 0) / Math.max(burstBubbleLifeMax[i], 0.0001);
@@ -898,7 +1066,7 @@ function updateBurstParticles(delta) {
     const scaleNow = burstBubbleBaseScale[i] * (0.68 + 0.32 * fade);
 
     burstBubbleMesh.scale.setScalar(scaleNow);
-    burstBubbleMesh.material.opacity = 0.9 * fade * appear;
+    burstBubbleMesh.material.opacity = 0.82 * fade * appear;
 
     if (burstBubbleLife[i] <= 0) {
       burstBubbleMesh.visible = false;
@@ -906,11 +1074,36 @@ function updateBurstParticles(delta) {
     }
   }
 
+  for (let i = 0; i < mistCount; i += 1) {
+    if (mistLife[i] <= 0) continue;
+    aliveCount += 1;
+    const mistMesh = mistMeshes[i];
+    mistLife[i] -= delta;
+
+    mistVelocities[i].multiplyScalar(Math.pow(0.92, delta * 60));
+    mistVelocities[i].y += delta * 0.2;
+    mistMesh.position.addScaledVector(mistVelocities[i], delta);
+
+    const lifeRatio = Math.max(mistLife[i], 0) / Math.max(mistLifeMax[i], 0.0001);
+    const age = Math.max(mistLifeMax[i] - mistLife[i], 0);
+    const appear = Math.min(age / 0.1, 1);
+    const fade = Math.pow(lifeRatio, 1.25);
+    mistMesh.scale.setScalar(mistBaseScale[i] * (0.82 + 0.95 * (1 - fade)));
+    mistMesh.material.opacity = 0.66 * fade * appear;
+
+    if (mistLife[i] <= 0) {
+      mistMesh.visible = false;
+      mistMesh.material.opacity = 0;
+    }
+  }
+
   if (aliveCount === 0) burstPoints.visible = false;
 }
 
 function applyPreviewFrame(progress01) {
-  const tSec = THREE.MathUtils.clamp(progress01, 0, 1) * previewDuration;
+  const safeProgress = THREE.MathUtils.clamp(progress01, 0, 1);
+  const tSec = safeProgress * previewDuration;
+  setDissolvePhase(safeProgress);
 
   if (tSec <= preBurstDuration) {
     const p = preBurstDuration > 0 ? tSec / preBurstDuration : 1;
@@ -926,9 +1119,9 @@ function applyPreviewFrame(progress01) {
   const burstElapsed = tSec - preBurstDuration;
   const burstT = Math.min(burstElapsed / burstDuration, 1);
   bubble.scale.setScalar(preBurstScaleMax + 0.03 * burstT);
-  material.opacity = Math.max(0, 0.95 * (1 - burstT * 1.85));
+  material.opacity = 0.95;
   crackGlowUniform.value = Math.max(0, 0.1 * (1 - burstT));
-  bubble.visible = burstT < 0.5;
+  bubble.visible = safeProgress < 1;
 
   let alive = 0;
   for (let i = 0; i < burstBubbleCount; i += 1) {
@@ -951,7 +1144,7 @@ function applyPreviewFrame(progress01) {
     burstBubbleMesh.visible = true;
     const fade = Math.pow(lifeRemain, 0.62);
     const appear = Math.min(burstElapsed / burstBubbleFadeInDuration, 1);
-    const previewMove = burstElapsed * 0.62;
+    const previewMove = burstElapsed * 0.92;
 
     burstBubbleMesh.position.set(
       burstBubbleStartPositions[i].x + burstBubbleStartVelocities[i].x * previewMove,
@@ -959,7 +1152,37 @@ function applyPreviewFrame(progress01) {
       burstBubbleStartPositions[i].z + burstBubbleStartVelocities[i].z * previewMove
     );
     burstBubbleMesh.scale.setScalar(burstBubbleBaseScale[i] * (0.68 + 0.32 * fade));
-    burstBubbleMesh.material.opacity = 0.9 * fade * appear;
+    burstBubbleMesh.material.opacity = 0.82 * fade * appear;
+  }
+
+  for (let i = 0; i < mistCount; i += 1) {
+    const mistMesh = mistMeshes[i];
+    if (i >= activeMistCount) {
+      mistMesh.visible = false;
+      mistMesh.material.opacity = 0;
+      continue;
+    }
+
+    const lifeMax = mistLifeMax[i];
+    const lifeRemain = 1 - burstElapsed / Math.max(lifeMax, 0.0001);
+    if (lifeRemain <= 0) {
+      mistMesh.visible = false;
+      mistMesh.material.opacity = 0;
+      continue;
+    }
+
+    alive += 1;
+    mistMesh.visible = true;
+    const fade = Math.pow(lifeRemain, 1.22);
+    const appear = Math.min(burstElapsed / 0.1, 1);
+    const previewMove = burstElapsed * 0.96;
+    mistMesh.position.set(
+      mistStartPositions[i].x + mistStartVelocities[i].x * previewMove,
+      mistStartPositions[i].y + mistStartVelocities[i].y * previewMove + burstElapsed * 0.08,
+      mistStartPositions[i].z + mistStartVelocities[i].z * previewMove
+    );
+    mistMesh.scale.setScalar(mistBaseScale[i] * (0.82 + 0.95 * (1 - fade)));
+    mistMesh.material.opacity = 0.66 * fade * appear;
   }
 
   burstPoints.visible = alive > 0;

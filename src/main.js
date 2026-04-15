@@ -206,6 +206,7 @@ const defaultBubbleTuning = {
   toggleDye: true,
   toggleEdge: true,
   toggleIri: true,
+  burstFxPreset: "juicy",
 };
 
 const defaultHomeUiTuning = {
@@ -250,6 +251,8 @@ const defaultHudDebugTuning = {
 
 const loadedBubbleTuning = loadBubbleTuning();
 const bubbleTuning = loadedBubbleTuning.value;
+bubbleTuning.burstFxPreset = "juicy";
+bubbleTuning.burstRuntimeIsIOS = isIOSDevice;
 const hasBubbleTuningOverride = loadedBubbleTuning.fromStorage;
 let level1TutorialSeen = readLevel1TutorialSeen();
 let lockTutorialSeen = readLockTutorialSeen();
@@ -875,12 +878,14 @@ function loadBubbleTuning() {
       toggleDye: parsed.toggleDye !== false,
       toggleEdge: parsed.toggleEdge !== false,
       toggleIri: parsed.toggleIri !== false,
+      burstFxPreset: "juicy",
     };
     return { value: safe, fromStorage: true };
   } catch (_err) {
     return { value: { ...defaultBubbleTuning }, fromStorage: false };
   }
 }
+
 
 function readLevel1TutorialSeen() {
   if (typeof window === "undefined" || !window.localStorage) return false;
@@ -1805,6 +1810,7 @@ function setupLevelTestControls() {
     }
   }
 
+
   levelTestSelectEl.innerHTML = "";
   for (let i = 0; i < LEVELS.length; i += 1) {
     const level = LEVELS[i];
@@ -1888,6 +1894,7 @@ function setupLevelTestControls() {
     addCoins(50);
     gameUI.showCommentary("Test: +50 coins added", 1200);
   });
+
 }
 
 function canRunLevelTestFlow() {
